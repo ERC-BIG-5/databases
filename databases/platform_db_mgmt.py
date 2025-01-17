@@ -79,12 +79,13 @@ class PlatformDB:
 
     def get_pending_tasks(self) -> list[ClientTaskConfig]:
         """Get all tasks that need to be executed"""
+        # todo, bring back PAUSED based on config
         with self.db_mgmt.get_session() as session:
             tasks = session.query(DBCollectionTask).filter(
                 DBCollectionTask.status.in_([
                     CollectionStatus.INIT,
                     CollectionStatus.ACTIVE,
-                    CollectionStatus.PAUSED
+                    #CollectionStatus.PAUSED
                 ])
             ).all()
             return [ClientTaskConfig.model_validate(task) for task in tasks]

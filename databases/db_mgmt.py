@@ -1,5 +1,4 @@
 from contextlib import contextmanager
-from typing import Optional
 from typing_extensions import deprecated
 
 from sqlalchemy import create_engine, Engine, event

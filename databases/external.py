@@ -5,8 +5,9 @@ from pathlib import Path
 from pydantic import BaseModel, Field, computed_field, SecretStr
 from typing import Optional, Literal
 
+from tools.env_root import root
 
-BASE_DATA_PATH = Path(".")
+BASE_DATA_PATH = root() / "data"
 ENV_FILE_PATH = Path(".env")
 
 class PostType(Enum):
