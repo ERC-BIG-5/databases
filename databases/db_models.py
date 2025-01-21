@@ -99,18 +99,20 @@ class DBPost(DBModelBase[PostModel]):
     )
 
     id: Mapped[int] = mapped_column(primary_key=True)
+    #
     platform: Mapped[str] = mapped_column(String(20), nullable=False)
-    platform_id: Mapped[str] = mapped_column(String(50), nullable=False, unique=True)
-    post_url: Mapped[str] = mapped_column(String(60), nullable=True)
     date_created: Mapped[datetime] = mapped_column(DateTime, nullable=False)
-    post_type: Mapped[PostType] = mapped_column(Enum(PostType), nullable=False, default=PostType.REGULAR)
     content: Mapped[dict] = Column(JSON)
+    post_url: Mapped[str] = mapped_column(String(60), nullable=True)
+    post_type: Mapped[PostType] = mapped_column(Enum(PostType), nullable=False, default=PostType.REGULAR)
+    #
+    platform_id: Mapped[str] = mapped_column(String(50), nullable=False, unique=True)
     metadata_content: Mapped[dict] = Column(JSON)
     date_collected: Mapped[datetime] = mapped_column(DateTime, nullable=False, server_default=func.now())
 
     # todo: temp nullable
-    collection_task_id: Mapped[int] = mapped_column(ForeignKey("collection_task.id"), nullable=True)
     collection_task: Mapped["DBCollectionTask"] = relationship(backref="posts")
+    collection_task_id: Mapped[int] = mapped_column(ForeignKey("collection_task.id"), nullable=True)
 
     # collection_step: Mapped[int] = mapped_column(Integer, nullable=True)
 

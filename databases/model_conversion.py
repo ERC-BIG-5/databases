@@ -47,6 +47,7 @@ class PostMetadataModel(BaseModel):
     media_base_path: Optional[str] = None
     media_dl_failed: Optional[bool] = None
     post_exists: Optional[bool] = None
+    labels: Optional[list[str]] = None
 
 
 # Post Models
