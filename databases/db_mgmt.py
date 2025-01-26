@@ -1,14 +1,15 @@
 from contextlib import contextmanager
-from typing_extensions import deprecated
 
 from sqlalchemy import create_engine, Engine, event
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sessionmaker
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy_utils import database_exists, create_database, drop_database
 
-from databases.external import DBConfig, SQliteConnection
+from databases.db_models import Base, DBPost, DBCollectionTask
+from databases.db_utils import filter_posts_with_existing_post_ids
 from databases.external import BASE_DATA_PATH
-from databases.db_models import Base
+from databases.external import DBConfig, SQliteConnection
 from tools.project_logging import get_logger
 
 
@@ -81,6 +82,34 @@ class DatabaseManager:
             raise
         finally:
             session.close()
+
+
+    def safe_submit_posts(self, posts: list[DBPost]) -> list[DBPost]:
+        submit_posts = posts
+        while True:
+            try:
+                self.submit_posts(submit_posts)
+                return submit_posts
+            except IntegrityError as e:
+                submit_posts = filter_posts_with_existing_post_ids(posts, self)
+            except Exception as e:
+                self.logger.error(f"Error submitting posts: {str(e)}")
+                return []
+
+    def submit_posts(self, posts: list[DBPost]):
+        with self.get_session() as session:
+            session.add_all(posts)
+            session.commit()
+
+    def update_task(self, task_id: int, status: str, found_items: int, added_items: int, duration: int):
+        with self.get_session() as session:
+            task = session.query(DBCollectionTask).get(task_id)
+            task.status = status
+            task.found_items = found_items
+            task.added_items = added_items
+            task.collection_duration = int(duration * 1000)
+            session.commit()
+
 
 
 class AsyncDatabaseManager(DatabaseManager):

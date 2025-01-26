@@ -1,4 +1,5 @@
 from datetime import datetime
+from pathlib import Path
 from typing import Optional
 
 from pydantic import BaseModel, Field
@@ -49,6 +50,13 @@ class PostMetadataModel(BaseModel):
     post_exists: Optional[bool] = None
     labels: Optional[list[str]] = None
 
+    @property
+    def mediafile_paths(self) -> list[Path]:
+        media_ps = self.media_paths or []
+        if not media_ps:
+            return []
+        base = Path(self.media_base_path)
+        return [base / p for p in  media_ps]
 
 # Post Models
 class PostModel(BaseDBModel):
