@@ -80,7 +80,7 @@ class ClientConfig(BaseModel):
 
 class CollectConfig(BaseModel):
     model_config = {'extra': "allow"}
-    query: Optional[str] = None
+    query: Optional[str | dict] = None
     limit: Optional[int] = math.inf
     from_time: Optional[str] = None
     to_time: Optional[str] = None
@@ -89,6 +89,7 @@ class CollectConfig(BaseModel):
     location_mod: Optional[str] = None
 
 
+# todo, we still have something in the client
 class ClientTaskConfig(BaseModel):
     model_config = {'extra': "forbid", "from_attributes": True}
     task_name: str
@@ -101,6 +102,7 @@ class ClientTaskConfig(BaseModel):
     #
     test: bool = False
     overwrite: bool = False
+    test_data: Optional[list[dict]] = None
     #
     status: CollectionStatus = Field(CollectionStatus.INIT, init=False)
     time_added: Optional[datetime] = Field(None, init=False)

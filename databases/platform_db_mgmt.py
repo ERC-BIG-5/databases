@@ -91,6 +91,7 @@ class PlatformDB:
             return [ClientTaskConfig.model_validate(task) for task in tasks]
 
 
+    # todo, check when this is called... refactor, merge usage with util, and safe_insert...
     def insert_posts(self, collection: CollectionResult):
         with self.db_mgmt.get_session() as session:
             all_post_ids = [post.platform_id for post in collection.posts]
@@ -98,26 +99,26 @@ class PlatformDB:
                 select(DBPost.platform_id).filter(DBPost.platform_id.in_(all_post_ids))).scalars().all()
             posts = list(filter(lambda post: post.platform_id not in existing_ids, collection.posts))
 
-            # Store posts
-            with self.db_mgmt.get_session() as session:
-                try:
-                    session.add_all(posts)
-                    # todo ADD USERS
-                    # Update task status
+        # Store posts
+        with self.db_mgmt.get_session() as session:
+            try:
+                session.add_all(posts)
+                # todo ADD USERS
+                # Update task status
 
-                    task_record = session.query(DBCollectionTask).get(collection.task.id)
-                    if task_record.transient:
-                        for post in posts:
-                            post.collection_task_id = None
-                        session.delete(task_record)
-                        return posts
-                    task_record.status = CollectionStatus.DONE
-                    task_record.found_items = collection.collected_items
-                    task_record.added_items = len(posts)
-                    task_record.collection_duration = collection.duration
-                except IntegrityError as err:
-                    session.rollback()
-                    self.logger.error(f"Failed to insert posts into database: {err}")
+                task_record = session.query(DBCollectionTask).get(collection.task.id)
+                if task_record.transient:
+                    for post in posts:
+                        post.collection_task_id = None
+                    session.delete(task_record)
+                    return posts
+                task_record.status = CollectionStatus.DONE
+                task_record.found_items = collection.collected_items
+                task_record.added_items = len(posts)
+                task_record.collection_duration = collection.duration
+            except IntegrityError as err:
+                session.rollback()
+                self.logger.error(f"Failed to insert posts into database: {err}")
         self.logger.info(f"Added {len(posts)} posts to database")
 
 
