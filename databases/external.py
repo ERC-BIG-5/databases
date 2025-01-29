@@ -30,6 +30,7 @@ class CollectionStatus(Enum):
 
 class SQliteConnection(BaseModel):
     db_path: Path
+    reset_db: Optional[bool] = False
 
     @computed_field
     @property
@@ -56,7 +57,6 @@ class PostgresConnection(BaseModel):
 class DBConfig(BaseModel):
     model_config = {'extra': "forbid", "from_attributes": True}
     db_connection: DatabaseConnectionType
-    # name: Optional[str] = None
     is_default: bool = Field(False)
     reset_db: bool = False
 

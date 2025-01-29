@@ -1,10 +1,11 @@
+import math
 from datetime import datetime
 from pathlib import Path
 from typing import Optional
 
 from pydantic import BaseModel, Field
 
-from databases.external import CollectionStatus, PostType
+from databases.external import CollectionStatus, PostType, CollectConfig
 
 
 # Base Models
@@ -19,7 +20,6 @@ class BaseDBModel(BaseModel):
 
 # Platform Models
 class PlatformDatabaseModel(BaseDBModel):
-
     """Model for platform database configuration"""
     platform: str
     connection_str: str
@@ -40,6 +40,12 @@ class CommentModel(BaseDBModel):
     date_collected: datetime
     post_id: int
 
+
+class LanguageDetectionModel(BaseModel):
+    label: str
+    score: float
+
+
 class PostMetadataModel(BaseModel):
     class Config:
         validate_assignment = True
@@ -49,6 +55,8 @@ class PostMetadataModel(BaseModel):
     media_dl_failed: Optional[bool] = None
     post_exists: Optional[bool] = None
     labels: Optional[list[str]] = None
+    resolved_urls: Optional[dict] = None  # url_resolve_method
+    language: Optional[dict[str, LanguageDetectionModel]] = Field(None, description="language_detection_method")
 
     @property
     def mediafile_paths(self) -> list[Path]:
@@ -56,7 +64,8 @@ class PostMetadataModel(BaseModel):
         if not media_ps:
             return []
         base = Path(self.media_base_path)
-        return [base / p for p in  media_ps]
+        return [base / p for p in media_ps]
+
 
 # Post Models
 class PostModel(BaseDBModel):
@@ -72,17 +81,34 @@ class PostModel(BaseDBModel):
     collection_task_id: Optional[int]
     comments: list[CommentModel] = Field(default_factory=list)
 
+    @property
+    def metadata_content_model(self):
+        return PostMetadataModel.model_validate(self.metadata_content or {})
+
+    def get_platform_text(self) -> dict[str, str]:
+        """
+        since some platforms have multiple texts, we have content.<key> : new_text dicts
+        :param platform:
+        :param post:
+        :return:
+        """
+        if self.platform == "twitter":
+            return {"rawContent": self.content["rawContent"]}
+        elif self.platform == "youtube":
+            return {"title": self.content["snippet"]["title"],
+                    "description": self.content["snippet"]["description"]}
+        raise ValueError(f"No get_platform_text defined for platform {self.platform}")
+
 
 # Task Models
 class CollectionTaskModel(BaseDBModel):
     """Model for collection tasks"""
     task_name: str
     platform: str
-    collection_config: dict
+    collection_config: CollectConfig
     found_items: Optional[int]
     added_items: Optional[int]
     collection_duration: Optional[int]
     status: CollectionStatus
     time_added: datetime
     transient: bool
-

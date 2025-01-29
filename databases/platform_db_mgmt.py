@@ -22,7 +22,6 @@ class PlatformDB:
             db_path=(BASE_DATA_PATH / f"{platform}.sqlite").as_posix()
         ))
 
-
     def __init__(self, platform: str, db_config: DBConfig = None):
         # Only initialize if this is a new instance
         self.platform = platform
@@ -72,7 +71,6 @@ class PlatformDB:
             self.logger.info(f"Added new client collection task: {task_name}")
             return True
 
-
     def get_db_manager(self) -> DatabaseManager:
         """Get the underlying database manager"""
         return self.db_mgmt
@@ -85,42 +83,52 @@ class PlatformDB:
                 DBCollectionTask.status.in_([
                     CollectionStatus.INIT,
                     CollectionStatus.ACTIVE,
-                    #CollectionStatus.PAUSED
+                    # CollectionStatus.PAUSED
                 ])
             ).all()
-            return [ClientTaskConfig.model_validate(task) for task in tasks]
-
+            task_objs = []
+            for task in tasks:
+                task_obj = ClientTaskConfig.model_validate(task)
+                task_obj.test_data = task.collection_config.get('test_data')
+                task_objs.append(task_obj)
+            return task_objs
 
     # todo, check when this is called... refactor, merge usage with util, and safe_insert...
     def insert_posts(self, collection: CollectionResult):
-        with self.db_mgmt.get_session() as session:
-            all_post_ids = [post.platform_id for post in collection.posts]
-            existing_ids = session.execute(
-                select(DBPost.platform_id).filter(DBPost.platform_id.in_(all_post_ids))).scalars().all()
-            posts = list(filter(lambda post: post.platform_id not in existing_ids, collection.posts))
-
         # Store posts
         with self.db_mgmt.get_session() as session:
-            try:
-                session.add_all(posts)
+            # try:
+            # todo filter duplicates....
+            posts = collection.posts
+            unique_posts = []
+            posts_ids = set()
+            for post in posts:
+                if post.platform_id not in posts_ids:
+                    unique_posts.append(post)
+                    posts_ids.add(post.platform_id)
+
+            # all_post_ids = [post.platform_id for post in posts]
+            existing_ids = session.execute(
+                select(DBPost.platform_id).filter(DBPost.platform_id.in_(list(posts_ids)))).scalars().all()
+            posts = list(filter(lambda post: post.platform_id not in existing_ids, unique_posts))
+
+            session.add_all(posts)
                 # todo ADD USERS
                 # Update task status
 
-                task_record = session.query(DBCollectionTask).get(collection.task.id)
-                if task_record.transient:
-                    for post in posts:
-                        post.collection_task_id = None
-                    session.delete(task_record)
-                    return posts
-                task_record.status = CollectionStatus.DONE
-                task_record.found_items = collection.collected_items
-                task_record.added_items = len(posts)
-                task_record.collection_duration = collection.duration
-            except IntegrityError as err:
-                session.rollback()
-                self.logger.error(f"Failed to insert posts into database: {err}")
-        self.logger.info(f"Added {len(posts)} posts to database")
+        with self.db_mgmt.get_session() as session:
+            task_record = session.query(DBCollectionTask).get(collection.task.id)
+            if task_record.transient:
+                for post in posts:
+                    post.collection_task_id = None
+                session.delete(task_record)
+                return posts
+            task_record.status = CollectionStatus.DONE
+            task_record.found_items = collection.collected_items
+            task_record.added_items = len(posts)
+            task_record.collection_duration = collection.duration
 
+        self.logger.info(f"Added {len(posts)} posts to database")
 
     def update_task_status(self, task_id: int, status: CollectionStatus):
         """Update task status in database"""

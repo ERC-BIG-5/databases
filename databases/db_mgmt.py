@@ -1,5 +1,7 @@
 from contextlib import contextmanager
+from typing import Optional, Literal
 
+from pydantic import ValidationError
 from sqlalchemy import create_engine, Engine, event
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sessionmaker
@@ -8,7 +10,7 @@ from sqlalchemy_utils import database_exists, create_database, drop_database
 
 from databases.db_models import Base, DBPost, DBCollectionTask
 from databases.db_utils import filter_posts_with_existing_post_ids
-from databases.external import BASE_DATA_PATH
+from databases.external import BASE_DATA_PATH, PostgresConnection
 from databases.external import DBConfig, SQliteConnection
 from tools.project_logging import get_logger
 
@@ -22,9 +24,8 @@ class DatabaseManager:
         self.Session = sessionmaker(self.engine)
         self.init_database()
 
-        if config.db_type == "sqlite":
+        if self.config.db_type == "sqlite":
             event.listen(self.engine, 'connect', self._sqlite_on_connect)
-
 
     def _create_engine(self) -> Engine:
         self.logger.debug(f"creating db engine with {self.config.connection_str}")
@@ -57,9 +58,8 @@ class DatabaseManager:
 
     def init_database(self) -> None:
         """Initialize database, optionally resetting if configured."""
-        if self.config.db_type == "postgres":
-            self._create_postgres_db()
-        else:  # sqlite
+
+        if self.config.db_type == "sqlite":
             if self.config.reset_db and database_exists(self.engine.url):
                 if input(f"Delete existing database? (y/n): ").lower() == 'y':
                     drop_database(self.engine.url)
@@ -69,6 +69,11 @@ class DatabaseManager:
             if not database_exists(self.engine.url):
                 create_database(self.engine.url)
                 Base.metadata.create_all(self.engine)
+
+        else:
+            PostgresConnection.model_validate(self.config)
+            self._create_postgres_db()
+            return
 
     @contextmanager
     def get_session(self):
@@ -82,7 +87,6 @@ class DatabaseManager:
             raise
         finally:
             session.close()
-
 
     def safe_submit_posts(self, posts: list[DBPost]) -> list[DBPost]:
         submit_posts = posts
@@ -109,7 +113,6 @@ class DatabaseManager:
             task.added_items = added_items
             task.collection_duration = int(duration * 1000)
             session.commit()
-
 
 
 class AsyncDatabaseManager(DatabaseManager):
