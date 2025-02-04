@@ -3,7 +3,8 @@ from datetime import datetime
 from pathlib import Path
 from typing import Optional
 
-from pydantic import BaseModel, Field
+from deprecated.classic import deprecated
+from pydantic import BaseModel, Field, field_validator, ConfigDict
 
 from databases.external import CollectionStatus, PostType, CollectConfig
 
@@ -46,6 +47,46 @@ class LanguageDetectionModel(BaseModel):
     score: float
 
 
+## url_resolve_method
+class PostTextReplacementPart(BaseModel):
+    model_config = ConfigDict(validate_assignment=True)
+    resolved_text: Optional[str] = None
+    replaced_text: Optional[str] = None
+    resolved_urls: dict[str, Optional[str]] = Field(default_factory=dict)
+
+    def get_replace_with(self, orig_text: str, replace_text: str) -> str:
+        text = orig_text
+        for orig in self.resolved_urls.keys():
+            text = text.replace(orig, replace_text)
+        return text
+
+    def get_resolved_text(self, orig_text: str) -> str:
+        text = orig_text
+        for orig, repl in self.resolved_urls.items():
+            if not repl:
+                repl = orig
+            text = text.replace(orig, repl)
+        return text
+
+
+class PostTextReplacement(BaseModel):
+    parts: dict[str, PostTextReplacementPart] = Field(default_factory=dict)
+
+    def get_all_replaced(self, orig_text, replace_text) -> dict[str, str]:
+        return {
+            k: part.get_replace_with(orig_text, replace_text)
+            for k, part in self.parts.items()
+        }
+
+    def get_resolved_texts(self, orig_texts: dict[str,str]) -> dict[str, str]:
+        return {
+            k: part.get_resolved_text(orig_texts[k])
+            for k, part in self.parts.items()
+        }
+
+
+#####
+
 class PostMetadataModel(BaseModel):
     class Config:
         validate_assignment = True
@@ -53,9 +94,10 @@ class PostMetadataModel(BaseModel):
     media_paths: Optional[list[str]] = None
     media_base_path: Optional[str] = None
     media_dl_failed: Optional[bool] = None
+
     post_exists: Optional[bool] = None
     labels: Optional[list[str]] = None
-    resolved_urls: Optional[dict] = None  # url_resolve_method
+    resolved_urls: Optional[PostTextReplacement] = None  # url_resolve_method
     language: Optional[dict[str, LanguageDetectionModel]] = Field(None, description="language_detection_method")
 
     @property
@@ -81,9 +123,17 @@ class PostModel(BaseDBModel):
     collection_task_id: Optional[int]
     comments: list[CommentModel] = Field(default_factory=list)
 
+    # todo, we need those, for when the db col is null
+    @field_validator("metadata_content", mode="after")
+    def validate_metadata_content(cls, value):
+        if value is None:
+            return PostMetadataModel()
+        return value
+
     @property
-    def metadata_content_model(self):
-        return PostMetadataModel.model_validate(self.metadata_content or {})
+    @deprecated(reason="just use metadata_content")
+    def metadata_content_model(self) -> PostMetadataModel:
+        return self.metadata_content
 
     def get_platform_text(self) -> dict[str, str]:
         """

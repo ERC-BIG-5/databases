@@ -29,7 +29,17 @@ class DatabaseManager:
 
     def _create_engine(self) -> Engine:
         self.logger.debug(f"creating db engine with {self.config.connection_str}")
-        return create_engine(self.config.connection_str)
+        connect_args = {}
+        # if self.config.db_type == "sqlite":
+        #     # Add timeout and isolation level settings
+        #     connect_args.update({
+        #         'timeout': 30,  # seconds
+        #         'isolation_level': 'IMMEDIATE'  # this helps with write conflicts
+        #     })
+        return create_engine(
+            self.config.connection_str,
+            connect_args=connect_args
+        )
 
     @classmethod
     def get_main_db_config(cls) -> "DBConfig":
@@ -39,6 +49,8 @@ class DatabaseManager:
     @staticmethod
     def _sqlite_on_connect(dbapi_con, _):
         dbapi_con.execute('pragma foreign_keys=ON')
+        dbapi_con.execute('pragma journal_mode=WAL')  # Add this
+        dbapi_con.execute('pragma synchronous=NORMAL')  # This can help too
 
     def _create_postgres_db(self) -> None:
         if database_exists(self.config.connection_str):
@@ -123,8 +135,3 @@ class AsyncDatabaseManager(DatabaseManager):
 
     async def get_async_session(self) -> AsyncSession:
         return self.async_session()
-
-# def get_orm_classes() -> dict[str,Base]:
-#     return {
-#         c.__tablename__: c for c in [DBCollectionTask, DBPost, DBComment]
-#     }
