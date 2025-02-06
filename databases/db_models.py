@@ -101,12 +101,12 @@ class DBPost(DBModelBase[PostModel]):
     id: Mapped[int] = mapped_column(primary_key=True)
     #
     platform: Mapped[str] = mapped_column(String(20), nullable=False)
+    platform_id: Mapped[str] = mapped_column(String(50), nullable=False, unique=True)
     date_created: Mapped[datetime] = mapped_column(DateTime, nullable=False)
     content: Mapped[dict] = Column(JSON)
     post_url: Mapped[str] = mapped_column(String(60), nullable=True)
     post_type: Mapped[PostType] = mapped_column(Enum(PostType), nullable=False, default=PostType.REGULAR)
     #
-    platform_id: Mapped[str] = mapped_column(String(50), nullable=False, unique=True)
     metadata_content: Mapped[dict] = Column(JSON, default=dict)
     date_collected: Mapped[datetime] = mapped_column(DateTime, nullable=False, server_default=func.now())
 

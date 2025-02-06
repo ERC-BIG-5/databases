@@ -49,8 +49,8 @@ class DatabaseManager:
     @staticmethod
     def _sqlite_on_connect(dbapi_con, _):
         dbapi_con.execute('pragma foreign_keys=ON')
-        dbapi_con.execute('pragma journal_mode=WAL')  # Add this
-        dbapi_con.execute('pragma synchronous=NORMAL')  # This can help too
+        dbapi_con.execute('pragma journal_mode=WAL')
+        dbapi_con.execute('pragma synchronous=NORMAL')
 
     def _create_postgres_db(self) -> None:
         if database_exists(self.config.connection_str):

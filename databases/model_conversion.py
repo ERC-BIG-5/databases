@@ -78,7 +78,7 @@ class PostTextReplacement(BaseModel):
             for k, part in self.parts.items()
         }
 
-    def get_resolved_texts(self, orig_texts: dict[str,str]) -> dict[str, str]:
+    def get_resolved_texts(self, orig_texts: dict[str, str]) -> dict[str, str]:
         return {
             k: part.get_resolved_text(orig_texts[k])
             for k, part in self.parts.items()
@@ -99,6 +99,9 @@ class PostMetadataModel(BaseModel):
     labels: Optional[list[str]] = None
     resolved_urls: Optional[PostTextReplacement] = None  # url_resolve_method
     language: Optional[dict[str, LanguageDetectionModel]] = Field(None, description="language_detection_method")
+
+    orig_db_conf: Optional[tuple[str, Optional[int]]] = Field(None,
+                                                              description="original d(atabase_name, collection_task_id) for merges")
 
     @property
     def mediafile_paths(self) -> list[Path]:
