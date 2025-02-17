@@ -1,4 +1,5 @@
 from contextlib import contextmanager
+from pathlib import Path
 from typing import Optional, Literal
 
 from pydantic import ValidationError
@@ -68,17 +69,24 @@ class DatabaseManager:
     def db_exists(self):
         return database_exists(self.config.connection_string)
 
+    def skip_confirmation_in_test(self, engine_url) -> True:
+        return self.config.test_mode and Path(engine_url.database).stem.endswith("test")
+
     def init_database(self) -> None:
         """Initialize database, optionally resetting if configured."""
 
         if self.config.db_type == "sqlite":
-            if self.config.reset_db and database_exists(self.engine.url):
-                if input(f"Delete existing database? (y/n): ").lower() == 'y':
+            if self.config.reset_db and database_exists(self.engine.url) :
+                if self.skip_confirmation_in_test(self.engine.url):
                     drop_database(self.engine.url)
                 else:
-                    return
+                    if input(f"Delete existing database? (y/n): ").lower() == 'y':
+                        drop_database(self.engine.url)
+                    else:
+                        return
 
             if not database_exists(self.engine.url):
+                Path(self.config.db_connection.db_path).parent.mkdir(parents=True, exist_ok=True)
                 create_database(self.engine.url)
                 Base.metadata.create_all(self.engine)
 

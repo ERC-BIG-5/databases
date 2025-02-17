@@ -1,10 +1,10 @@
 import math
 from datetime import datetime
 from pathlib import Path
-from typing import Optional
+from typing import Optional, Annotated
 
 from deprecated.classic import deprecated
-from pydantic import BaseModel, Field, field_validator, ConfigDict
+from pydantic import BaseModel, Field, field_validator, ConfigDict, PlainSerializer
 
 from databases.external import CollectionStatus, PostType, CollectConfig
 
@@ -17,6 +17,11 @@ class BaseDBModel(BaseModel):
     class Config:
         from_attributes = True
         validate_assignment = True
+
+
+SerializableDatetime = Annotated[
+    datetime, PlainSerializer(lambda dt: dt.isoformat(), return_type=str, when_used='always')
+]
 
 
 # Platform Models
@@ -45,6 +50,7 @@ class CommentModel(BaseDBModel):
 class LanguageDetectionModel(BaseModel):
     label: str
     score: float
+    error: Optional[str] = None
 
 
 ## url_resolve_method
@@ -118,11 +124,11 @@ class PostModel(BaseDBModel):
     platform: str
     platform_id: Optional[str]
     post_url: str
-    date_created: datetime
-    post_type: PostType
+    date_created: SerializableDatetime
+    post_type: Annotated[PostType, PlainSerializer(lambda t: t.value, return_type=int, when_used='always')]
     content: dict
     metadata_content: Optional[PostMetadataModel] = Field(default_factory=PostMetadataModel)
-    date_collected: datetime
+    date_collected: SerializableDatetime
     collection_task_id: Optional[int]
     comments: list[CommentModel] = Field(default_factory=list)
 
@@ -150,7 +156,23 @@ class PostModel(BaseDBModel):
         elif self.platform == "youtube":
             return {"title": self.content["snippet"]["title"],
                     "description": self.content["snippet"]["description"]}
+        elif self.platform == "tiktok":
+            return {"description": self.content["video_description"]}
+
         raise ValueError(f"No get_platform_text defined for platform {self.platform}")
+
+    def get_media_urls(self) -> dict[str, list[str]]:
+        if self.platform == "twitter":
+            return {
+                "photos": [p["url"] for p in self.content["media"].get("photos")],
+                # "videos" :  [p["url"] for p in self.content["media"].get("videos")],
+                # animated = item.content["media"].get("animated")
+            }
+        elif self.platform == "tiktok":
+            base_url = "https://www.tiktok.com/@{username}/video/{video_id}"
+        else:
+            raise NotImplemented(
+                f"please implement a function that gets the media paths of data of platform {self.platform}")
 
 
 # Task Models

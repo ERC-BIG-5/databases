@@ -2,10 +2,11 @@ from dataclasses import dataclass
 from datetime import datetime
 from typing import TypedDict, TypeVar, Generic
 
+from pydantic import BaseModel
 from sqlalchemy import Column, String, Integer, Boolean, DateTime, ForeignKey, JSON, Enum, func, UniqueConstraint
 from sqlalchemy import Enum as SQLAlchemyEnum
 from sqlalchemy.orm import relationship, Mapped, mapped_column, declarative_base
-from pydantic import BaseModel
+
 from databases.external import CollectionStatus, ClientTaskConfig
 from databases.external import PostType
 from databases.model_conversion import PlatformDatabaseModel, CollectionTaskModel, PostModel
@@ -154,15 +155,18 @@ def db_m2dict(item: Base) -> dict:
     }
 
 
+# todo turn to Pydantic model
 @dataclass
 class CollectionResult:
     posts: list[DBPost]
+    added_posts: list[PostModel]
     users: list[DBUser]
     task: ClientTaskConfig
     duration: int
     collected_items: int  # millis
 
-def get_orm_classes() -> dict[str,Base]:
+
+def get_orm_classes() -> dict[str, Base]:
     return {
         c.__tablename__: c for c in [DBCollectionTask, DBPost, DBComment]
     }

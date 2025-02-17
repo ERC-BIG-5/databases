@@ -113,9 +113,11 @@ class PlatformDB:
             posts = list(filter(lambda post: post.platform_id not in existing_ids, unique_posts))
 
             session.add_all(posts)
-                # todo ADD USERS
-                # Update task status
+            session.commit()
+            collection.added_posts = [p.model() for p in posts]
+            # todo ADD USERS
 
+        # update task status
         with self.db_mgmt.get_session() as session:
             task_record = session.query(DBCollectionTask).get(collection.task.id)
             if task_record.transient:

@@ -32,7 +32,6 @@ class SQliteConnection(BaseModel):
     db_path: Path
     reset_db: Optional[bool] = False
 
-    @computed_field
     @property
     def connection_str(self) -> str:
         if self.db_path.is_absolute():
@@ -57,8 +56,9 @@ class PostgresConnection(BaseModel):
 class DBConfig(BaseModel):
     model_config = {'extra': "forbid", "from_attributes": True}
     db_connection: DatabaseConnectionType
-    is_default: bool = Field(False)
+    # is_default: bool = Field(False)
     reset_db: bool = False
+    test_mode: bool = False
 
     @computed_field
     @property
@@ -75,13 +75,15 @@ class ClientConfig(BaseModel):
     model_config = {'extra': "forbid", "from_attributes": True}
     auth_config: Optional[dict[str, str]] = None
     request_delay: Optional[int] = 0
+    delay_randomize: Optional[int] = 0
+    progress: bool = True
     db_config: Optional[DBConfig] = None
 
 
 class CollectConfig(BaseModel):
     model_config = {'extra': "allow"}
-    query: Optional[str | dict] = None
-    limit: Optional[int] = math.inf
+    query: Optional[str | dict] = ""
+    limit: Optional[int] =  10000 #math.inf
     from_time: Optional[str] = None
     to_time: Optional[str] = None
     language: Optional[str] = None
@@ -92,13 +94,14 @@ class CollectConfig(BaseModel):
 # todo, we still have something in the client
 class ClientTaskConfig(BaseModel):
     model_config = {'extra': "forbid", "from_attributes": True}
-    task_name: str
     id: Optional[int] = Field(None, init=False)
+    task_name: str
     platform: str
     database: Optional[str] = None  # default the same as platform
     collection_config: CollectConfig
     client_config: Optional[ClientConfig] = Field(default_factory=ClientConfig)
     transient: bool = False  # will be deleted after done
+    source_file: Optional[Path] = None
     #
     test: bool = False
     overwrite: bool = False
