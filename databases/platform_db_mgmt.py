@@ -1,4 +1,3 @@
-from sqlite3 import IntegrityError
 
 import sqlalchemy
 from sqlalchemy import exists
@@ -138,3 +137,13 @@ class PlatformDB:
             task = session.query(DBCollectionTask).get(task_id)
             task.status = status
             session.commit()
+
+    def pause_running_tasks(self):
+        with self.db_mgmt.get_session as session:
+            tasks = session.query(DBCollectionTask).filter(
+                DBCollectionTask.status == CollectionStatus.RUNNING,
+            ).scalars()
+
+            for t in tasks:
+                t.status = CollectionStatus.PAUSED
+            self.logger.debug(f"Set tasks to pause: {len(tasks)} tasks")
