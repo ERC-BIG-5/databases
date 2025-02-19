@@ -139,11 +139,13 @@ class PlatformDB:
             session.commit()
 
     def pause_running_tasks(self):
-        with self.db_mgmt.get_session as session:
-            tasks = session.query(DBCollectionTask).filter(
+        with self.db_mgmt.get_session() as session:
+            tasks = session.execute(select(DBCollectionTask).filter(
                 DBCollectionTask.status == CollectionStatus.RUNNING,
-            ).scalars()
+            )).scalars()
 
+            c = 0
             for t in tasks:
                 t.status = CollectionStatus.PAUSED
-            self.logger.debug(f"Set tasks to pause: {len(tasks)} tasks")
+                c += 1
+            self.logger.debug(f"Set tasks to pause: {c} tasks")
