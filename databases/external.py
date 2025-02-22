@@ -21,7 +21,6 @@ type DatabaseConnectionType = SQliteConnection | PostgresConnection
 
 class CollectionStatus(Enum):
     INIT = auto()
-    ACTIVE = auto()  # started, but not currently running
     RUNNING = auto()  # started and currently running
     PAUSED = auto()  # if it's set to pause
     ABORTED = auto()  # started and aborted
@@ -59,6 +58,8 @@ class DBConfig(BaseModel):
     # is_default: bool = Field(False)
     reset_db: bool = False
     test_mode: bool = False
+    require_existing_parent_dir: Optional[bool] = Field(False,
+                                              description="SQLITE: When the db is created, it requires an existing parent directory.")
 
     @computed_field
     @property
@@ -83,7 +84,7 @@ class ClientConfig(BaseModel):
 class CollectConfig(BaseModel):
     model_config = {'extra': "allow"}
     query: Optional[str | dict] = ""
-    limit: Optional[int] =  10000 #math.inf
+    limit: Optional[int] = 10000  # math.inf
     from_time: Optional[str] = None
     to_time: Optional[str] = None
     language: Optional[str] = None

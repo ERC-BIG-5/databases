@@ -19,7 +19,7 @@ class BaseDBModel(BaseModel):
 
 
 SerializableDatetime = Annotated[
-    datetime, PlainSerializer(lambda dt: dt.isoformat(), return_type=str, when_used='always')
+    datetime, PlainSerializer(lambda dt: dt.isoformat(), return_type=str, when_used='json')
 ]
 
 
@@ -124,7 +124,7 @@ class PostModel(BaseDBModel):
     platform_id: Optional[str]
     post_url: str
     date_created: SerializableDatetime
-    post_type: Annotated[PostType, PlainSerializer(lambda t: t.value, return_type=int, when_used='always')]
+    post_type: Annotated[PostType, PlainSerializer(lambda t: t.value, return_type=int, when_used='json')]
     content: dict
     metadata_content: Optional[PostMetadataModel] = Field(default_factory=PostMetadataModel)
     date_collected: SerializableDatetime

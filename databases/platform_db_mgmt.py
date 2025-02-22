@@ -1,4 +1,3 @@
-
 import sqlalchemy
 from sqlalchemy import exists
 from sqlalchemy import select
@@ -76,14 +75,16 @@ class PlatformDB:
 
     def get_pending_tasks(self) -> list[ClientTaskConfig]:
         """Get all tasks that need to be executed"""
-        # todo, bring back PAUSED based on config
+        return self.get_tasks_of_states([
+            CollectionStatus.INIT,
+            # todo, bring back PAUSED based on config
+            # CollectionStatus.PAUSED
+        ])
+
+    def get_tasks_of_states(self, states: list[CollectionStatus]) -> list[ClientTaskConfig]:
         with self.db_mgmt.get_session() as session:
             tasks = session.query(DBCollectionTask).filter(
-                DBCollectionTask.status.in_([
-                    CollectionStatus.INIT,
-                    CollectionStatus.ACTIVE,
-                    # CollectionStatus.PAUSED
-                ])
+                DBCollectionTask.status.in_(states)
             ).all()
             task_objs = []
             for task in tasks:
@@ -91,6 +92,21 @@ class PlatformDB:
                 task_obj.test_data = task.collection_config.get('test_data')
                 task_objs.append(task_obj)
             return task_objs
+
+    def count_states(self):
+        from sqlalchemy import func, case
+
+        with self.db_mgmt.get_session() as session:
+            query = (
+                session.query(
+                    DBCollectionTask.status,
+                    func.count(DBCollectionTask.status).label('count')
+                )
+                .group_by(DBCollectionTask.status)
+            )
+
+            results = query.all()
+            return {str(enum_value): count for enum_value, count in results}
 
     # todo, check when this is called... refactor, merge usage with util, and safe_insert...
     def insert_posts(self, collection: CollectionResult):

@@ -76,7 +76,7 @@ class DatabaseManager:
         """Initialize database, optionally resetting if configured."""
 
         if self.config.db_type == "sqlite":
-            if self.config.reset_db and database_exists(self.engine.url) :
+            if self.config.reset_db and database_exists(self.engine.url):
                 if self.skip_confirmation_in_test(self.engine.url):
                     drop_database(self.engine.url)
                 else:
@@ -86,7 +86,11 @@ class DatabaseManager:
                         return
 
             if not database_exists(self.engine.url):
-                Path(self.config.db_connection.db_path).parent.mkdir(parents=True, exist_ok=True)
+                db_path = self.config.db_connection.db_path
+                if self.config.require_existing_parent_dir:
+                    if not db_path.parent.exists():
+                        raise ValueError(f"Parent directory {db_path.parent} does not exist")
+                db_path.parent.mkdir(parents=True, exist_ok=True)
                 create_database(self.engine.url)
                 Base.metadata.create_all(self.engine)
 
