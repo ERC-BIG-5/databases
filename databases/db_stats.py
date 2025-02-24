@@ -159,10 +159,10 @@ def get_posts_by_day(db: DatabaseManager) -> Generator[tuple[DBPost, date, int],
             yield post, date_, count
 
 
-def process_db(db_path: Path,
+def generate_db_stats(db_path: Path,
                daily_details: bool = False) -> DBStats:
     make_stats_copy(db_path)
-    stats = DBStats(db_path=db_path)
+    _stats = DBStats(db_path=db_path)
 
     db_func = get_posts
     if daily_details:
@@ -172,19 +172,19 @@ def process_db(db_path: Path,
         db = DatabaseManager(DBConfig(db_connection=SQliteConnection(db_path=stats_copy_path)))
         for res in db_func(db):
             if daily_details:
-                stats.add_day_counts(*res)
+                _stats.add_day_counts(*res)
             else:
                 assert isinstance(res, PostModel)
-                stats.add_post(res)
+                _stats.add_post(res)
     except Exception as e:
         if RAISE_DB_ERROR:
             raise e
         print(e)
-        stats.error = str(e)
+        _stats.error = str(e)
     finally:
         delete_stats_copy()
     # print(stats)
-    return stats
+    return _stats
 
 
 def count_posts(*,
@@ -201,7 +201,7 @@ def count_posts(*,
 
 
 if __name__ == "__main__":
-    stats = process_db(BASE_DATA_PATH / "youtube2024.sqlite", True)
+    stats = generate_db_stats(BASE_DATA_PATH / "youtube2024.sqlite", True)
     print(json.dumps(stats.model_dump(), indent=2))
     plt = stats.plot_daily_items("youtube")
     plt.show()
