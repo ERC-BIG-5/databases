@@ -1,3 +1,6 @@
+from timeit import timeit
+
+import time
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
@@ -252,18 +255,31 @@ class DBMerger:
 
 
 if __name__ == "__main__":
-    merger = DBMerger(Path("/home/rsoleyma/projects/platforms-clients/data/col_db/youtube/remote/merge.sqlite"),
-                      "youtube")
+    # merger = DBMerger(Path("/home/rsoleyma/projects/platforms-clients/data/col_db/youtube/remote/merge.sqlite"),
+    #                   "youtube")
     # conflicts = merger.find_conflicting_tasks(
     #     [Path("/home/rsoleyma/projects/platforms-clients/data/col_db/tiktok/tiktok_vm.sqlite"),
     #      Path("/home/rsoleyma/projects/platforms-clients/data/col_db/tiktok/tiktok_local.sqlite")])
     # print(conflicts)
 
-    base = Path("/home/rsoleyma/projects/platforms-clients/data/col_db/youtube/remote")
-    merger.merge([
-        base / "youtube_2022.sqlite",
-        base / "youtube_2022sqlite"
-    ])
+    # base = Path("/home/rsoleyma/projects/platforms-clients/data/col_db/youtube/remote")
+    # merger.merge([
+    #     base / "youtube_2022.sqlite",
+    #     base / "youtube_2022sqlite"
+    # ])
+
+    # merge done, 23.02
+    # base = Path("/home/rsoleyma/projects/platforms-clients/data/col_db/tiktok/")
+    # merger = DBMerger(base /"merge.sqlite", "tiktok")
+    # merger.merge([
+    #     base / "tiktok_local.sqlite",
+    #     base / "rm/tiktok.sqlite"
+    # ])
+    # Standard COUNT(*) - counts all rows
+
+    pass
+
+
 
     # conflicts = merger.find_conflicting_posts(
     #     [Path("/home/rsoleyma/projects/platforms-clients/data/col_db/tiktok/tiktok_vm.sqlite"),

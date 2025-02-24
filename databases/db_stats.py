@@ -2,33 +2,32 @@ import json
 import os
 import shutil
 from collections import Counter
-from pathlib import Path
-from typing import Optional, Generator, Annotated
-
-import matplotlib.pyplot as plt
-import pandas as pd
-import seaborn as sns
-from pydantic import field_validator
-from pydantic.functional_serializers import PlainSerializer
-from sqlalchemy import select, func
-
-from databases.db_mgmt import DatabaseManager
-from databases.db_models import DBPost, DBCollectionTask
-from databases.db_utils import filter_posts_with_existing_post_ids
-from databases.external import DBConfig, SQliteConnection
-from databases.model_conversion import PostModel
-
 from dataclasses import field
 from datetime import date
 from datetime import datetime
-import matplotlib.dates as mdates
-from pydantic import BaseModel
+from pathlib import Path
+from typing import Optional, Generator, Annotated
 
+import matplotlib.dates as mdates
+import matplotlib.pyplot as plt
+import pandas as pd
+import seaborn as sns
+from pydantic import BaseModel
+from pydantic import field_validator
+from pydantic.functional_serializers import PlainSerializer
+from sqlalchemy import select
+
+from databases.db_mgmt import DatabaseManager
+from databases.db_models import DBPost
+from databases.external import DBConfig, SQliteConnection
+from databases.model_conversion import PostModel
 from tools.env_root import root
 
 RAISE_DB_ERROR = True
-BASE_DATA_PATH = root("/home/rsoleyma/projects/platforms-clients") / "data"
+BASE_DATA_PATH = root() / "data"
 stats_copy_path = BASE_DATA_PATH / "stats_copy.sqlite"
+
+from sqlalchemy import func
 
 SerializableDate = Annotated[
     date, PlainSerializer(lambda d: f'{d:%Y-%m-%d}', return_type=str, when_used="always")
@@ -186,6 +185,19 @@ def process_db(db_path: Path,
         delete_stats_copy()
     # print(stats)
     return stats
+
+
+def count_posts(*,
+                db_path: Optional[Path] = None,
+                db_manager: Optional[DatabaseManager] = None) -> int:
+    if not db_manager:
+        if not db_path:
+            raise TypeError('db_path or db_manager must be provided')
+        db_manager = DatabaseManager(DBConfig(db_connection=SQliteConnection(db_path=db_path)))
+
+    with db_manager.get_session() as session:
+        count = session.execute(select(func.count()).select_from(DBPost)).scalar()  # 4.3338918359986565
+        return count
 
 
 if __name__ == "__main__":

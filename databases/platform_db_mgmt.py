@@ -106,7 +106,7 @@ class PlatformDB:
             )
 
             results = query.all()
-            return {str(enum_value): count for enum_value, count in results}
+            return {enum_type.name.lower(): count for enum_type, count in results}
 
     # todo, check when this is called... refactor, merge usage with util, and safe_insert...
     def insert_posts(self, collection: CollectionResult):
