@@ -1,9 +1,10 @@
+import os
 from pathlib import Path
 from typing import TYPE_CHECKING
 
 from sqlalchemy import select
 
-from databases.external import CollectionStatus
+from databases.external import CollectionStatus, SQliteConnection
 from databases.model_conversion import PostModel
 
 if TYPE_CHECKING:
@@ -42,3 +43,9 @@ def check_platforms(db_mgmt: "DatabaseManager", from_tasks: bool = True) -> set[
             model = DBPost
         return set(p[0] for p in session.query(model.platform))
 
+def file_size(db_mgmt: "DatabaseManager") -> int:
+    if isinstance(db_mgmt.config.db_connection, SQliteConnection):
+        file_path = db_mgmt.config.db_connection.db_path
+        return os.stat(file_path).st_size
+    else:
+        return 0

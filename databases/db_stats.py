@@ -17,6 +17,7 @@ from pydantic import field_validator
 from pydantic.functional_serializers import PlainSerializer
 from sqlalchemy import select
 
+from databases import db_utils
 from databases.db_mgmt import DatabaseManager
 from databases.db_models import DBPost
 from databases.external import DBConfig, SQliteConnection
@@ -70,6 +71,7 @@ class DBStats(BaseModel):
     db_path: SerializablePath
     platforms: dict[str, PlatformStats] = field(default_factory=dict)
     error: Optional[str] = None
+    file_size: int
 
     @field_validator("db_path")
     def validate_db_path(cls, v):
@@ -160,16 +162,16 @@ def get_posts_by_day(db: DatabaseManager) -> Generator[tuple[DBPost, date, int],
 
 
 def generate_db_stats(db_path: Path,
-               daily_details: bool = False) -> DBStats:
+                      daily_details: bool = False) -> DBStats:
     make_stats_copy(db_path)
-    _stats = DBStats(db_path=db_path)
 
     db_func = get_posts
     if daily_details:
         db_func = get_posts_by_day
 
     try:
-        db = DatabaseManager(DBConfig(db_connection=SQliteConnection(db_path=stats_copy_path)))
+        db = DatabaseManager.sqlite_db_from_path(stats_copy_path)
+        _stats = DBStats(db_path=db_path, file_size=db_utils.file_size(db))
         for res in db_func(db):
             if daily_details:
                 _stats.add_day_counts(*res)

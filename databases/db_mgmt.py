@@ -1,9 +1,8 @@
 from contextlib import contextmanager
 from pathlib import Path
-from typing import Optional, Literal
 
-from pydantic import ValidationError
 from sqlalchemy import create_engine, Engine, event
+from sqlalchemy import func
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sessionmaker
 from sqlalchemy.orm import sessionmaker
@@ -14,7 +13,6 @@ from databases.db_utils import filter_posts_with_existing_post_ids
 from databases.external import BASE_DATA_PATH, PostgresConnection
 from databases.external import DBConfig, SQliteConnection
 from tools.project_logging import get_logger
-from sqlalchemy import func
 
 
 class DatabaseManager:
@@ -165,6 +163,7 @@ class DatabaseManager:
 
             results = query.all()
             return {enum_type.name.lower(): count for enum_type, count in results}
+
 
 
 class AsyncDatabaseManager(DatabaseManager):
