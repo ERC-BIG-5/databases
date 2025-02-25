@@ -114,7 +114,7 @@ class DBMerger:
         to_skip = 0
         added_tasks: set[str] = set()
 
-        def filter_existing_posts(session : Session, posts: list[PostModel]) -> list[PostModel]:
+        def filter_existing_posts(session: Session, posts: list[PostModel]) -> list[PostModel]:
             # Check which posts exist in a single query
             platform_ids = [post.platform_id for post in posts]
             existing_post_ids = {
@@ -216,6 +216,7 @@ class DBMerger:
 
         db_names = []
         db_name_refs: dict[Path, str] = {}
+        db_sizes: dict[str, int] = {}
         for db_path in dbs:
             db_names.append(db_path.name)
             db_name_refs[db_path] = db_path.name
@@ -241,17 +242,20 @@ class DBMerger:
                 platform_id = res.platform_id
                 all_posts.setdefault(platform_id, []).append(db_ref)
                 c += 1
-            print(c)
+            db_sizes[db_name_refs[db_path]] = c
+            # print(c)
         conflicting_posts: dict[str, list[str]] = {}
         db_name_refs_rev = {v: k for k, v in db_name_refs.items()}
 
         for k, v in all_posts.items():
             if len(v) > 1:
                 # print(k, v)
-                conflicting_posts[k] = [db_name_refs_rev[db].as_posix() for db in v]
+                conflicting_posts[k] = v
 
-        print(f"total: {len(all_posts)} conflicts: {len(conflicting_posts)}")
-        return conflicting_posts
+        # print(f"total: {len(all_posts)} conflicts: {len(conflicting_posts)}")
+        return {"sizes": db_sizes,
+                "conflicting_posts": len(conflicting_posts),
+                "conflicts": conflicting_posts}
 
 
 if __name__ == "__main__":
@@ -278,8 +282,9 @@ if __name__ == "__main__":
     # Standard COUNT(*) - counts all rows
 
     pass
-
-
+    print(DBMerger.find_conflicting_posts(
+        [Path("/home/rsoleyma/projects/platforms-clients/data/col_db/youtube/remote/youtube_2022.sqlite"),
+         Path("/home/rsoleyma/projects/platforms-clients/data/youtube.sqlite")]))
 
     # conflicts = merger.find_conflicting_posts(
     #     [Path("/home/rsoleyma/projects/platforms-clients/data/col_db/tiktok/tiktok_vm.sqlite"),

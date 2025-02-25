@@ -2,11 +2,12 @@ from typing import TYPE_CHECKING
 
 from sqlalchemy import select
 
+from databases.external import CollectionStatus
 from databases.model_conversion import PostModel
 
 if TYPE_CHECKING:
     from databases.db_mgmt import DatabaseManager
-from databases.db_models import DBPost
+from databases.db_models import DBPost, DBCollectionTask
 
 
 def filter_posts_with_existing_post_ids(posts: list[DBPost | PostModel], db_mgmt: "DatabaseManager") -> list[
@@ -17,3 +18,11 @@ def filter_posts_with_existing_post_ids(posts: list[DBPost | PostModel], db_mgmt
         found_post_ids = session.execute(query).scalars().all()
         db_mgmt.logger.debug(f"filter out posts with ids: {found_post_ids}")
     return list(filter(lambda p: p.platform_id not in found_post_ids, posts))
+
+
+def reset_task_states(db_mgmt: "DatabaseManager", tasks_ids: list[int]) -> None:
+    with db_mgmt.get_session() as session:
+        session.query(DBCollectionTask).filter(DBCollectionTask.id.in_(tasks_ids)).update(
+            {DBCollectionTask.status: CollectionStatus.INIT},
+            synchronize_session="fetch"
+        )

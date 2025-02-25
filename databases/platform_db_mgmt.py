@@ -81,11 +81,14 @@ class PlatformDB:
             # CollectionStatus.PAUSED
         ])
 
-    def get_tasks_of_states(self, states: list[CollectionStatus]) -> list[ClientTaskConfig]:
+    def get_tasks_of_states(self,
+                            states: list[CollectionStatus],
+                            negate: bool = False) -> list[ClientTaskConfig]:
         with self.db_mgmt.get_session() as session:
-            tasks = session.query(DBCollectionTask).filter(
-                DBCollectionTask.status.in_(states)
-            ).all()
+            state_filter = DBCollectionTask.status.in_(states)
+            if negate:
+                state_filter = ~state_filter
+            tasks = session.query(DBCollectionTask).filter(state_filter).all()
             task_objs = []
             for task in tasks:
                 task_obj = ClientTaskConfig.model_validate(task)
