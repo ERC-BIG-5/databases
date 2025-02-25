@@ -1,3 +1,4 @@
+from pathlib import Path
 from typing import TYPE_CHECKING
 
 from sqlalchemy import select
@@ -26,3 +27,18 @@ def reset_task_states(db_mgmt: "DatabaseManager", tasks_ids: list[int]) -> None:
             {DBCollectionTask.status: CollectionStatus.INIT},
             synchronize_session="fetch"
         )
+
+def check_platforms(db_mgmt: "DatabaseManager", from_tasks: bool = True) -> set[str]:
+    """
+    return the set of platforms of a database
+    :param db_mgmt: database-manager
+    :param from_tasks: use task table (otherwise post table)
+    :return: set of platforms (string)
+    """
+    with db_mgmt.get_session() as session:
+        if from_tasks:
+            model = DBCollectionTask
+        else:
+            model = DBPost
+        return set(p[0] for p in session.query(model.platform))
+

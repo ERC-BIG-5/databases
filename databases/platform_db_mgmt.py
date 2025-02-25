@@ -96,20 +96,6 @@ class PlatformDB:
                 task_objs.append(task_obj)
             return task_objs
 
-    def count_states(self):
-        from sqlalchemy import func, case
-
-        with self.db_mgmt.get_session() as session:
-            query = (
-                session.query(
-                    DBCollectionTask.status,
-                    func.count(DBCollectionTask.status).label('count')
-                )
-                .group_by(DBCollectionTask.status)
-            )
-
-            results = query.all()
-            return {enum_type.name.lower(): count for enum_type, count in results}
 
     # todo, check when this is called... refactor, merge usage with util, and safe_insert...
     def insert_posts(self, collection: CollectionResult):

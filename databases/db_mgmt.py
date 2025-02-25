@@ -14,6 +14,7 @@ from databases.db_utils import filter_posts_with_existing_post_ids
 from databases.external import BASE_DATA_PATH, PostgresConnection
 from databases.external import DBConfig, SQliteConnection
 from tools.project_logging import get_logger
+from sqlalchemy import func
 
 
 class DatabaseManager:
@@ -27,6 +28,12 @@ class DatabaseManager:
 
         if self.config.db_type == "sqlite":
             event.listen(self.engine, 'connect', self._sqlite_on_connect)
+
+    @staticmethod
+    def sqlite_db_from_path(path: Path,
+                            create: bool = False) -> "DatabaseManager":
+        return DatabaseManager(DBConfig(db_connection=SQliteConnection(db_path=path),
+                                        create=create))
 
     def _create_engine(self) -> Engine:
         self.logger.debug(f"creating db engine with {self.config.connection_str}")
@@ -76,6 +83,9 @@ class DatabaseManager:
         """Initialize database, optionally resetting if configured."""
 
         if self.config.db_type == "sqlite":
+            if not self.config.create and not database_exists(self.config.connection_str):
+                raise ValueError(f"Database {self.config.connection_str} does not exist")
+
             if self.config.reset_db and database_exists(self.engine.url):
                 if self.skip_confirmation_in_test(self.engine.url):
                     drop_database(self.engine.url)
@@ -137,6 +147,24 @@ class DatabaseManager:
             task.added_items = added_items
             task.collection_duration = int(duration * 1000)
             session.commit()
+
+    def count_states(self) -> dict[str, int]:
+        """
+        Count DBCollectionTask grouped by status
+        todo, maybe util?
+        :return:
+        """
+        with self.get_session() as session:
+            query = (
+                session.query(
+                    DBCollectionTask.status,
+                    func.count(DBCollectionTask.status).label('count')
+                )
+                .group_by(DBCollectionTask.status)
+            )
+
+            results = query.all()
+            return {enum_type.name.lower(): count for enum_type, count in results}
 
 
 class AsyncDatabaseManager(DatabaseManager):
