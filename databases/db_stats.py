@@ -21,11 +21,11 @@ from tools.env_root import root
 
 RAISE_DB_ERROR = True
 
-def rel_path(p: Path) -> Path:
+def rel_path(p: Path) -> str:
     if p.is_relative_to(base_data_path()):
-        return p.relative_to(base_data_path())
+        return p.relative_to(base_data_path()).as_posix()
     else:
-        return p.absolute()
+        return p.absolute().as_posix()
 
 SerializablePath = Annotated[
     Path, PlainSerializer(rel_path, return_type=str)
