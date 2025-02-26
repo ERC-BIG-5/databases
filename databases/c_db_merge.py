@@ -1,0 +1,196 @@
+from pathlib import Path
+from typing import Dict, Any
+from dataclasses import dataclass
+
+from sqlalchemy import select
+from sqlalchemy.orm import Session
+
+from databases.db_mgmt import DatabaseManager
+from databases.db_models import DBPost, DBCollectionTask
+from databases.external import DBConfig, SQliteConnection, CollectionStatus
+
+
+@dataclass
+class MergeStats:
+    """Statistics about the merge operation."""
+    total_posts_found: int = 0
+    duplicated_posts_skipped: int = 0
+    new_posts_added: int = 0
+    existing_tasks_updated: int = 0
+    new_tasks_created: int = 0
+
+    def __str__(self) -> str:
+        return (
+            f"Merge Statistics:\n"
+            f"  Total posts found: {self.total_posts_found}\n"
+            f"  Duplicated posts skipped: {self.duplicated_posts_skipped}\n"
+            f"  New posts added: {self.new_posts_added}\n"
+            f"  Existing tasks updated: {self.existing_tasks_updated}\n"
+            f"  New tasks created: {self.new_tasks_created}"
+        )
+
+
+def merge_database(source_db_path: Path, target_db_path: Path, platform: str) -> MergeStats:
+    """
+    Merge one database/platform into another.
+
+    Args:
+        source_db_path: Path to the source database
+        target_db_path: Path to the target database
+        platform: Platform name (e.g., "youtube", "tiktok")
+
+    Returns:
+        MergeStats: Statistics about the merge operation
+    """
+    # Initialize database managers for source and target
+    source_db = DatabaseManager(DBConfig(db_connection=SQliteConnection(db_path=source_db_path), create=False))
+    target_db = DatabaseManager(DBConfig(db_connection=SQliteConnection(db_path=target_db_path), create=False))
+
+    stats = MergeStats()
+
+    # Open a session with the target database
+    with target_db.get_session() as target_session:
+        # Process each collection task and its posts from the source
+        for task_model, posts_models in get_tasks_with_posts(source_db):
+            stats.total_posts_found += len(posts_models)
+
+            # Check which posts already exist in the target
+            new_posts = filter_existing_posts(target_session, posts_models)
+            stats.duplicated_posts_skipped += len(posts_models) - len(new_posts)
+            stats.new_posts_added += len(new_posts)
+
+            # Handle the collection task (find existing or create new)
+            target_task = process_collection_task(
+                target_session,
+                task_model,
+                len(new_posts),
+                stats
+            )
+
+            # Add the new posts to the target database
+            for post in new_posts:
+                # Set the collection task ID to the target task
+                post.collection_task_id = target_task.id
+                # Add metadata about the source database
+                if hasattr(post, 'metadata_content') and post.metadata_content:
+                    post.metadata_content.orig_db_conf = (source_db_path.as_posix(), post.collection_task_id)
+
+                # Convert to a database model and add to session
+                post_data = post.model_dump(exclude={"id"})
+                new_post = DBPost(**post_data)
+                target_session.add(new_post)
+
+            # Commit after processing each task's posts
+            target_session.commit()
+
+    return stats
+
+
+def get_tasks_with_posts(db: DatabaseManager):
+    """Get all collection tasks with their associated posts from a database."""
+    with db.get_session() as session:
+        # First get all tasks
+        tasks_query = select(DBCollectionTask)
+        tasks = session.execute(tasks_query).scalars()
+
+        for task in tasks:
+            # For each task, get its associated posts
+            posts_query = select(DBPost).where(DBPost.collection_task_id == task.id)
+            posts = session.execute(posts_query).scalars()
+
+            # Convert both task and posts to their models
+            yield task.model(), [post.model() for post in posts]
+
+
+def filter_existing_posts(session: Session, posts):
+    """Filter out posts that already exist in the target database."""
+    # Extract platform IDs from posts
+    platform_ids = [post.platform_id for post in posts]
+
+    # Query for existing platform IDs in the target database
+    existing_post_ids = {
+        pid[0] for pid in session.execute(
+            select(DBPost.platform_id).where(DBPost.platform_id.in_(platform_ids))
+        ).fetchall()
+    }
+
+    # Return only posts that don't exist in the target
+    return [post for post in posts if post.platform_id not in existing_post_ids]
+
+
+def process_collection_task(session: Session, task_model, num_new_posts: int, stats: MergeStats):
+    """Process a collection task - find existing or create new in target database."""
+    # Check if task already exists by task_name
+    existing_task = session.execute(
+        select(DBCollectionTask).where(DBCollectionTask.task_name == task_model.task_name)
+    ).scalar()
+
+    if existing_task:
+        # Update the existing task with the new post counts
+        existing_task.found_items += num_new_posts
+        existing_task.added_items += num_new_posts
+        stats.existing_tasks_updated += 1
+        return existing_task
+    else:
+        # Create a new task
+        new_task = DBCollectionTask(**task_model.model_dump(exclude={"id"}))
+        new_task.found_items = num_new_posts
+        new_task.added_items = num_new_posts
+        session.add(new_task)
+        session.flush()  # Generate an ID for the new task
+        stats.new_tasks_created += 1
+        return new_task
+
+
+def check_for_conflicts(source_db_path: Path, target_db_path: Path) -> Dict[str, Any]:
+    """
+    Check for conflicts between source and target databases.
+
+    Returns a dictionary with:
+    - count of potentially conflicting posts
+    - database sizes
+    - details of conflicts if needed
+    """
+    source_db = DatabaseManager(DBConfig(db_connection=SQliteConnection(db_path=source_db_path)))
+    target_db = DatabaseManager(DBConfig(db_connection=SQliteConnection(db_path=target_db_path)))
+
+    source_posts = {}
+    target_posts = {}
+
+    # Collect all posts from source
+    with source_db.get_session() as session:
+        posts_query = select(DBPost)
+        for post in session.execute(posts_query).scalars():
+            post_model = post.model()
+            source_posts[post_model.platform_id] = True
+
+    # Collect all posts from target
+    with target_db.get_session() as session:
+        posts_query = select(DBPost)
+        for post in session.execute(posts_query).scalars():
+            post_model = post.model()
+            target_posts[post_model.platform_id] = True
+
+    # Find conflicts
+    conflicts = set(source_posts.keys()) & set(target_posts.keys())
+
+    return {
+        "source_size": len(source_posts),
+        "target_size": len(target_posts),
+        "conflicts": len(conflicts),
+        "conflict_percentage": len(conflicts) / len(source_posts) * 100 if source_posts else 0
+    }
+
+
+# Example usage:
+if __name__ == "__main__":
+    source_path = Path("./source_database.sqlite")
+    target_path = Path("./target_database.sqlite")
+
+    # Optional: Check for conflicts first
+    conflicts = check_for_conflicts(source_path, target_path)
+    print(f"Potential conflicts: {conflicts['conflicts']} posts ({conflicts['conflict_percentage']:.2f}%)")
+
+    # Perform the merge
+    stats = merge_database(source_path, target_path, "youtube")
+    print(stats)
