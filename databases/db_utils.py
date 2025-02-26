@@ -19,8 +19,8 @@ TimeWindow = Literal["day", "month", "year"]
 
 
 class TimeColumn(str, Enum):
-    CREATED = "date_created"
-    COLLECTED = "date_collected"
+    CREATED = "created"
+    COLLECTED = "collected"
 
 
 def base_data_path() -> Path:
