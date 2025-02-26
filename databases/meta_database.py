@@ -56,7 +56,7 @@ def add_db(path: str | Path, metadb: DatabaseManager, update: bool = False):
 
     content = MetaDatabaseContentModel(
         tasks_states=db.count_states(),
-        post_count=count_posts(db_manager=db),
+        post_count=count_posts(db=db),
         file_size=db_utils.file_size(db),
         stats=stats)
 
