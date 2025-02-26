@@ -1,5 +1,6 @@
 import json
 from collections import Counter
+from enum import Enum
 from pathlib import Path
 from typing import Optional, Annotated
 
@@ -15,7 +16,7 @@ from sqlalchemy import select, func
 from databases import db_utils
 from databases.db_mgmt import DatabaseManager
 from databases.db_models import DBPost
-from databases.db_utils import base_data_path, get_posts_by_period, TimeWindow
+from databases.db_utils import base_data_path, get_posts_by_period, TimeWindow, TimeColumn
 from databases.external import DBConfig, SQliteConnection
 from tools.env_root import root
 
@@ -131,7 +132,8 @@ class DBStats(BaseModel):
 
 def generate_db_stats(
         db: DatabaseManager,
-        period: TimeWindow = "day"
+        period: TimeWindow = "day",
+        time_column = TimeColumn.CREATED
 ) -> DBStats:
     """
     Generate statistics for a database using the specified period.
@@ -155,7 +157,7 @@ def generate_db_stats(
         )
 
         # Populate with data from the database
-        for period_str, count in get_posts_by_period(db, period):
+        for period_str, count in get_posts_by_period(db, period, time_column):
             stats.set_period_count(period_str, count)
 
         return stats
