@@ -3,6 +3,7 @@ from datetime import date
 from enum import Enum
 from pathlib import Path
 from typing import TYPE_CHECKING, Generator, Literal, Optional
+from sqlalchemy.orm import Session
 
 from sqlalchemy import func
 from sqlalchemy import select
@@ -31,33 +32,43 @@ class TimeColumn(str, Enum):
 def base_data_path() -> Path:
     return root() / "data"
 
-
-def filter_posts_with_existing_post_ids(posts: list[DBPost | PostModel], db_mgmt: "DatabaseManager") -> list[
+def filter_posts_with_existing_post_ids(posts: list[DBPost | PostModel],
+                                        session: Optional[Session] = None,
+                                        db: Optional["DatabaseManager"] = None) -> list[
     DBPost | PostModel]:
     post_ids = [p.platform_id for p in posts]
-    with db_mgmt.get_session() as session:
+
+    def _filter_with_session(session_ : Session)->  list[DBPost | PostModel]:
+
         query = select(DBPost.platform_id).where(DBPost.platform_id.in_(post_ids))
-        found_post_ids = session.execute(query).scalars().all()
-        db_mgmt.logger.debug(f"filter out posts with ids: {found_post_ids}")
-    return list(filter(lambda p: p.platform_id not in found_post_ids, posts))
+        found_post_ids = session_.execute(query).scalars().all()
+        db.logger.debug(f"filter out posts with ids: {found_post_ids}")
 
+        return [p for p in posts if p.platform_id not in found_post_ids]
 
-def reset_task_states(db_mgmt: "DatabaseManager", tasks_ids: list[int]) -> None:
-    with db_mgmt.get_session() as session:
+    if session is not None:
+        return _filter_with_session(session)
+
+    # If only a db is provided, create a new session with context management
+    with db.get_session() as new_session:
+        return _filter_with_session(new_session)
+
+def reset_task_states(db: "DatabaseManager", tasks_ids: list[int]) -> None:
+    with db.get_session() as session:
         session.query(DBCollectionTask).filter(DBCollectionTask.id.in_(tasks_ids)).update(
             {DBCollectionTask.status: CollectionStatus.INIT},
             synchronize_session="fetch"
         )
 
 
-def check_platforms(db_mgmt: "DatabaseManager", from_tasks: bool = True) -> set[str]:
+def check_platforms(db: "DatabaseManager", from_tasks: bool = True) -> set[str]:
     """
     return the set of platforms of a database
     :param db_mgmt: database-manager
     :param from_tasks: use task table (otherwise post table)
     :return: set of platforms (string)
     """
-    with db_mgmt.get_session() as session:
+    with db.get_session() as session:
         if from_tasks:
             model = DBCollectionTask
         else:
@@ -65,9 +76,9 @@ def check_platforms(db_mgmt: "DatabaseManager", from_tasks: bool = True) -> set[
         return set(p[0] for p in session.query(model.platform))
 
 
-def file_size(db_mgmt: "DatabaseManager") -> int:
-    if isinstance(db_mgmt.config.db_connection, SQliteConnection):
-        file_path = db_mgmt.config.db_connection.db_path
+def file_size(db: "DatabaseManager") -> int:
+    if isinstance(db.config.db_connection, SQliteConnection):
+        file_path = db.config.db_connection.db_path
         return os.stat(file_path).st_size
     else:
         return 0
@@ -79,19 +90,21 @@ def get_posts(db: "DatabaseManager") -> Generator[PostModel, None, None]:
             yield post.model()
 
 
-def get_posts_by_day(db: "DatabaseManager") -> Generator[tuple[date, int], None, None]:
+def get_tasks_with_posts(db: "DatabaseManager"):
+    """Get all collection tasks with their associated posts from a database."""
     with db.get_session() as session:
-        query = select(
-            func.date(DBPost.date_created).label('day'),
-            func.count().label('count')
-        ).group_by(
-            func.date(DBPost.date_created)
-        )
+        # First get all tasks
+        tasks_query = select(DBCollectionTask)
+        tasks = session.execute(tasks_query).scalars()
 
-        # Execute the query and return the results
-        result = session.execute(query).all()
-        for date_, count in result:
-            yield date_, count
+        for task in tasks:
+            # For each task, get its associated posts
+            posts_query = select(DBPost).where(DBPost.collection_task_id == task.id)
+            posts = session.execute(posts_query).scalars()
+
+            # Convert both task and posts to their models
+            yield task.model(), [post.model() for post in posts]
+
 
 
 def get_posts_by_period(db: "DatabaseManager",
@@ -127,14 +140,14 @@ def get_posts_by_period(db: "DatabaseManager",
             yield date_, count
 
 
-def count_posts(db_manager: "DatabaseManager") -> int:
+def count_posts(db: "DatabaseManager") -> int:
     """
     Get the total count of posts in the database.
 
-    :param db_manager: DatabaseManager instance
+    :param db: DatabaseManager instance
     :return: Total number of posts in the database
     """
-    with db_manager.get_session() as session:
+    with db.get_session() as session:
         count = session.execute(select(func.count()).select_from(DBPost)).scalar()
         return count
 

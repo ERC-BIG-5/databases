@@ -4,7 +4,7 @@ from typing import Optional
 from pydantic import BaseModel, Field
 
 from databases import db_utils
-from databases.c_db_stats import DBStats, generate_db_stats
+from databases.db_stats import DBStats, generate_db_stats
 from databases.db_mgmt import DatabaseManager
 from databases.db_models import DBPlatformDatabase2
 from databases.db_utils import check_platforms, count_posts
@@ -82,6 +82,12 @@ if __name__ == "__main__":
 
     # add_db(root() / "data/youtube_backup_1112.sqlite", meta_db)
 
+    """
     for db in (root() / "data").glob("*.sqlite"):
         add_db(db, meta_db)
         print("*****")
+    """
+    from sqlalchemy import select
+    with meta_db.get_session() as session:
+        for p_db in session.execute(select(DBPlatformDatabase2)).scalars():
+            print(f"{p_db.platform} {p_db.db_path} {p_db.content['post_count']}")

@@ -88,7 +88,7 @@ class DatabaseManager:
                 if self.skip_confirmation_in_test(self.engine.url):
                     drop_database(self.engine.url)
                 else:
-                    if input(f"Delete existing database? (y/n): ").lower() == 'y':
+                    if input(f"Delete existing database ({self.config.db_connection.db_path})? (y/n): ").lower() == 'y':
                         drop_database(self.engine.url)
                     else:
                         return

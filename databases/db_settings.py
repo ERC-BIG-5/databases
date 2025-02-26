@@ -1,10 +1,11 @@
 from typing import Optional
 
-from pydantic import Fieldº
+from pydantic import Field
+from pydantic import field_validator, ValidationInfo
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 from databases.external import ENV_FILE_PATH, BASE_DATA_PATH
-from pydantic import field_validator, ValidationInfo
+
 
 class PostgresCredentials(BaseSettings):
     model_config = SettingsConfigDict(env_file=ENV_FILE_PATH, env_file_encoding='utf-8', extra='allow')

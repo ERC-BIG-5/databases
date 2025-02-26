@@ -7,6 +7,7 @@ from sqlalchemy.orm import Session
 
 from databases.db_mgmt import DatabaseManager
 from databases.db_models import DBPost, DBCollectionTask
+from databases.db_utils import get_tasks_with_posts, filter_posts_with_existing_post_ids
 from databases.external import DBConfig, SQliteConnection, CollectionStatus
 
 
@@ -43,9 +44,8 @@ def merge_database(source_db_path: Path, target_db_path: Path, platform: str) ->
         MergeStats: Statistics about the merge operation
     """
     # Initialize database managers for source and target
-    source_db = DatabaseManager(DBConfig(db_connection=SQliteConnection(db_path=source_db_path), create=False))
-    target_db = DatabaseManager(DBConfig(db_connection=SQliteConnection(db_path=target_db_path), create=False))
-
+    source_db = DatabaseManager.sqlite_db_from_path(source_db_path, False)
+    target_db = DatabaseManager.sqlite_db_from_path(target_db_path, False)
     stats = MergeStats()
 
     # Open a session with the target database
@@ -55,7 +55,7 @@ def merge_database(source_db_path: Path, target_db_path: Path, platform: str) ->
             stats.total_posts_found += len(posts_models)
 
             # Check which posts already exist in the target
-            new_posts = filter_existing_posts(target_session, posts_models)
+            new_posts = filter_posts_with_existing_post_ids(posts_models, session=target_session)
             stats.duplicated_posts_skipped += len(posts_models) - len(new_posts)
             stats.new_posts_added += len(new_posts)
 
@@ -84,38 +84,6 @@ def merge_database(source_db_path: Path, target_db_path: Path, platform: str) ->
             target_session.commit()
 
     return stats
-
-
-def get_tasks_with_posts(db: DatabaseManager):
-    """Get all collection tasks with their associated posts from a database."""
-    with db.get_session() as session:
-        # First get all tasks
-        tasks_query = select(DBCollectionTask)
-        tasks = session.execute(tasks_query).scalars()
-
-        for task in tasks:
-            # For each task, get its associated posts
-            posts_query = select(DBPost).where(DBPost.collection_task_id == task.id)
-            posts = session.execute(posts_query).scalars()
-
-            # Convert both task and posts to their models
-            yield task.model(), [post.model() for post in posts]
-
-
-def filter_existing_posts(session: Session, posts):
-    """Filter out posts that already exist in the target database."""
-    # Extract platform IDs from posts
-    platform_ids = [post.platform_id for post in posts]
-
-    # Query for existing platform IDs in the target database
-    existing_post_ids = {
-        pid[0] for pid in session.execute(
-            select(DBPost.platform_id).where(DBPost.platform_id.in_(platform_ids))
-        ).fetchall()
-    }
-
-    # Return only posts that don't exist in the target
-    return [post for post in posts if post.platform_id not in existing_post_ids]
 
 
 def process_collection_task(session: Session, task_model, num_new_posts: int, stats: MergeStats):
