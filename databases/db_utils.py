@@ -1,15 +1,24 @@
 import os
+from datetime import date
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Generator, Literal, Optional
 
+from sqlalchemy import func
 from sqlalchemy import select
 
-from databases.external import CollectionStatus, SQliteConnection
+from databases.external import CollectionStatus, SQliteConnection, DBConfig
 from databases.model_conversion import PostModel
+from tools.env_root import root
 
 if TYPE_CHECKING:
     from databases.db_mgmt import DatabaseManager
 from databases.db_models import DBPost, DBCollectionTask
+
+TimeWindow = Literal["day", "month", "year"]
+
+
+def base_data_path() -> Path:
+    return root() / "data"
 
 
 def filter_posts_with_existing_post_ids(posts: list[DBPost | PostModel], db_mgmt: "DatabaseManager") -> list[
@@ -29,6 +38,7 @@ def reset_task_states(db_mgmt: "DatabaseManager", tasks_ids: list[int]) -> None:
             synchronize_session="fetch"
         )
 
+
 def check_platforms(db_mgmt: "DatabaseManager", from_tasks: bool = True) -> set[str]:
     """
     return the set of platforms of a database
@@ -43,9 +53,78 @@ def check_platforms(db_mgmt: "DatabaseManager", from_tasks: bool = True) -> set[
             model = DBPost
         return set(p[0] for p in session.query(model.platform))
 
+
 def file_size(db_mgmt: "DatabaseManager") -> int:
     if isinstance(db_mgmt.config.db_connection, SQliteConnection):
         file_path = db_mgmt.config.db_connection.db_path
         return os.stat(file_path).st_size
     else:
         return 0
+
+
+def get_posts(db: "DatabaseManager") -> Generator[PostModel, None, None]:
+    with db.get_session() as session:
+        for post in session.execute(select(DBPost)).scalars():
+            yield post.model()
+
+
+def get_posts_by_day(db: "DatabaseManager") -> Generator[tuple[date, int], None, None]:
+    with db.get_session() as session:
+        query = select(
+            func.date(DBPost.date_created).label('day'),
+            func.count().label('count')
+        ).group_by(
+            func.date(DBPost.date_created)
+        )
+
+        # Execute the query and return the results
+        result = session.execute(query).all()
+        for date_, count in result:
+            yield date_, count
+
+
+def get_posts_by_period(db: "DatabaseManager", period: TimeWindow) -> Generator[
+    tuple[str, int], None, None]:
+    if period == "day":
+        group_expr = func.strftime('%Y-%m-%d', DBPost.date_created).label('period')
+
+    elif period == "month":
+        # Format as YYYY-MM (year-month)
+        group_expr = func.strftime('%Y-%m', DBPost.date_created).label('period')
+
+    elif period == "year":
+        # Format as YYYY (year)
+        group_expr = func.strftime('%Y', DBPost.date_created).label('period')
+    else:
+        raise ValueError(f"Unsupported time window: {period}")
+
+    with db.get_session() as session:
+        query = select(
+            group_expr,
+            func.count().label('count')
+        ).group_by(group_expr).order_by(group_expr)
+
+        # Execute the query and return the results
+        result = session.execute(query).all()
+        for date_, count in result:
+            yield date_, count
+
+
+def count_posts(db_manager: "DatabaseManager") -> int:
+    """
+    Get the total count of posts in the database.
+
+    :param db_manager: DatabaseManager instance
+    :return: Total number of posts in the database
+    """
+    with db_manager.get_session() as session:
+        count = session.execute(select(func.count()).select_from(DBPost)).scalar()
+        return count
+
+
+if __name__ == "__main__":
+    pass
+    # from tools.env_root import root
+    # from databases.db_mgmt import DatabaseManager
+    # root("/home/rsoleyma/projects/platforms-clients")
+    # db = DatabaseManager.sqlite_db_from_path(root() / "data/youtube2024.sqlite", False)

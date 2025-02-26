@@ -1,6 +1,5 @@
 from contextlib import contextmanager
 from pathlib import Path
-from typing import Optional, Any
 
 from sqlalchemy import create_engine, Engine, event
 from sqlalchemy import func
@@ -155,7 +154,7 @@ class DatabaseManager:
     def count_states(self) -> dict[str, int]:
         """
         Count DBCollectionTask grouped by status
-        todo, maybe util?
+        todo, maybe util or stats?
         :return:
         """
         with self.get_session() as session:

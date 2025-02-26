@@ -4,10 +4,10 @@ from typing import Optional
 from pydantic import BaseModel, Field
 
 from databases import db_utils
+from databases.c_db_stats import DBStats, generate_db_stats
 from databases.db_mgmt import DatabaseManager
 from databases.db_models import DBPlatformDatabase2
-from databases.db_stats import count_posts, PlatformStats, generate_db_stats
-from databases.db_utils import check_platforms
+from databases.db_utils import check_platforms, count_posts
 from databases.external import DBConfig, SQliteConnection
 from tools.env_root import root
 
@@ -16,7 +16,7 @@ class MetaDatabaseContentModel(BaseModel):
     tasks_states: dict[str, int] = Field(default_factory=dict)
     post_count: int
     file_size: int
-    stats: PlatformStats
+    stats: DBStats
     annotation: Optional[str] = None
 
 
@@ -58,7 +58,7 @@ def add_db(path: str | Path, metadb: DatabaseManager, update: bool = False):
         tasks_states=db.count_states(),
         post_count=count_posts(db_manager=db),
         file_size=db_utils.file_size(db),
-        stats=list(stats.platforms.values())[0])
+        stats=stats)
 
     with metadb.get_session() as session:
         meta_db_entry = DBPlatformDatabase2(
