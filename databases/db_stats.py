@@ -1,6 +1,5 @@
 import json
 from collections import Counter
-from enum import Enum
 from pathlib import Path
 from typing import Optional, Annotated
 
@@ -16,7 +15,7 @@ from sqlalchemy import select, func
 from databases import db_utils
 from databases.db_mgmt import DatabaseManager
 from databases.db_models import DBPost
-from databases.db_utils import base_data_path, get_posts_by_period, TimeWindow, TimeColumn
+from databases.db_utils import base_data_path, get_posts_by_period, TimeColumn, TimeWindow
 from databases.external import DBConfig, SQliteConnection
 from tools.env_root import root
 
@@ -69,7 +68,7 @@ class DBStats(BaseModel):
     """Database statistics model with file information and error handling."""
     db_path: SerializablePath
     stats: RawStats = RawStats()
-    period: TimeWindow = "day"
+    period: str
     error: Optional[str] = None
     file_size: int = 0
 
@@ -132,7 +131,7 @@ class DBStats(BaseModel):
 
 def generate_db_stats(
         db: DatabaseManager,
-        period: TimeWindow = "day",
+        period: TimeWindow = TimeWindow.DAY,
         time_column = TimeColumn.CREATED
 ) -> DBStats:
     """
@@ -152,7 +151,7 @@ def generate_db_stats(
         # Create the stats object
         stats = DBStats(
             db_path=db.config.db_connection.db_path,
-            period=period,
+            period=period.value,
             file_size=db_utils.file_size(db)
         )
 
@@ -164,6 +163,8 @@ def generate_db_stats(
 
     except Exception as e:
         # Create an error stats object
+        if RAISE_DB_ERROR:
+            raise e
         error_stats = DBStats(
             db_path=db.config.db_connection.db_path,
             period=period,

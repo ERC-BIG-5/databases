@@ -15,7 +15,12 @@ if TYPE_CHECKING:
     from databases.db_mgmt import DatabaseManager
 from databases.db_models import DBPost, DBCollectionTask
 
-TimeWindow = Literal["day", "month", "year"]
+
+class TimeWindow(str, Enum):
+    DAY = "day"
+    MONTH = "month"
+    YEAR = "year"
+
 
 
 class TimeColumn(str, Enum):
@@ -93,21 +98,22 @@ def get_posts_by_period(db: "DatabaseManager",
                         period: TimeWindow,
                         time_col: TimeColumn) -> Generator[
     tuple[str, int], None, None]:
-
     time_col_m = DBPost.date_created if time_col == TimeColumn.CREATED else DBPost.date_collected
 
-    if period == "day":
-        group_expr = func.strftime('%Y-%m-%d', time_col_m).label('period')
+    match period:
+        case TimeWindow.DAY:
+            # Format as YYYY-MM--DD (year-month-day)
+            group_expr = func.strftime('%Y-%m-%d', time_col_m).label('period')
 
-    elif period == "month":
-        # Format as YYYY-MM (year-month)
-        group_expr = func.strftime('%Y-%m', time_col_m).label('period')
+        case TimeWindow.MONTH:
+            # Format as YYYY-MM (year-month)
+            group_expr = func.strftime('%Y-%m', time_col_m).label('period')
 
-    elif period == "year":
-        # Format as YYYY (year)
-        group_expr = func.strftime('%Y', time_col_m).label('period')
-    else:
-        raise ValueError(f"Unsupported time window: {period}")
+        case TimeWindow.YEAR:
+            # Format as YYYY (year)
+            group_expr = func.strftime('%Y', time_col_m).label('period')
+        case _:
+            raise ValueError(f"Unsupported time window: {period}")
 
     with db.get_session() as session:
         query = select(
