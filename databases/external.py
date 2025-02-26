@@ -59,8 +59,9 @@ class DBConfig(BaseModel):
     # is_default: bool = Field(False)
     reset_db: bool = False
     test_mode: bool = False
-    require_existing_parent_dir: Optional[bool] = Field(False,
-                                              description="SQLITE: When the db is created, it requires an existing parent directory.")
+    require_existing_parent_dir: Optional[bool] = Field(True,
+                                                        description="SQLITE: When the db is created, it requires an existing parent directory.")
+    tables: Optional[list[str]] = Field(default_factory=list)
 
     @computed_field
     @property

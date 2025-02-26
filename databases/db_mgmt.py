@@ -1,5 +1,6 @@
 from contextlib import contextmanager
 from pathlib import Path
+from typing import Optional, Any
 
 from sqlalchemy import create_engine, Engine, event
 from sqlalchemy import func
@@ -100,7 +101,12 @@ class DatabaseManager:
                         raise ValueError(f"Parent directory {db_path.parent} does not exist")
                 db_path.parent.mkdir(parents=True, exist_ok=True)
                 create_database(self.engine.url)
-                Base.metadata.create_all(self.engine)
+                if not self.config.tables:
+                    Base.metadata.create_all(self.engine)
+                else:
+                    md = Base.metadata.tables
+                    tables = [md[table] for table in self.config.tables]
+                    Base.metadata.create_all(self.engine, tables=tables)
 
         else:
             PostgresConnection.model_validate(self.config)

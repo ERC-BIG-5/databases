@@ -23,12 +23,20 @@ SerializableDatetime = Annotated[
 ]
 
 
+class PlatformDatabaseContentModel(BaseDBModel):
+    status: dict
+    stats: dict
+
 # Platform Models
 class PlatformDatabaseModel(BaseDBModel):
     """Model for platform database configuration"""
     platform: str
     connection_str: str
-
+    # new, from meta_database, for now Optional
+    db_path: Optional[Path] = None
+    last_status_update: Optional[datetime] = None
+    last_stats_update: Optional[datetime] = None
+    content: Optional[dict] = None
 
 # User Models
 class UserModel(BaseDBModel):

@@ -115,8 +115,6 @@ class DBPost(DBModelBase[PostModel]):
     collection_task: Mapped["DBCollectionTask"] = relationship(backref="posts")
     collection_task_id: Mapped[int] = mapped_column(ForeignKey("collection_task.id"), nullable=True)
 
-    # collection_step: Mapped[int] = mapped_column(Integer, nullable=True)
-
     # user_id: Mapped[int] = mapped_column(ForeignKey("user.id"))
     # user: Mapped[DBUser] = relationship(back_populates="posts")
 
@@ -136,6 +134,21 @@ class DBPlatformDatabase(DBModelBase[PlatformDatabaseModel]):
     name: Mapped[str] = mapped_column(String(20), nullable=True)
     connection_str: Mapped[str] = mapped_column(String(), nullable=False)
     is_default: Mapped[bool] = mapped_column(Boolean())
+
+    _pydantic_model = PlatformDatabaseModel
+
+
+class DBPlatformDatabase2(Base):
+    __tablename__ = 'platform_databases2'
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    platform: Mapped[str] = mapped_column(String(20), nullable=False)
+    name: Mapped[str] = mapped_column(String(20), nullable=True)
+    is_default: Mapped[bool] = mapped_column(Boolean())
+
+    db_path: Mapped[str] = mapped_column(String(120), nullable=False, unique=True)
+    content: Mapped[dict] = mapped_column(JSON(), nullable=False)
+    last_content_update: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, default=func.now())
 
     _pydantic_model = PlatformDatabaseModel
 

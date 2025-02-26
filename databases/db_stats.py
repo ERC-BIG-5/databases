@@ -1,12 +1,14 @@
 import json
 import os
 import shutil
+import warnings
 from collections import Counter
 from dataclasses import field
 from datetime import date
 from datetime import datetime
 from pathlib import Path
 from typing import Optional, Generator, Annotated
+
 
 import matplotlib.dates as mdates
 import matplotlib.pyplot as plt
@@ -25,10 +27,14 @@ from databases.model_conversion import PostModel
 from tools.env_root import root
 
 RAISE_DB_ERROR = True
-BASE_DATA_PATH = root() / "data"
-stats_copy_path = BASE_DATA_PATH / "stats_copy.sqlite"
 
 from sqlalchemy import func
+
+def base_data_path() -> Path:
+    return root() / "data"
+
+def stats_copy_path() -> Path:
+    return base_data_path() / "stats_copy.sqlite"
 
 SerializableDate = Annotated[
     date, PlainSerializer(lambda d: f'{d:%Y-%m-%d}', return_type=str, when_used="always")
@@ -39,7 +45,7 @@ SerializableCounter = Annotated[
 ]
 
 SerializablePath = Annotated[
-    Path, PlainSerializer(lambda p: p.relative_to(BASE_DATA_PATH).as_posix(), return_type=str)
+    Path, PlainSerializer(lambda p: p.relative_to(base_data_path()).as_posix(), return_type=str)
 ]
 
 
@@ -127,12 +133,12 @@ class DBStats(BaseModel):
 
 
 def make_stats_copy(db_path: Path):
-    shutil.copy(db_path, stats_copy_path)
+    shutil.copy(db_path, stats_copy_path())
 
 
 def delete_stats_copy():
-    if os.path.exists(stats_copy_path):
-        os.remove(stats_copy_path)
+    if os.path.exists(stats_copy_path()):
+        os.remove(stats_copy_path())
 
 
 def get_posts(db: DatabaseManager) -> Generator[PostModel, None, None]:
@@ -161,17 +167,14 @@ def get_posts_by_day(db: DatabaseManager) -> Generator[tuple[DBPost, date, int],
             yield post, date_, count
 
 
-def generate_db_stats(db_path: Path,
-                      daily_details: bool = False) -> DBStats:
-    make_stats_copy(db_path)
-
+def generate_db_stats(db: DatabaseManager,
+                      daily_details: bool = True) -> DBStats:
     db_func = get_posts
     if daily_details:
         db_func = get_posts_by_day
-
     try:
-        db = DatabaseManager.sqlite_db_from_path(stats_copy_path)
-        _stats = DBStats(db_path=db_path, file_size=db_utils.file_size(db))
+        assert isinstance(db.config.db_connection, SQliteConnection)
+        _stats = DBStats(db_path=db.config.db_connection.db_path, file_size=db_utils.file_size(db))
         for res in db_func(db):
             if daily_details:
                 _stats.add_day_counts(*res)
@@ -183,9 +186,6 @@ def generate_db_stats(db_path: Path,
             raise e
         print(e)
         _stats.error = str(e)
-    finally:
-        delete_stats_copy()
-    # print(stats)
     return _stats
 
 
@@ -203,7 +203,8 @@ def count_posts(*,
 
 
 if __name__ == "__main__":
-    stats = generate_db_stats(BASE_DATA_PATH / "youtube2024.sqlite", True)
+    root("/home/rsoleyma/projects/platforms-clients")
+    stats = generate_db_stats(DatabaseManager.sqlite_db_from_path(base_data_path() / "youtube2024.sqlite", False), True)
     print(json.dumps(stats.model_dump(), indent=2))
     plt = stats.plot_daily_items("youtube")
     plt.show()
