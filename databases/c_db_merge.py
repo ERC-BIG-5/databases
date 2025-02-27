@@ -2,13 +2,14 @@ from pathlib import Path
 from typing import Dict, Any
 from dataclasses import dataclass
 
+from tqdm import tqdm
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from databases.db_mgmt import DatabaseManager
 from databases.db_models import DBPost, DBCollectionTask
 from databases.db_utils import get_tasks_with_posts, filter_posts_with_existing_post_ids
-from databases.external import DBConfig, SQliteConnection, CollectionStatus
+from tools.env_root import root
 
 
 @dataclass
@@ -31,7 +32,7 @@ class MergeStats:
         )
 
 
-def merge_database(source_db_path: Path, target_db_path: Path, platform: str) -> MergeStats:
+def merge_database(source_db_path: Path, target_db_path: Path) -> MergeStats:
     """
     Merge one database/platform into another.
 
@@ -48,10 +49,11 @@ def merge_database(source_db_path: Path, target_db_path: Path, platform: str) ->
     target_db = DatabaseManager.sqlite_db_from_path(target_db_path, False)
     stats = MergeStats()
 
+    batch_size = 500
     # Open a session with the target database
     with target_db.get_session() as target_session:
         # Process each collection task and its posts from the source
-        for task_model, posts_models in get_tasks_with_posts(source_db):
+        for task_model, posts_models in tqdm(get_tasks_with_posts(source_db)):
             stats.total_posts_found += len(posts_models)
 
             # Check which posts already exist in the target
@@ -81,7 +83,8 @@ def merge_database(source_db_path: Path, target_db_path: Path, platform: str) ->
                 target_session.add(new_post)
 
             # Commit after processing each task's posts
-            target_session.commit()
+            if len(target_session.new) >= batch_size:
+                target_session.commit()
 
     return stats
 
@@ -95,8 +98,8 @@ def process_collection_task(session: Session, task_model, num_new_posts: int, st
 
     if existing_task:
         # Update the existing task with the new post counts
-        existing_task.found_items += num_new_posts
-        existing_task.added_items += num_new_posts
+        existing_task.found_items = (getattr(existing_task,"found_items") or 0) + num_new_posts
+        existing_task.added_items = (getattr(existing_task, "added_items") or 0) + num_new_posts
         stats.existing_tasks_updated += 1
         return existing_task
     else:
@@ -119,8 +122,8 @@ def check_for_conflicts(source_db_path: Path, target_db_path: Path) -> Dict[str,
     - database sizes
     - details of conflicts if needed
     """
-    source_db = DatabaseManager(DBConfig(db_connection=SQliteConnection(db_path=source_db_path)))
-    target_db = DatabaseManager(DBConfig(db_connection=SQliteConnection(db_path=target_db_path)))
+    source_db = DatabaseManager.sqlite_db_from_path(source_db_path, False)
+    target_db = DatabaseManager.sqlite_db_from_path(target_db_path, False)
 
     source_posts = {}
     target_posts = {}
@@ -152,13 +155,27 @@ def check_for_conflicts(source_db_path: Path, target_db_path: Path) -> Dict[str,
 
 # Example usage:
 if __name__ == "__main__":
-    source_path = Path("./source_database.sqlite")
-    target_path = Path("./target_database.sqlite")
+    root("/home/rsoleyma/projects/platforms-clients")
+    source_group = [
+        # "data/col_db/tiktok/rm/tiktok_alt.sqlite",
+        "data/col_db/tiktok/rm/tiktok.sqlite",
+        # "/home/rsoleyma/projects/platforms-clients/data/youtube2024.sqlite",
+        # "/home/rsoleyma/projects/platforms-clients/data/db_safe.sqlite",
+        # "/home/rsoleyma/projects/platforms-clients/data/youtube_merged.sqlite",
+        # "/home/rsoleyma/projects/platforms-clients/data/col_db/youtube/from_twitter_db.sqlite"
+    ]
+    for source in source_group:
+        source_path = Path(source).absolute()
+        print(source_path.relative_to(root()))
+        if not source_path.exists():
+            continue
 
-    # Optional: Check for conflicts first
-    conflicts = check_for_conflicts(source_path, target_path)
-    print(f"Potential conflicts: {conflicts['conflicts']} posts ({conflicts['conflict_percentage']:.2f}%)")
+        target_path = root() / "data/tiktok.sqlite"
 
-    # Perform the merge
-    stats = merge_database(source_path, target_path, "youtube")
-    print(stats)
+        # Optional: Check for conflicts first
+        # conflicts = check_for_conflicts(source_path, target_path)
+        # print(f"Potential conflicts: {conflicts['conflicts']} posts ({conflicts['conflict_percentage']:.2f}%)")
+
+        # Perform the merge
+        stats = merge_database(source_path, target_path)
+        print(stats)
