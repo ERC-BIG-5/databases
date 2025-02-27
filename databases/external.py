@@ -51,7 +51,7 @@ class SQliteConnection(BaseModel):
         if self.db_path.is_absolute():
             return f"sqlite:///{self.db_path}"
         else:
-            return f"sqlite:///{(BASE_DATA_PATH / self.db_path).as_posix()}"
+            return f"sqlite:///{self.db_path.as_posix()}"
 
 
 class PostgresConnection(BaseModel):

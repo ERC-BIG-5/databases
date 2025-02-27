@@ -81,7 +81,7 @@ class DatabaseManager:
         """Initialize database, optionally resetting if configured."""
 
         if self.config.db_type == "sqlite":
-            if not self.config.create and not self.config.db_connection.db_path.exists():
+            if not self.config.create and not database_exists(self.config.db_connection.connection_str):
                 raise ValueError(f"Database {self.config.connection_str} does not exist")
 
             if self.config.reset_db and database_exists(self.engine.url):
