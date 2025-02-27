@@ -1,15 +1,15 @@
 import os
-from datetime import date
-from enum import Enum
+import re
+from collections import defaultdict
 from pathlib import Path
-from typing import TYPE_CHECKING, Generator, Literal, Optional
+from typing import TYPE_CHECKING, Generator, Optional
 from sqlalchemy.orm import Session
 
 from sqlalchemy import func
 from sqlalchemy import select
 
-from databases.external import CollectionStatus, SQliteConnection, DBConfig
-from databases.model_conversion import PostModel
+from databases.external import CollectionStatus, SQliteConnection, TimeWindow, TimeColumn
+from databases.model_conversion import PostModel, CollectionTaskModel
 from tools.env_root import root
 
 if TYPE_CHECKING:
@@ -17,32 +17,16 @@ if TYPE_CHECKING:
 from databases.db_models import DBPost, DBCollectionTask
 
 
-class TimeWindow(str, Enum):
-    DAY = "day"
-    MONTH = "month"
-    YEAR = "year"
-
-
-
-class TimeColumn(str, Enum):
-    CREATED = "created"
-    COLLECTED = "collected"
-
-
-def base_data_path() -> Path:
-    return root() / "data"
-
 def filter_posts_with_existing_post_ids(posts: list[DBPost | PostModel],
                                         session: Optional[Session] = None,
                                         db: Optional["DatabaseManager"] = None) -> list[
     DBPost | PostModel]:
     post_ids = [p.platform_id for p in posts]
 
-    def _filter_with_session(session_ : Session)->  list[DBPost | PostModel]:
-
+    def _filter_with_session(session_: Session) -> list[DBPost | PostModel]:
         query = select(DBPost.platform_id).where(DBPost.platform_id.in_(post_ids))
         found_post_ids = session_.execute(query).scalars().all()
-        db.logger.debug(f"filter out posts with ids: {found_post_ids}")
+        # db.logger.debug(f"filter out posts with ids: {found_post_ids}")
 
         return [p for p in posts if p.platform_id not in found_post_ids]
 
@@ -52,6 +36,7 @@ def filter_posts_with_existing_post_ids(posts: list[DBPost | PostModel],
     # If only a db is provided, create a new session with context management
     with db.get_session() as new_session:
         return _filter_with_session(new_session)
+
 
 def reset_task_states(db: "DatabaseManager", tasks_ids: list[int]) -> None:
     with db.get_session() as session:
@@ -90,7 +75,8 @@ def get_posts(db: "DatabaseManager") -> Generator[PostModel, None, None]:
             yield post.model()
 
 
-def get_tasks_with_posts(db: "DatabaseManager"):
+def get_tasks_with_posts(db: "DatabaseManager") -> Generator[
+    tuple[CollectionTaskModel, list[PostModel]], None, None]:
     """Get all collection tasks with their associated posts from a database."""
     with db.get_session() as session:
         # First get all tasks
@@ -104,7 +90,6 @@ def get_tasks_with_posts(db: "DatabaseManager"):
 
             # Convert both task and posts to their models
             yield task.model(), [post.model() for post in posts]
-
 
 
 def get_posts_by_period(db: "DatabaseManager",
@@ -152,9 +137,52 @@ def count_posts(db: "DatabaseManager") -> int:
         return count
 
 
+def split_by_year(db: "DatabaseManager",
+                  dest_folder: Path,
+                  delete_after_success: bool = True) -> list[Path]:
+    # todo
+    # check if dest/platform_SPLIT_FROM_<SRC_NAME>.sqlite exists
+    raise NotImplementedError()
+
+
+def find_invalid_tasks(db: "DatabaseManager") -> list[int]:
+    # todo.
+    # tasks which are done but have relevant values None
+    # tasks with number but invalid STATE (!= DONE)
+    raise NotImplementedError()
+
+
+def find_tasks_groups(db: "DatabaseManager") -> dict[str, list[tuple[int, CollectionStatus]]]:
+    """
+    get task-groups of a database. for each group, return a list of id,status pairs
+
+    :param db:
+    :return:
+    """
+    group_index_pattern = r'(\d+)$'
+    groups = defaultdict(list)
+
+    with db.get_session() as session:
+        for task_data in session.execute(select(DBCollectionTask.task_name, DBCollectionTask.status)):
+            name, status = task_data
+            index_match = re.search(group_index_pattern, name)
+            if index_match:
+                group_id = index_match.group(1)
+                # Get the prefix by removing the index from the end
+                prefix = name[:name.rfind(group_id)]
+                # Convert group_id to integer and add to list for this prefix
+                groups[prefix].append((int(group_id), status))
+
+    for prefix in groups:
+        groups[prefix].sort()
+
+    return dict(groups)
+
+
 if __name__ == "__main__":
+    from databases.db_mgmt import DatabaseManager
+
+    root("/home/rsoleyma/projects/platforms-clients")
     pass
-    # from tools.env_root import root
-    # from databases.db_mgmt import DatabaseManager
-    # root("/home/rsoleyma/projects/platforms-clients")
-    # db = DatabaseManager.sqlite_db_from_path(root() / "data/youtube2024.sqlite", False)
+    db = DatabaseManager.sqlite_db_from_path(root() / "data/col_db/youtube/from_twitter_db.sqlite", False)
+    print(find_tasks_groups(db))

@@ -1,9 +1,18 @@
-import math
+from datetime import datetime, date
+from collections import Counter
 from datetime import datetime
 from enum import Enum, auto
 from pathlib import Path
-from pydantic import BaseModel, Field, computed_field, SecretStr, field_serializer
-from typing import Optional, Literal
+from typing import Optional, Literal, Annotated
+
+import matplotlib.dates as mdates
+import matplotlib.pyplot as plt
+import pandas as pd
+import seaborn as sns
+from pydantic import BaseModel
+from pydantic import Field, computed_field, SecretStr, field_serializer
+from pydantic import field_validator
+from pydantic.functional_serializers import PlainSerializer
 
 from tools.env_root import root
 
@@ -28,8 +37,14 @@ class CollectionStatus(Enum):
 
 
 class SQliteConnection(BaseModel):
-    db_path: Path
+    db_path: Path | str
     reset_db: Optional[bool] = False
+
+    @field_validator("db_path",mode="before")
+    def validate_path(cls, v) -> Path:
+        if isinstance(v,str):
+            return Path(v)
+        return v
 
     @property
     def connection_str(self) -> str:
@@ -119,3 +134,160 @@ class ClientTaskConfig(BaseModel):
 
     def __repr__(self):
         return f"Collection-Task: {self.task_name} ({self.platform})"
+
+
+def rel_path(p: Path) -> str:
+    data_path = root() / "data"
+    if p.is_relative_to(data_path):
+        return p.relative_to(data_path).as_posix()
+    else:
+        return p.absolute().as_posix()
+
+
+SerializablePath = Annotated[
+    Path, PlainSerializer(rel_path, return_type=str)
+]
+
+
+class RawStats(BaseModel):
+    """Simple statistics model that stores counts by period string keys."""
+    total_count: int = 0
+    min_date: Optional[str] = None
+    max_date: Optional[str] = None
+    counter: Counter[str] = Counter()
+
+    def add(self, period_str: str, count: int = 1) -> None:
+        """Add a count for a specific period string."""
+        self.total_count += count
+        self.counter[period_str] += count
+
+        # We're not dealing with actual date objects, but we can still track
+        # min/max period strings lexicographically for reporting purposes
+        if self.min_date is None or period_str < self.min_date:
+            self.min_date = period_str
+        if self.max_date is None or period_str > self.max_date:
+            self.max_date = period_str
+
+    def set(self, period_str: str, count: int) -> None:
+        """Set the count for a specific period string."""
+        self.total_count += count
+
+        # Check if the period already exists in the counter
+        if period_str in self.counter:
+            print(f"Warning: {period_str} already exists in counter")
+            return
+
+        self.counter[period_str] = count
+
+        # Update min/max date strings
+        if self.min_date is None or period_str < self.min_date:
+            self.min_date = period_str
+        if self.max_date is None or period_str > self.max_date:
+            self.max_date = period_str
+
+
+class TimeWindow(str, Enum):
+    DAY = "day"
+    MONTH = "month"
+    YEAR = "year"
+
+
+class TimeColumn(str, Enum):
+    CREATED = "created"
+    COLLECTED = "collected"
+
+
+class DBStats(BaseModel):
+    """Database statistics model with file information and error handling."""
+    db_path: SerializablePath
+    stats: RawStats = RawStats()
+    period: Annotated[TimeWindow, PlainSerializer(lambda v: v.value, return_type=str,
+                                                  when_used="always")]  # user  but make it Serializable
+    error: Optional[str] = None
+    file_size: int = 0
+
+    @field_validator("db_path")
+    def validate_db_path(cls, v):
+        """Ensure db_path is absolute."""
+        if not v.is_absolute():
+            v = root() / "data" / v
+        return v
+
+    def add_period_count(self, period_str: str, count: int) -> None:
+        """Add a count for a specific period."""
+        self.stats.add(period_str, count)
+
+    def set_period_count(self, period_str: str, count: int) -> None:
+        """Set the count for a specific period."""
+        self.stats.set(period_str, count)
+
+    def plot_daily_items(self, bars: bool = False, period: TimeWindow = TimeWindow.DAY) -> plt:
+
+        plt.figure(figsize=(12, 6))
+
+        daily_counts = pd.Series(self.period_stats(period).counter)
+        # Convert index to datetime if not already
+        if not isinstance(daily_counts.index, pd.DatetimeIndex):
+            daily_counts.index = pd.to_datetime(daily_counts.index)
+
+        if bars:
+            width = 2 if period is TimeWindow.DAY else 25
+            plt.bar(daily_counts.index, daily_counts.values, width=width,
+                    color='blue', label='Posts', alpha=0.7)
+        else:
+            sns.lineplot(data=daily_counts, color='blue', label='Posts')
+
+        # Zero days highlight in red
+        zero_days = daily_counts[daily_counts == 0]
+        if not zero_days.empty:
+            if bars:
+                plt.bar(zero_days.index, zero_days.values,
+                        color='red', label='No Posts',
+                        zorder=5)
+            else:
+                plt.scatter(zero_days.index, zero_days.values,
+                            color='red', s=10, label='No Posts',
+                            zorder=5)
+
+        plt.title('Daily Post Count (Red Bars = No Posts)')
+        plt.xlabel('Date')
+        plt.ylabel('Number of Posts')
+
+        # Improved x-axis labels
+        # plt.gca().xaxis.set_major_locator(mdates.MonthLocator())
+        plt.gca().xaxis.set_major_formatter(mdates.DateFormatter('%b %Y'))
+        plt.xticks(rotation=45)
+
+        plt.grid(True, alpha=0.3)
+        # plt.legend()
+        plt.tight_layout()
+        return plt
+
+    def period_stats(self, period: TimeWindow) -> RawStats:
+        stats = RawStats()
+        cut_index = -0
+        match period:
+            case TimeWindow.DAY:
+                return self.stats
+            case TimeWindow.MONTH:
+                month_from_days = Counter()
+                cut_index = 7
+            case TimeWindow.YEAR:
+                month_from_days = Counter()
+                cut_index = 4
+
+        for day_key, count in self.stats.counter.items():
+            stats.add(day_key[:cut_index], count)
+
+        return stats
+
+    def get_missing_days(self, start_date: date, end_date: date) -> list[date]:
+        pass
+
+
+class MetaDatabaseContentModel(BaseModel):
+    tasks_states: dict[str, int] = Field(default_factory=dict)
+    post_count: int
+    file_size: int
+    stats: DBStats
+    annotation: Optional[str] = None

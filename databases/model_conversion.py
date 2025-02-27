@@ -5,7 +5,7 @@ from typing import Optional, Annotated
 from deprecated.classic import deprecated
 from pydantic import BaseModel, Field, field_validator, ConfigDict, PlainSerializer
 
-from databases.external import CollectionStatus, PostType, CollectConfig
+from databases.external import CollectionStatus, PostType, CollectConfig, MetaDatabaseContentModel
 
 
 # Base Models
@@ -27,6 +27,7 @@ class PlatformDatabaseContentModel(BaseDBModel):
     status: dict
     stats: dict
 
+
 # Platform Models
 class PlatformDatabaseModel(BaseDBModel):
     """Model for platform database configuration"""
@@ -37,6 +38,18 @@ class PlatformDatabaseModel(BaseDBModel):
     last_status_update: Optional[datetime] = None
     last_stats_update: Optional[datetime] = None
     content: Optional[dict] = None
+
+
+class PlatformDatabaseModel2(BaseDBModel):
+    """Model for platform database configuration"""
+    id: int
+    platform: str
+    name: Optional[str] = None
+    is_default: bool = False
+    db_path: Path
+    content: MetaDatabaseContentModel
+    last_content_update: datetime
+
 
 # User Models
 class UserModel(BaseDBModel):
@@ -193,4 +206,4 @@ class CollectionTaskModel(BaseDBModel):
     collection_duration: Optional[int]
     status: CollectionStatus
     time_added: datetime
-    transient: bool
+    transient: Optional[bool] = False

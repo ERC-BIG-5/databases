@@ -9,7 +9,7 @@ from sqlalchemy.orm import relationship, Mapped, mapped_column, declarative_base
 
 from databases.external import CollectionStatus, ClientTaskConfig
 from databases.external import PostType
-from databases.model_conversion import PlatformDatabaseModel, CollectionTaskModel, PostModel
+from databases.model_conversion import PlatformDatabaseModel, CollectionTaskModel, PostModel, PlatformDatabaseModel2
 
 Base = declarative_base()
 
@@ -25,7 +25,7 @@ class DBModelBase(Generic[T], Base):
     Generic base class for all database models that can be converted to Pydantic models
     """
     __abstract__ = True
-    _pydantic_model = EmptyModel
+    _pydantic_model: T
 
     def model(self) -> T:
         return self._pydantic_model.model_validate(self, from_attributes=True)
@@ -138,7 +138,7 @@ class DBPlatformDatabase(DBModelBase[PlatformDatabaseModel]):
     _pydantic_model = PlatformDatabaseModel
 
 
-class DBPlatformDatabase2(Base):
+class DBPlatformDatabase2(DBModelBase[PlatformDatabaseModel2]):
     __tablename__ = 'platform_databases2'
 
     id: Mapped[int] = mapped_column(primary_key=True)
@@ -150,7 +150,7 @@ class DBPlatformDatabase2(Base):
     content: Mapped[dict] = mapped_column(JSON(), nullable=False)
     last_content_update: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, default=func.now())
 
-    _pydantic_model = PlatformDatabaseModel
+    _pydantic_model = PlatformDatabaseModel2
 
 
 M_DBPlatformDatabase = TypedDict("M_DBPlatformDatabase",

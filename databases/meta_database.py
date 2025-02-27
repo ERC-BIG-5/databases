@@ -1,23 +1,12 @@
 from pathlib import Path
-from typing import Optional
-
-from pydantic import BaseModel, Field
 
 from databases import db_utils
-from databases.db_stats import DBStats, generate_db_stats
+from databases.db_stats import generate_db_stats
 from databases.db_mgmt import DatabaseManager
 from databases.db_models import DBPlatformDatabase2
 from databases.db_utils import check_platforms, count_posts
-from databases.external import DBConfig, SQliteConnection
+from databases.external import DBConfig, SQliteConnection, MetaDatabaseContentModel
 from tools.env_root import root
-
-
-class MetaDatabaseContentModel(BaseModel):
-    tasks_states: dict[str, int] = Field(default_factory=dict)
-    post_count: int
-    file_size: int
-    stats: DBStats
-    annotation: Optional[str] = None
 
 
 def check_exists(path: str, metadb: DatabaseManager) -> bool:
@@ -69,6 +58,10 @@ def add_db(path: str | Path, metadb: DatabaseManager, update: bool = False):
         )
         session.add(meta_db_entry)
 
+    def merge_into(src_path: Path, dest_path: Path, delete_after_full_merge: bool = True):
+        # todo
+        raise NotImplementedError()
+
 
 if __name__ == "__main__":
     root("/home/rsoleyma/projects/platforms-clients")
@@ -82,12 +75,16 @@ if __name__ == "__main__":
 
     # add_db(root() / "data/youtube_backup_1112.sqlite", meta_db)
 
-    """
-    for db in (root() / "data").glob("*.sqlite"):
-        add_db(db, meta_db)
-        print("*****")
-    """
+
+    # for db in (root() / "data").glob("*.sqlite"):
+    #     add_db(db, meta_db)
+    #     print("*****")
+
+    # add_db(Path("/home/rsoleyma/projects/platforms-clients/data/col_db/twitter/twitter.sqlite"), meta_db)
+
     from sqlalchemy import select
+
     with meta_db.get_session() as session:
         for p_db in session.execute(select(DBPlatformDatabase2)).scalars():
-            print(f"{p_db.platform} {p_db.db_path} {p_db.content['post_count']}")
+            m = p_db.model()
+            print(f"{m.platform} {m.db_path} {m.content.post_count}")

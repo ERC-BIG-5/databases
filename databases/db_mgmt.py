@@ -28,10 +28,10 @@ class DatabaseManager:
             event.listen(self.engine, 'connect', self._sqlite_on_connect)
 
     @staticmethod
-    def sqlite_db_from_path(path: Path,
+    def sqlite_db_from_path(path: str | Path,
                             create: bool = False) -> "DatabaseManager":
         return DatabaseManager(DBConfig(db_connection=SQliteConnection(db_path=path),
-                                        create=create))
+                                        create=create, require_existing_parent_dir=True))
 
     def _create_engine(self) -> Engine:
         self.logger.debug(f"creating db engine with {self.config.connection_str}")
@@ -81,7 +81,7 @@ class DatabaseManager:
         """Initialize database, optionally resetting if configured."""
 
         if self.config.db_type == "sqlite":
-            if not self.config.create and not database_exists(self.config.connection_str):
+            if not self.config.create and not self.config.db_connection.db_path.exists():
                 raise ValueError(f"Database {self.config.connection_str} does not exist")
 
             if self.config.reset_db and database_exists(self.engine.url):
@@ -168,7 +168,6 @@ class DatabaseManager:
 
             results = query.all()
             return {enum_type.name.lower(): count for enum_type, count in results}
-
 
 
 class AsyncDatabaseManager(DatabaseManager):
