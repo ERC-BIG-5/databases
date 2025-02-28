@@ -92,7 +92,7 @@ class DBConfig(BaseModel):
 class ClientConfig(BaseModel):
     model_config = {'extra': "forbid", "from_attributes": True}
     auth_config: Optional[dict[str, str]] = None
-    request_delay: Optional[int] = 0
+    request_delay: Optional[float] = 0
     delay_randomize: Optional[int] = 0
     progress: bool = True
     db_config: Optional[DBConfig] = None
@@ -202,7 +202,9 @@ class DBStats(BaseModel):
     db_path: SerializablePath
     stats: RawStats = RawStats()
     period: Annotated[TimeWindow, PlainSerializer(lambda v: v.value, return_type=str,
-                                                  when_used="always")]  # user  but make it Serializable
+                                                  when_used="always")]
+    time_column: Annotated[TimeColumn, PlainSerializer(lambda v: v.value, return_type=str,
+                                                  when_used="always")]
     error: Optional[str] = None
     file_size: int = 0
 

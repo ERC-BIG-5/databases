@@ -31,6 +31,7 @@ def generate_db_stats(
         stats = DBStats(
             db_path=db.config.db_connection.db_path,
             period=TimeWindow.DAY,
+            time_column=time_column,
             file_size=db_utils.file_size(db)
         )
 

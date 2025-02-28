@@ -77,8 +77,7 @@ class PlatformDB:
         """Get all tasks that need to be executed"""
         return self.get_tasks_of_states([
             CollectionStatus.INIT,
-            # todo, bring back PAUSED based on config
-            # CollectionStatus.PAUSED
+            CollectionStatus.PAUSED
         ])
 
     def get_tasks_of_states(self,
