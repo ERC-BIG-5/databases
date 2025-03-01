@@ -200,11 +200,12 @@ class TimeColumn(str, Enum):
 class DBStats(BaseModel):
     """Database statistics model with file information and error handling."""
     db_path: SerializablePath
-    stats: RawStats = RawStats()
+    created_counts: RawStats = RawStats()
+    collected_counts: RawStats = RawStats()
     period: Annotated[TimeWindow, PlainSerializer(lambda v: v.value, return_type=str,
                                                   when_used="always")]
-    time_column: Annotated[TimeColumn, PlainSerializer(lambda v: v.value, return_type=str,
-                                                  when_used="always")]
+    # time_column: Annotated[TimeColumn, PlainSerializer(lambda v: v.value, return_type=str,
+    #                                               when_used="always")]
     error: Optional[str] = None
     file_size: int = 0
 
@@ -215,15 +216,7 @@ class DBStats(BaseModel):
             v = root() / "data" / v
         return v
 
-    def add_period_count(self, period_str: str, count: int) -> None:
-        """Add a count for a specific period."""
-        self.stats.add(period_str, count)
-
-    def set_period_count(self, period_str: str, count: int) -> None:
-        """Set the count for a specific period."""
-        self.stats.set(period_str, count)
-
-    def plot_daily_items(self, bars: bool = False, period: TimeWindow = TimeWindow.DAY) -> plt:
+    def plot_daily_items(self, bars: bool = False, period: TimeWindow = TimeWindow.DAY, title: Optional[str] = "") -> plt:
 
         plt.figure(figsize=(12, 6))
 
@@ -233,7 +226,7 @@ class DBStats(BaseModel):
             daily_counts.index = pd.to_datetime(daily_counts.index)
 
         if bars:
-            width = 2 if period is TimeWindow.DAY else 25
+            width = 1 if period is TimeWindow.DAY else 25
             plt.bar(daily_counts.index, daily_counts.values, width=width,
                     color='blue', label='Posts', alpha=0.7)
         else:
@@ -251,7 +244,7 @@ class DBStats(BaseModel):
                             color='red', s=10, label='No Posts',
                             zorder=5)
 
-        plt.title('Daily Post Count (Red Bars = No Posts)')
+        plt.title(title)
         plt.xlabel('Date')
         plt.ylabel('Number of Posts')
 
@@ -265,12 +258,12 @@ class DBStats(BaseModel):
         plt.tight_layout()
         return plt
 
-    def period_stats(self, period: TimeWindow) -> RawStats:
+    def period_stats(self, period: TimeWindow, col: TimeColumn) -> RawStats:
         stats = RawStats()
         cut_index = -0
         match period:
             case TimeWindow.DAY:
-                return self.stats
+                pass
             case TimeWindow.MONTH:
                 month_from_days = Counter()
                 cut_index = 7
@@ -278,7 +271,8 @@ class DBStats(BaseModel):
                 month_from_days = Counter()
                 cut_index = 4
 
-        for day_key, count in self.stats.counter.items():
+        counts = self.created_counts if col == TimeColumn.CREATED else self.collected_counts
+        for day_key, count in counts.counter.items():
             stats.add(day_key[:cut_index], count)
 
         return stats
