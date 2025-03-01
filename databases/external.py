@@ -70,7 +70,7 @@ class PostgresConnection(BaseModel):
 class DBConfig(BaseModel):
     model_config = {'extra': "forbid", "from_attributes": True}
     db_connection: DatabaseConnectionType
-    create: bool = True
+    create: bool = False
     # is_default: bool = Field(False)
     reset_db: bool = False
     test_mode: bool = False

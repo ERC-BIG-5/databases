@@ -9,6 +9,7 @@ from sqlalchemy.orm import Session
 from databases.db_mgmt import DatabaseManager
 from databases.db_models import DBPost, DBCollectionTask
 from databases.db_utils import get_tasks_with_posts, filter_posts_with_existing_post_ids
+from databases.external import CollectionStatus
 from tools.env_root import root
 
 
@@ -101,6 +102,8 @@ def process_collection_task(session: Session, task_model, num_new_posts: int, st
         existing_task.found_items = (getattr(existing_task,"found_items") or 0) + num_new_posts
         existing_task.added_items = (getattr(existing_task, "added_items") or 0) + num_new_posts
         stats.existing_tasks_updated += 1
+        if task_model.status == CollectionStatus.DONE:
+            existing_task.status = CollectionStatus.DONE
         return existing_task
     else:
         # Create a new task
