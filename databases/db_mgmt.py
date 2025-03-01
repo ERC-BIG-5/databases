@@ -47,10 +47,7 @@ class DatabaseManager:
             connect_args=connect_args
         )
 
-    @classmethod
-    def get_main_db_config(cls) -> "DBConfig":
-        return DBConfig(
-            db_connection=SQliteConnection(db_path=(BASE_DATA_PATH / "main.sqlite").as_posix()))
+
 
     @staticmethod
     def _sqlite_on_connect(dbapi_con, _):
