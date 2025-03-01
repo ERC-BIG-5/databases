@@ -49,7 +49,8 @@ def generate_db_stats(
             db_path=db.config.db_connection.db_path,
             period=TimeWindow.DAY,
             error=str(e),
-            file_size=db_utils.file_size(db) if hasattr(db, 'config') else 0
+            file_size=db_utils.file_size(db) if hasattr(db, 'config') else 0,
+            time_column=time_column
         )
         return error_stats
 

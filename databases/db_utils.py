@@ -151,6 +151,22 @@ def find_invalid_tasks(db: "DatabaseManager") -> list[int]:
     # tasks with number but invalid STATE (!= DONE)
     raise NotImplementedError()
 
+def count_states(self) -> dict[str, int]:
+    """
+    Count DBCollectionTask grouped by status
+    :return:
+    """
+    with self.get_session() as session:
+        query = (
+            session.query(
+                DBCollectionTask.status,
+                func.count(DBCollectionTask.status).label('count')
+            )
+            .group_by(DBCollectionTask.status)
+        )
+
+        results = query.all()
+        return {enum_type.name.lower(): count for enum_type, count in results}
 
 def find_tasks_groups(db: "DatabaseManager") -> dict[str, list[tuple[int, CollectionStatus]]]:
     """

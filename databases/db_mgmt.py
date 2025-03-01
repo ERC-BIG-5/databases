@@ -151,24 +151,6 @@ class DatabaseManager:
             task.collection_duration = int(duration * 1000)
             session.commit()
 
-    def count_states(self) -> dict[str, int]:
-        """
-        Count DBCollectionTask grouped by status
-        todo, maybe util or stats?
-        :return:
-        """
-        with self.get_session() as session:
-            query = (
-                session.query(
-                    DBCollectionTask.status,
-                    func.count(DBCollectionTask.status).label('count')
-                )
-                .group_by(DBCollectionTask.status)
-            )
-
-            results = query.all()
-            return {enum_type.name.lower(): count for enum_type, count in results}
-
 
 class AsyncDatabaseManager(DatabaseManager):
     def __init__(self, config: DBConfig):
