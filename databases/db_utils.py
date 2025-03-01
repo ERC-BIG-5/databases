@@ -6,7 +6,7 @@ from typing import TYPE_CHECKING, Generator, Optional
 from sqlalchemy.orm import Session
 
 from sqlalchemy import func
-from sqlalchemy import select
+from sqlalchemy import select, literal, text
 
 from databases.external import CollectionStatus, SQliteConnection, TimeWindow, TimeColumn
 from databases.model_conversion import PostModel, CollectionTaskModel
@@ -93,36 +93,86 @@ def get_tasks_with_posts(db: "DatabaseManager") -> Generator[
 
 
 def get_posts_by_period(db: "DatabaseManager",
-                        period: TimeWindow,
-                        time_col: TimeColumn) -> Generator[
-    tuple[str, int], None, None]:
-    time_col_m = DBPost.date_created if time_col == TimeColumn.CREATED else DBPost.date_collected
+                        period: TimeWindow) -> tuple[
+    list[tuple[str, int]], list[tuple[str, int]]]:
+
 
     match period:
         case TimeWindow.DAY:
             # Format as YYYY-MM--DD (year-month-day)
-            group_expr = func.strftime('%Y-%m-%d', time_col_m).label('period')
+            time_str = '%Y-%m-%d'
 
         case TimeWindow.MONTH:
             # Format as YYYY-MM (year-month)
-            group_expr = func.strftime('%Y-%m', time_col_m).label('period')
+            time_str = '%Y-%m'
 
         case TimeWindow.YEAR:
             # Format as YYYY (year)
-            group_expr = func.strftime('%Y', time_col_m).label('period')
+            time_str = '%Y'
+
         case _:
             raise ValueError(f"Unsupported time window: {period}")
 
-    with db.get_session() as session:
-        query = select(
-            group_expr,
-            func.count().label('count')
-        ).group_by(group_expr).order_by(group_expr)
+    created_expr = func.strftime(time_str, DBPost.date_created).label('created_period')
+    collected_expr = func.strftime(time_str, DBPost.date_collected).label('collected_period')
 
-        # Execute the query and return the results
-        result = session.execute(query).all()
-        for date_, count in result:
-            yield date_, count
+    with db.get_session() as session:
+        # First, get the count by creation date
+        created_query = (
+            select(
+                created_expr,
+                func.count().label('count')
+            )
+            .group_by(created_expr)
+            .order_by(created_expr)
+        )
+
+        # Then, get the count by collection date
+        collected_query = (
+            select(
+                collected_expr,
+                func.count().label('count')
+            )
+            .group_by(collected_expr)
+            .order_by(collected_expr)
+        )
+
+        # Execute both queries with a UNION ALL to get results in one trip to DB
+        combined_query = created_query.union_all(collected_query)
+
+        # We'll need to know which results came from which query
+        # Let's use a CTE with a type marker
+        query_with_type = (
+            select(
+                created_expr,
+                func.count().label('count'),
+                literal('created').label('type')
+            )
+            .group_by(created_expr)
+            .union_all(
+                select(
+                    collected_expr,
+                    func.count().label('count'),
+                    literal('collected').label('type')
+                )
+                .group_by(collected_expr)
+            )
+            .order_by(text('type'), text('created_period, collected_period'))
+        )
+
+        result = session.execute(query_with_type).all()
+
+        # Split the results by type
+        created_results = []
+        collected_results = []
+
+        for period, count, type_ in result:
+            if type_ == 'created':
+                created_results.append((period, count))
+            else:
+                collected_results.append((period, count))
+
+        return created_results, collected_results
 
 
 def count_posts(db: "DatabaseManager") -> int:
@@ -151,6 +201,7 @@ def find_invalid_tasks(db: "DatabaseManager") -> list[int]:
     # tasks with number but invalid STATE (!= DONE)
     raise NotImplementedError()
 
+
 def count_states(self) -> dict[str, int]:
     """
     Count DBCollectionTask grouped by status
@@ -167,6 +218,7 @@ def count_states(self) -> dict[str, int]:
 
         results = query.all()
         return {enum_type.name.lower(): count for enum_type, count in results}
+
 
 def find_tasks_groups(db: "DatabaseManager") -> dict[str, list[tuple[int, CollectionStatus]]]:
     """

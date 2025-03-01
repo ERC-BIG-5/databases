@@ -31,14 +31,15 @@ def generate_db_stats(
         stats = DBStats(
             db_path=db.config.db_connection.db_path,
             period=TimeWindow.DAY,
-            time_column=time_column,
             file_size=db_utils.file_size(db)
         )
 
         # Populate with data from the database
-        for period_str, count in get_posts_by_period(db, TimeWindow.DAY, time_column):
-            stats.set_period_count(period_str, count)
-
+        created, collected = get_posts_by_period(db, TimeWindow.DAY)
+        for period_str, count in created:
+            stats.created_counts.set(period_str, count)
+        for period_str, count in collected:
+            stats.collected_counts.set(period_str, count)
         return stats
 
     except Exception as e:
