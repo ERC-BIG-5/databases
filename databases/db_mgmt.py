@@ -47,8 +47,6 @@ class DatabaseManager:
             connect_args=connect_args
         )
 
-
-
     @staticmethod
     def _sqlite_on_connect(dbapi_con, _):
         dbapi_con.execute('pragma foreign_keys=ON')
@@ -101,9 +99,15 @@ class DatabaseManager:
                     Base.metadata.create_all(self.engine)
                 else:
                     md = Base.metadata.tables
-                    tables = [md[table] for table in self.config.tables]
+                    if self.config.tables:
+                        tables = [md[table] for table in self.config.tables]
+                        self.logger.info(f"Creating database tables: {tables}")
+                    else:
+                        tables = md[:]
+                        for meta_t in ["platform_databases2","platform_databases2"]:
+                            if meta_t in  tables:
+                                del tables[meta_t]
                     Base.metadata.create_all(self.engine, tables=tables)
-
         else:
             PostgresConnection.model_validate(self.config)
             self._create_postgres_db()

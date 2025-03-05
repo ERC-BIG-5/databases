@@ -14,6 +14,7 @@ from pydantic import Field, computed_field, SecretStr, field_serializer
 from pydantic import field_validator
 from pydantic.functional_serializers import PlainSerializer
 
+from databases.db_settings import SqliteSettings
 from tools.env_root import root
 
 BASE_DATA_PATH = root() / "data"
@@ -42,9 +43,10 @@ class SQliteConnection(BaseModel):
 
     @field_validator("db_path",mode="before")
     def validate_path(cls, v) -> Path:
-        if isinstance(v,str):
-            return Path(v)
-        return v
+        path = Path(v)
+        if not path.is_absolute():
+            path = SqliteSettings().SQLITE_DBS_BASE_PATH / path
+        return path
 
     @property
     def connection_str(self) -> str:

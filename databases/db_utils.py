@@ -69,11 +69,14 @@ def file_size(db: "DatabaseManager") -> int:
         return 0
 
 
-def get_posts(db: "DatabaseManager") -> Generator[PostModel, None, None]:
+def iter_posts(db: "DatabaseManager") -> Generator[PostModel, None, None]:
     with db.get_session() as session:
         for post in session.execute(select(DBPost)).scalars():
             yield post.model()
 
+def get_posts(db_session: Session, platform_ids :list[str]) -> Generator[PostModel, None, None]:
+    for post in db_session.execute(select(DBPost).where(DBPost.platform_id.in_(platform_ids))).scalars():
+        yield post
 
 def get_tasks_with_posts(db: "DatabaseManager") -> Generator[
     tuple[CollectionTaskModel, list[PostModel]], None, None]:
@@ -246,6 +249,10 @@ def find_tasks_groups(db: "DatabaseManager") -> dict[str, list[tuple[int, Collec
 
     return dict(groups)
 
+
+def reorder_posts(db: "DatabaseManager") -> None:
+    # todo implement
+    raise NotImplementedError()
 
 if __name__ == "__main__":
     from databases.db_mgmt import DatabaseManager
