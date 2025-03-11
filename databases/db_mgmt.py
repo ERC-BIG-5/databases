@@ -133,7 +133,9 @@ class DatabaseManager:
                 self.submit_posts(submit_posts)
                 return submit_posts
             except IntegrityError as e:
-                submit_posts = filter_posts_with_existing_post_ids(posts, self)
+                with self.get_session() as session:
+                    submit_posts = filter_posts_with_existing_post_ids(posts, session)
+                    return submit_posts
             except Exception as e:
                 self.logger.error(f"Error submitting posts: {str(e)}")
                 return []
