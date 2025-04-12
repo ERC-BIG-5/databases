@@ -94,19 +94,14 @@ class DatabaseManager:
                     if not db_path.parent.exists():
                         raise ValueError(f"Parent directory {db_path.parent} does not exist")
                 db_path.parent.mkdir(parents=True, exist_ok=True)
+                # create an empty db file
                 create_database(self.engine.url)
-                if not self.config.tables:
-                    Base.metadata.create_all(self.engine)
-                else:
+                if self.config.tables:
+                    #Base.metadata.create_all(self.engine)
                     md = Base.metadata.tables
-                    if self.config.tables:
-                        tables = [md[table] for table in self.config.tables]
-                        self.logger.info(f"Creating database tables: {tables}")
-                    else:
-                        tables = md[:]
-                        for meta_t in ["platform_databases2","platform_databases2"]:
-                            if meta_t in  tables:
-                                del tables[meta_t]
+                    # this could crash, if we pass a wrong table...
+                    tables = [md[table] for table in self.config.tables]
+                    self.logger.info(f"Creating database tables: {tables}")
                     Base.metadata.create_all(self.engine, tables=tables)
         else:
             PostgresConnection.model_validate(self.config)
@@ -154,6 +149,11 @@ class DatabaseManager:
             task.collection_duration = int(duration * 1000)
             session.commit()
 
+    @staticmethod
+    def platform_tables() -> list[str]:
+        tables = list(Base.metadata.tables)[:]
+        tables.remove("platform_databases")
+        return tables
 
 class AsyncDatabaseManager(DatabaseManager):
     def __init__(self, config: DBConfig):

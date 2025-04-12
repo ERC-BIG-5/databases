@@ -40,7 +40,7 @@ class PlatformDatabaseModel(BaseDBModel):
     content: Optional[dict] = None
 
 
-class PlatformDatabaseModel2(BaseDBModel):
+class PlatformDatabaseModel(BaseDBModel):
     """Model for platform database configuration"""
     id: int
     platform: str

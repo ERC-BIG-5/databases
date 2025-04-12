@@ -9,7 +9,8 @@ from sqlalchemy.orm import relationship, Mapped, mapped_column, declarative_base
 
 from databases.external import CollectionStatus, ClientTaskConfig
 from databases.external import PostType
-from databases.model_conversion import PlatformDatabaseModel, CollectionTaskModel, PostModel, PlatformDatabaseModel2
+from databases.model_conversion import PlatformDatabaseModel, CollectionTaskModel, PostModel, PlatformDatabaseModel
+from sqlalchemy.ext.mutable import MutableDict
 
 Base = declarative_base()
 
@@ -126,20 +127,20 @@ class DBPost(DBModelBase[PostModel]):
     _pydantic_model = PostModel
 
 
+# class DBPlatformDatabase(DBModelBase[PlatformDatabaseModel]):
+#     __tablename__ = 'platform_databases'
+#
+#     id: Mapped[int] = mapped_column(primary_key=True)
+#     platform: Mapped[str] = mapped_column(String(20), nullable=False, unique=True)
+#     name: Mapped[str] = mapped_column(String(20), nullable=True)
+#     connection_str: Mapped[str] = mapped_column(String(), nullable=False)
+#     is_default: Mapped[bool] = mapped_column(Boolean())
+#
+#     _pydantic_model = PlatformDatabaseModel
+
+
 class DBPlatformDatabase(DBModelBase[PlatformDatabaseModel]):
     __tablename__ = 'platform_databases'
-
-    id: Mapped[int] = mapped_column(primary_key=True)
-    platform: Mapped[str] = mapped_column(String(20), nullable=False, unique=True)
-    name: Mapped[str] = mapped_column(String(20), nullable=True)
-    connection_str: Mapped[str] = mapped_column(String(), nullable=False)
-    is_default: Mapped[bool] = mapped_column(Boolean())
-
-    _pydantic_model = PlatformDatabaseModel
-
-
-class DBPlatformDatabase2(DBModelBase[PlatformDatabaseModel2]):
-    __tablename__ = 'platform_databases2'
 
     id: Mapped[int] = mapped_column(primary_key=True)
     platform: Mapped[str] = mapped_column(String(20), nullable=False)
@@ -147,10 +148,10 @@ class DBPlatformDatabase2(DBModelBase[PlatformDatabaseModel2]):
     is_default: Mapped[bool] = mapped_column(Boolean())
 
     db_path: Mapped[str] = mapped_column(String(120), nullable=False, unique=True)
-    content: Mapped[dict] = mapped_column(JSON(), nullable=False)
+    content: Mapped[dict] = mapped_column(MutableDict.as_mutable(JSON()), nullable=False, default={})
     last_content_update: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, default=func.now())
 
-    _pydantic_model = PlatformDatabaseModel2
+    _pydantic_model = PlatformDatabaseModel
 
 
 M_DBPlatformDatabase = TypedDict("M_DBPlatformDatabase",

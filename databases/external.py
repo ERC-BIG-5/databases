@@ -285,7 +285,7 @@ class DBStats(BaseModel):
 
 class MetaDatabaseContentModel(BaseModel):
     tasks_states: dict[str, int] = Field(default_factory=dict)
-    post_count: int
-    file_size: int
-    stats: DBStats
+    post_count: int = 0
+    file_size: int = 0
+    stats: Optional[DBStats] = Field(None)
     annotation: Optional[str] = None

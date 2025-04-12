@@ -21,7 +21,7 @@ class PostgresCredentials(BaseSettings):
 
 class SqliteSettings(BaseSettings):
     model_config = SettingsConfigDict(env_file=ENV_FILE_PATH, env_file_encoding='utf-8', extra='allow')
-    SQLITE_DBS_BASE_PATH: str = Field((root() / "data" / "col_db").absolute().as_posix())
+    SQLITE_DBS_BASE_PATH: str = Field((root() / "data" / "dbs").absolute().as_posix())
 
     # @field_validator("model_config")
     # def set_sqlite_path(cls, v, values:ValidationInfo):

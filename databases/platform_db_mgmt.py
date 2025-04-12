@@ -5,7 +5,7 @@ from sqlalchemy import select
 from databases.external import DBConfig, SQliteConnection, ClientTaskConfig
 from databases.external import BASE_DATA_PATH, CollectionStatus
 from databases.db_mgmt import DatabaseManager
-from databases.db_models import DBCollectionTask, DBPost, CollectionResult
+from databases.db_models import DBCollectionTask, DBPost, CollectionResult, Base
 from tools.project_logging import get_logger
 
 
@@ -153,3 +153,7 @@ class PlatformDB:
                 t.status = CollectionStatus.PAUSED
                 c += 1
             self.logger.debug(f"Set tasks to pause: {c} tasks")
+
+    @staticmethod
+    def platform_tables() -> list[str]:
+        return DatabaseManager.platform_tables()

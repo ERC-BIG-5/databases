@@ -1,9 +1,9 @@
 from pathlib import Path
 
 from databases import db_utils
+from databases.db_models import DBPlatformDatabase
 from databases.db_stats import generate_db_stats
 from databases.db_mgmt import DatabaseManager
-from databases.db_models import DBPlatformDatabase2
 from databases.external import DBConfig, SQliteConnection, MetaDatabaseContentModel
 from tools.env_root import root
 
@@ -11,19 +11,20 @@ from tools.env_root import root
 class MetaDatabase():
 
     def __init__(self, create: bool = False):
+        (root() / "data/dbs").mkdir(parents=True, exist_ok=True)
         self.db = DatabaseManager(config=DBConfig(
-            db_connection=SQliteConnection(db_path=root() / "data/col_db/new_main.sqlite"),
+            db_connection=SQliteConnection(db_path=root() / "data/dbs/main.sqlite"),
             create=create,
             require_existing_parent_dir=True,
-            tables=["platform_databases2"]
+            tables=["platform_databases"],
         ))
-        self.db.init_database()
+        #self.db.init_database()
 
     def purge(self, simulate: bool = False):
         if simulate:
             print("SIMULATE")
         with self.db.get_session() as session:
-            for db in session.query(DBPlatformDatabase2):
+            for db in session.query(DBPlatformDatabase):
                 if not Path(db.db_path).exists():
                     name = f"{db.name}: {db.db_path} does not exist"
                     print("Delete", name)
