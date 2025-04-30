@@ -5,10 +5,7 @@ from enum import Enum, auto
 from pathlib import Path
 from typing import Optional, Literal, Annotated
 
-import matplotlib.dates as mdates
-import matplotlib.pyplot as plt
-import pandas as pd
-import seaborn as sns
+
 from pydantic import BaseModel
 from pydantic import Field, computed_field, SecretStr, field_serializer
 from pydantic import field_validator
@@ -39,7 +36,6 @@ class CollectionStatus(Enum):
 
 class SQliteConnection(BaseModel):
     db_path: Path | str
-    reset_db: Optional[bool] = False
 
     @field_validator("db_path",mode="before")
     def validate_path(cls, v) -> Path:
@@ -73,7 +69,6 @@ class DBConfig(BaseModel):
     model_config = {'extra': "forbid", "from_attributes": True}
     db_connection: DatabaseConnectionType
     create: bool = False
-    # is_default: bool = Field(False)
     reset_db: bool = False
     test_mode: bool = False
     require_existing_parent_dir: Optional[bool] = Field(True,
@@ -218,7 +213,15 @@ class DBStats(BaseModel):
             v = root() / "data" / v
         return v
 
-    def plot_daily_items(self, bars: bool = False, period: TimeWindow = TimeWindow.DAY, title: Optional[str] = "") -> plt:
+    def plot_daily_items(self, bars: bool = False, period: TimeWindow = TimeWindow.DAY, title: Optional[str] = "") -> "plt":
+        try:
+            import matplotlib.dates as mdates
+            import matplotlib.pyplot as plt
+            import pandas as pd
+            import seaborn as sns
+        except ModuleNotFoundError:
+            print("You need to add the optional dependency 'plot'")
+            return
 
         plt.figure(figsize=(12, 6))
 

@@ -1,0 +1,23 @@
+[project]
+name = "big5-databases"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "deprecated>=1.2.18",
+    "python-project-tools",
+    "sqlalchemy>=2.0.40",
+    "sqlalchemy-utils>=0.41.2",
+    "tqdm>=4.67.1",
+]
+
+[project.optional-dependencies]
+plot = [
+    "matplotlib>=3.10.1",
+    "pandas>=2.2.3",
+    "seaborn>=0.13.2",
+]
+
+[tool.uv.sources]
+python-project-tools = { git = "https://github.com/transfluxus/python-project-tools" }

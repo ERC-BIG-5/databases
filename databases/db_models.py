@@ -42,15 +42,6 @@ class DBUser(Base):
     # posts: Mapped[list["DBPost"]] = relationship(back_populates="user")
 
 
-# class DBPostContentSchema(Base):
-#     __tablename__ = 'post_content_schema'
-#
-#     id: Mapped[int] = mapped_column(primary_key=True)
-#     platform: Mapped[str] = mapped_column(String(20), nullable=False)
-#     schema: Mapped[dict] = mapped_column(JSON, nullable=False)
-#     posts: Mapped[list["DBPost"]] = relationship(back_populates="content_schema")
-
-
 class DBComment(Base):
     """
     """
