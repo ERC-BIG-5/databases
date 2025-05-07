@@ -16,8 +16,6 @@ dependencies = [
     "tqdm>=4.67.1",
 ]
 
-[tool.setuptools]
-packages = ["tools"]
 
 [project.optional-dependencies]
 plot = [
