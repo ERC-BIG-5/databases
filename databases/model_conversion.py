@@ -128,6 +128,7 @@ class PostMetadataModel(BaseModel):
 
     orig_db_conf: Optional[tuple[str, Optional[int]]] = Field(None,
                                                               description="original d(atabase_name, collection_task_id) for merges")
+    annotations: Optional[dict[str, dict]] = Field(None, description="annotations from labelstudio")
 
     @property
     def mediafile_paths(self) -> list[Path]:
