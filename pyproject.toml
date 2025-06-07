@@ -2,6 +2,10 @@
 requires = ["setuptools"]
 build-backend = "setuptools.build_meta"
 
+[tool.setuptools.packages.find]
+where = ["src"]
+
+
 [project]
 name = "big5-databases"
 version = "0.1.1"
@@ -22,6 +26,9 @@ plot = [
     "matplotlib>=3.10.1",
     "pandas>=2.2.3",
     "seaborn>=0.13.2",
+]
+vector = [
+    "lancedb>=0.23.0",
 ]
 
 [tool.uv.sources]

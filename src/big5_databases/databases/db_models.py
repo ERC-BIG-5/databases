@@ -7,9 +7,9 @@ from sqlalchemy import Column, String, Integer, Boolean, DateTime, ForeignKey, J
 from sqlalchemy import Enum as SQLAlchemyEnum
 from sqlalchemy.orm import relationship, Mapped, mapped_column, declarative_base
 
-from databases.external import CollectionStatus, ClientTaskConfig
-from databases.external import PostType
-from databases.model_conversion import PlatformDatabaseModel, CollectionTaskModel, PostModel, PlatformDatabaseModel
+from .external import CollectionStatus, ClientTaskConfig
+from .external import PostType
+from .model_conversion import PlatformDatabaseModel, CollectionTaskModel, PostModel, PlatformDatabaseModel
 from sqlalchemy.ext.mutable import MutableDict
 
 Base = declarative_base()

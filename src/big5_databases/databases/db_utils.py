@@ -8,13 +8,13 @@ from sqlalchemy.orm import Session
 from sqlalchemy import func
 from sqlalchemy import select, literal, text
 
-from databases.external import CollectionStatus, SQliteConnection, TimeWindow, TimeColumn
-from databases.model_conversion import PostModel, CollectionTaskModel
+from .external import CollectionStatus, SQliteConnection, TimeWindow, TimeColumn
+from .model_conversion import PostModel, CollectionTaskModel
 from tools.env_root import root
 
 if TYPE_CHECKING:
-    from databases.db_mgmt import DatabaseManager
-from databases.db_models import DBPost, DBCollectionTask
+    from .db_mgmt import DatabaseManager
+from .db_models import DBPost, DBCollectionTask
 
 
 def filter_posts_with_existing_post_ids(posts: list[DBPost | PostModel],

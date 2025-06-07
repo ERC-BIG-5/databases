@@ -26,3 +26,4 @@ class SqliteSettings(BaseSettings):
     # @field_validator("model_config")
     # def set_sqlite_path(cls, v, values:ValidationInfo):
     #     return (BASE_DATA_PATH / values.data["DB_REL_PATH"]).absolute().as_posix()
+

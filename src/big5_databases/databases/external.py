@@ -11,7 +11,7 @@ from pydantic import Field, computed_field, SecretStr, field_serializer
 from pydantic import field_validator
 from pydantic.functional_serializers import PlainSerializer
 
-from databases.db_settings import SqliteSettings
+from .db_settings import SqliteSettings
 from tools.env_root import root
 
 BASE_DATA_PATH = root() / "data"
@@ -23,7 +23,7 @@ class PostType(Enum):
 
 
 DatabaseType = Literal["sqlite", "postgres"]
-type DatabaseConnectionType = SQliteConnection | PostgresConnection
+type DatabaseConnectionType = SQliteConnection | PostgresConnection | LanceConnection
 
 
 class CollectionStatus(Enum):
@@ -50,6 +50,16 @@ class SQliteConnection(BaseModel):
             return f"sqlite:///{self.db_path}"
         else:
             return f"sqlite:///{self.db_path.as_posix()}"
+
+class LanceConnection(BaseModel):
+    db_path: Path | str
+
+    @field_validator("db_path",mode="before")
+    def validate_path(cls, v) -> Path:
+        path = Path(v)
+        if not path.is_absolute():
+            path = SqliteSettings().SQLITE_DBS_BASE_PATH / path
+        return path
 
 
 class PostgresConnection(BaseModel):
@@ -83,7 +93,9 @@ class DBConfig(BaseModel):
     @computed_field
     @property
     def db_type(self) -> DatabaseType:
-        return "sqlite" if isinstance(self.db_connection, SQliteConnection) else "postgres"
+        print(type(self.db_connection))
+        return ""
+
 
 
 class ClientConfig(BaseModel):

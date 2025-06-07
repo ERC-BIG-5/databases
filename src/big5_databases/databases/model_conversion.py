@@ -5,7 +5,7 @@ from typing import Optional, Annotated
 from deprecated.classic import deprecated
 from pydantic import BaseModel, Field, field_validator, ConfigDict, PlainSerializer
 
-from databases.external import CollectionStatus, PostType, CollectConfig, MetaDatabaseContentModel
+from .external import CollectionStatus, PostType, CollectConfig, MetaDatabaseContentModel
 
 
 # Base Models
