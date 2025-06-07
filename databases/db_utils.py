@@ -96,8 +96,12 @@ def get_tasks_with_posts(db: "DatabaseManager") -> Generator[
 
 
 def get_posts_by_period(db: "DatabaseManager",
-                        period: TimeWindow) -> tuple[
+                        period: TimeWindow= TimeWindow.DAY) -> tuple[
     list[tuple[str, int]], list[tuple[str, int]]]:
+    """
+
+    @returns: 2 lists of created and collected posts by period. Each list contains tuples of (period, count)
+    """
 
 
     match period:

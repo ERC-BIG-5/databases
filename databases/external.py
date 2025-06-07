@@ -88,7 +88,6 @@ class DBConfig(BaseModel):
 
 class ClientConfig(BaseModel):
     model_config = {'extra': "forbid", "from_attributes": True}
-    auth_config: Optional[dict[str, str]] = Field(deprecated="kick it out. its going to be all simple env-variables")
     request_delay: Optional[float] = 0
     delay_randomize: Optional[int] = 0
     progress: bool = True

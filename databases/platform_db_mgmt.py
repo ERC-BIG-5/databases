@@ -32,6 +32,11 @@ class PlatformDB:
         with self.db_mgmt.get_session() as session:
             return session.query(exists().where(DBCollectionTask.task_name == task_name)).scalar()
 
+    def check_task_names_exists(self, task_names: list[str]) -> list[str]:
+        with self.db_mgmt.get_session() as session:
+            existing_tasks = session.scalars(select(DBCollectionTask.task_name).where(DBCollectionTask.task_name.in_(task_names))).all()
+            return existing_tasks
+
     def add_db_collection_task(self, collection_task: "ClientTaskConfig") -> bool:
         task_name = collection_task.task_name
         exists_and_overwrite = False
@@ -69,6 +74,33 @@ class PlatformDB:
             self.logger.info(f"Added new client collection task: {task_name}")
             return True
 
+    def add_db_collection_tasks(self, collection_tasks: list["ClientTaskConfig"]) -> list[str]:
+        task_names = [t.task_name for t in collection_tasks]
+        exists_and_overwrite = False
+        existing_names = self.check_task_names_exists(task_names)
+        new_tasks = list(filter(lambda t: t.task_name not in existing_names, collection_tasks))
+        new_tasks_names = [t.task_name for t in new_tasks]
+
+        if existing_names:
+            self.logger.info(f"client collection tasks exists already: {existing_names}")
+        with self.db_mgmt.get_session() as session:
+            # specific function. refactor out
+            for task in new_tasks:
+                task = DBCollectionTask(
+                    task_name=task.task_name,
+                    platform=task.platform,
+                    collection_config=task.model_dump()["collection_config"],
+                    transient=task.transient,
+                )
+                session.add(task)
+            if exists_and_overwrite:
+                # todo...
+                pass
+
+            session.commit()
+            self.logger.info(f"Added new client collection tasks: {new_tasks_names}")
+            return new_tasks_names
+
     def get_db_manager(self) -> DatabaseManager:
         """Get the underlying database manager"""
         return self.db_mgmt
@@ -94,7 +126,6 @@ class PlatformDB:
                 task_obj.test_data = task.collection_config.get('test_data')
                 task_objs.append(task_obj)
             return task_objs
-
 
     # todo, check when this is called... refactor, merge usage with util, and safe_insert...
     def insert_posts(self, collection: CollectionResult):
