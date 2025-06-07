@@ -1,17 +1,18 @@
-from datetime import datetime, date
 from collections import Counter
+from datetime import date
 from datetime import datetime
 from enum import Enum, auto
 from pathlib import Path
-from typing import Optional, Literal, Annotated, Any
+from typing import Optional, Literal, Annotated
 
+from lancedb.pydantic import LanceModel
 from pydantic import BaseModel
 from pydantic import Field, computed_field, SecretStr, field_serializer
 from pydantic import field_validator
 from pydantic.functional_serializers import PlainSerializer
+from tools.env_root import root
 
 from .db_settings import SqliteSettings
-from tools.env_root import root
 
 BASE_DATA_PATH = root() / "data"
 ENV_FILE_PATH = Path(".env")
@@ -51,16 +52,10 @@ class SQliteConnection(BaseModel):
         else:
             return f"sqlite:///{self.db_path.as_posix()}"
 
-class LanceTable(BaseModel):
-    name: str
-    type_: Any = Field(alias="type")
-    size: int
-
-
 
 class LanceConnection(BaseModel):
     db_path: Path | str
-    create_tables: list[LanceTable] = Field(default_factory=list)
+    tables: dict[str,LanceModel] = Field(default_factory=dict)
 
     @field_validator("db_path",mode="before")
     def validate_path(cls, v) -> Path:
@@ -101,9 +96,10 @@ class DBConfig(BaseModel):
     @computed_field
     @property
     def db_type(self) -> DatabaseType:
-        print(type(self.db_connection))
-        return ""
-
+        if isinstance(self.db_connection, SQliteConnection):
+            return "sqlite"
+        else:
+            return "postgres"
 
 
 class ClientConfig(BaseModel):

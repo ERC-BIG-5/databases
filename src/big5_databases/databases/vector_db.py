@@ -1,10 +1,9 @@
 from typing import Any
 
 import lancedb
-import pyarrow as pa
 from lancedb._lancedb import Table
 
-from big5_databases.databases.external import LanceConnection, LanceTable
+from big5_databases.databases.external import LanceConnection
 
 
 class VectorDBManager:
@@ -12,13 +11,9 @@ class VectorDBManager:
     def __init__(self, connection: LanceConnection):
         self.db = lancedb.connect(connection.db_path)
         self.tables = {}
-        for table in connection.create_tables:
-            if table.name not in self.db.table_names():
-                self.create_table(table)
-
-    def create_table(self, table: LanceTable) -> Table:
-        schema = pa.schema([pa.field("vector", pa.list_(pa.type_for_alias(table.type_), list_size=table.size))])
-        return self.db.create_table(table.name, schema=schema)
+        for table,table_model in connection.tables.items():
+            if table not in self.db.table_names():
+                self.db.create_table(table.name, schema=table_model)
 
     def get_table(self, table_name: str) -> Table:
         if table_name not in self.tables:
