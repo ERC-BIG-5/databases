@@ -1,10 +1,10 @@
 import json
 from collections import Counter
 
-from databases import db_utils
-from databases.db_mgmt import DatabaseManager
-from databases.db_utils import get_posts_by_period
-from databases.external import SQliteConnection, DBStats, TimeWindow, TimeColumn
+import db_utils
+from .db_mgmt import DatabaseManager
+from .db_utils import get_posts_by_period
+from .external import SQliteConnection, DBStats, TimeWindow, TimeColumn
 from tools.env_root import root
 
 RAISE_DB_ERROR = True

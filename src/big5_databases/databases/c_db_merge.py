@@ -6,10 +6,10 @@ from tqdm import tqdm
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from databases.db_mgmt import DatabaseManager
-from databases.db_models import DBPost, DBCollectionTask
-from databases.db_utils import get_tasks_with_posts, filter_posts_with_existing_post_ids
-from databases.external import CollectionStatus
+from .db_mgmt import DatabaseManager
+from .db_models import DBPost, DBCollectionTask
+from .db_utils import get_tasks_with_posts, filter_posts_with_existing_post_ids
+from .external import CollectionStatus
 from tools.env_root import root
 
 

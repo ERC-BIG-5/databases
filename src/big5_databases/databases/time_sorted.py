@@ -8,7 +8,7 @@ from pathlib import Path
 
 from sqlalchemy import Table, MetaData, text
 
-from databases.db_mgmt import DatabaseManager
+from big5_databases.databases.db_mgmt import DatabaseManager
 
 
 def check_sorted(db_path: Path, table: str = "post") -> bool:

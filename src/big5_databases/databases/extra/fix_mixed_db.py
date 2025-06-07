@@ -3,12 +3,12 @@ from typing import TYPE_CHECKING, Generator
 
 from sqlalchemy import select, delete
 
-from databases.c_db_merge import MergeStats, process_collection_task
-from databases.db_utils import filter_posts_with_existing_post_ids
-from databases.model_conversion import PostModel, CollectionTaskModel
+from big5_databases.databases.c_db_merge import MergeStats, process_collection_task
+from big5_databases.databases.db_utils import filter_posts_with_existing_post_ids
+from big5_databases.databases.model_conversion import PostModel, CollectionTaskModel
 
-from databases.db_mgmt import DatabaseManager
-from databases.db_models import DBPost, DBCollectionTask
+from big5_databases.databases.db_mgmt import DatabaseManager
+from big5_databases.databases.db_models import DBPost, DBCollectionTask
 
 
 def get_tasks_with_posts(db: "DatabaseManager", platform: str) -> Generator[

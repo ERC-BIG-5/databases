@@ -6,9 +6,9 @@ import pytest
 from sqlalchemy import inspect
 from sqlalchemy.orm import Session
 
-from databases.db_mgmt import DatabaseManager
-from databases.db_models import DBPost
-from databases.external import DBConfig, SQliteConnection
+from big5_databases.databases.db_mgmt import DatabaseManager
+from big5_databases.databases.db_models import DBPost
+from big5_databases.databases.external import DBConfig, SQliteConnection
 
 
 def setup_function(function):

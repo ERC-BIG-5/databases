@@ -11,11 +11,11 @@ from sqlalchemy.orm import Session
 
 from tqdm import tqdm
 
-from databases.db_mgmt import DatabaseManager
-from databases.db_models import DBPost, DBCollectionTask
-from databases.db_utils import filter_posts_with_existing_post_ids
-from databases.external import DBConfig, SQliteConnection, CollectionStatus
-from databases.model_conversion import PostModel, CollectionTaskModel
+from .db_mgmt import DatabaseManager
+from .db_models import DBPost, DBCollectionTask
+from .db_utils import filter_posts_with_existing_post_ids
+from .external import DBConfig, SQliteConnection, CollectionStatus
+from .model_conversion import PostModel, CollectionTaskModel
 
 
 # RAISE_DB_ERROR = True

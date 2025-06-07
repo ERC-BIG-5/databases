@@ -1,10 +1,10 @@
 from pathlib import Path
 
-from databases import db_utils
-from databases.db_models import DBPlatformDatabase
-from databases.db_stats import generate_db_stats
-from databases.db_mgmt import DatabaseManager
-from databases.external import DBConfig, SQliteConnection, MetaDatabaseContentModel
+import db_utils
+from .db_models import DBPlatformDatabase
+from .db_stats import generate_db_stats
+from .db_mgmt import DatabaseManager
+from .external import DBConfig, SQliteConnection, MetaDatabaseContentModel
 from tools.env_root import root
 
 
@@ -34,7 +34,7 @@ class MetaDatabase():
 
 def check_exists(path: str, metadb: DatabaseManager) -> bool:
     with metadb.get_session() as session:
-        return session.query(DBPlatformDatabase2).filter(DBPlatformDatabase2.db_path == path).scalar() is not None
+        return session.query(DBPlatformDatabase).filter(DBPlatformDatabase.db_path == path).scalar() is not None
 
 
 def add_db(path: str | Path, metadb: DatabaseManager, update: bool = False):
@@ -73,7 +73,7 @@ def add_db(path: str | Path, metadb: DatabaseManager, update: bool = False):
         stats=stats)
 
     with metadb.get_session() as session:
-        meta_db_entry = DBPlatformDatabase2(
+        meta_db_entry = DBPlatformDatabase(
             db_path=db_path.absolute().as_posix(),
             platform=platforms[0],
             is_default=False,

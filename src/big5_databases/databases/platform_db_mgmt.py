@@ -2,10 +2,10 @@ import sqlalchemy
 from sqlalchemy import exists
 from sqlalchemy import select
 
-from databases.external import DBConfig, SQliteConnection, ClientTaskConfig
-from databases.external import BASE_DATA_PATH, CollectionStatus
-from databases.db_mgmt import DatabaseManager
-from databases.db_models import DBCollectionTask, DBPost, CollectionResult, Base
+from .external import DBConfig, SQliteConnection, ClientTaskConfig
+from .external import BASE_DATA_PATH, CollectionStatus
+from .db_mgmt import DatabaseManager
+from .db_models import DBCollectionTask, DBPost, CollectionResult, Base
 from tools.project_logging import get_logger
 
 
