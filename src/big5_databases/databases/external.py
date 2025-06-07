@@ -3,8 +3,7 @@ from collections import Counter
 from datetime import datetime
 from enum import Enum, auto
 from pathlib import Path
-from typing import Optional, Literal, Annotated
-
+from typing import Optional, Literal, Annotated, Any
 
 from pydantic import BaseModel
 from pydantic import Field, computed_field, SecretStr, field_serializer
@@ -23,7 +22,8 @@ class PostType(Enum):
 
 
 DatabaseType = Literal["sqlite", "postgres"]
-type DatabaseConnectionType = SQliteConnection | PostgresConnection | LanceConnection
+type DatabaseConnectionType = SQliteConnection | PostgresConnection
+type VectorDBConnectionType = LanceConnection
 
 
 class CollectionStatus(Enum):
@@ -51,8 +51,16 @@ class SQliteConnection(BaseModel):
         else:
             return f"sqlite:///{self.db_path.as_posix()}"
 
+class LanceTable(BaseModel):
+    name: str
+    type_: Any = Field(alias="type")
+    size: int
+
+
+
 class LanceConnection(BaseModel):
     db_path: Path | str
+    create_tables: list[LanceTable] = Field(default_factory=list)
 
     @field_validator("db_path",mode="before")
     def validate_path(cls, v) -> Path:
