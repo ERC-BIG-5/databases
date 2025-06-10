@@ -259,7 +259,7 @@ def reorder_posts(db: "DatabaseManager") -> None:
     raise NotImplementedError()
 
 if __name__ == "__main__":
-    from databases.db_mgmt import DatabaseManager
+    from big5_databases.databases.db_mgmt import DatabaseManager
 
     root("/home/rsoleyma/projects/platforms-clients")
     pass

@@ -2,8 +2,8 @@ from pathlib import Path
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy import create_engine
 
-from databases.db_models import DBPlatformDatabase, DBPlatformDatabase2
-from databases.external import SQliteConnection
+from big5_databases.databases.db_models import DBPlatformDatabase, DBPlatformDatabase2
+from big5_databases.databases.external import SQliteConnection
 
 
 def fix_db(db_path: Path) -> None:

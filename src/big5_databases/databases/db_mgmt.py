@@ -96,12 +96,18 @@ class DatabaseManager:
                 # create an empty db file
                 create_database(self.engine.url)
                 if self.config.tables:
-                    #Base.metadata.create_all(self.engine)
+                    # Base.metadata.create_all(self.engine)
                     md = Base.metadata.tables
                     # this could crash, if we pass a wrong table...
                     tables = [md[table] for table in self.config.tables]
                     self.logger.info(f"Creating database tables: {tables}")
                     Base.metadata.create_all(self.engine, tables=tables)
+                else:
+                    # no "platform_databases" for normal tables
+                    tables = dict(Base.metadata.tables)
+                    if "platform_databases" in tables:
+                        del tables["platform_databases"]
+                    Base.metadata.create_all(self.engine, tables=tables.values())
         else:
             PostgresConnection.model_validate(self.config)
             self._create_postgres_db()
@@ -153,6 +159,7 @@ class DatabaseManager:
         tables = list(Base.metadata.tables)[:]
         tables.remove("platform_databases")
         return tables
+
 
 class AsyncDatabaseManager(DatabaseManager):
     def __init__(self, config: DBConfig):
