@@ -11,9 +11,9 @@ class VectorDBManager:
     def __init__(self, connection: LanceConnection):
         self.db = lancedb.connect(connection.db_path)
         self.tables = {}
-        for table,table_model in connection.tables.items():
-            if table not in self.db.table_names():
-                self.db.create_table(table.name, schema=table_model)
+        # for table,table_model in connection.tables.items():
+        #     if table not in self.db.table_names():
+        #         self.db.create_table(table.name, schema=table_model)
 
     def get_table(self, table_name: str) -> Table:
         if table_name not in self.tables:
