@@ -1,7 +1,7 @@
 import json
 from collections import Counter
 
-import db_utils
+from big5_databases.databases import db_utils
 from .db_mgmt import DatabaseManager
 from .db_utils import get_posts_by_period
 from .external import SQliteConnection, DBStats, TimeWindow, TimeColumn

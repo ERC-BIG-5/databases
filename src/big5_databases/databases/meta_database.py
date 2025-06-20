@@ -1,6 +1,6 @@
 from pathlib import Path
 
-import db_utils
+from big5_databases.databases import db_utils
 from .db_models import DBPlatformDatabase
 from .db_stats import generate_db_stats
 from .db_mgmt import DatabaseManager
