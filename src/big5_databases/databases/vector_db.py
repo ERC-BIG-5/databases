@@ -1,7 +1,12 @@
 from typing import Any
 
-import lancedb
-from lancedb._lancedb import Table
+try:
+    import lancedb
+    from lancedb._lancedb import Table
+except ImportError:
+    print(f"""In order to use VectorDB install the extra 'vector' for big5-databases. 
+    `uv add --optional vector` or
+    `uv add big5-databases[vector]`""")
 
 from big5_databases.databases.external import LanceConnection
 
@@ -22,11 +27,6 @@ class VectorDBManager:
             self.tables[table_name] = self.db.open_table(table_name)
         return self.tables[table_name]
 
-    def add_data(self,table:str, data: list[dict[str,Any]]) -> None:
+    def add_data(self, table: str, data: list[dict[str, Any]]) -> None:
         # assert "version" in data
         self.get_table(table).add(data)
-        
-# db = DatabaseManager(DBConfig(db_connection=LanceConnection(db_path="vector-db")))
-# db = VectorDBManager(LanceConnection(db_path="/home/rsoleyma/projects/big5/big5_databases/data/vector_db", create_tables=[
-#     LanceTable(name="test",type=pa.float32(),size=1024)
-# ]))

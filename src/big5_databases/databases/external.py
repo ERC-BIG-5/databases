@@ -5,7 +5,6 @@ from enum import Enum, auto
 from pathlib import Path
 from typing import Optional, Literal, Annotated
 
-from lancedb.pydantic import LanceModel
 from pydantic import BaseModel
 from pydantic import Field, computed_field, SecretStr, field_serializer
 from pydantic import field_validator
@@ -38,7 +37,7 @@ class CollectionStatus(Enum):
 class SQliteConnection(BaseModel):
     db_path: Path | str
 
-    @field_validator("db_path",mode="before")
+    @field_validator("db_path", mode="before")
     def validate_path(cls, v) -> Path:
         path = Path(v)
         if not path.is_absolute():
@@ -53,16 +52,22 @@ class SQliteConnection(BaseModel):
             return f"sqlite:///{self.db_path.as_posix()}"
 
 
-class LanceConnection(BaseModel):
-    db_path: Path | str
-    tables: dict[str,LanceModel] = Field(default_factory=dict)
+try:
+    from lancedb.pydantic import LanceModel
 
-    @field_validator("db_path",mode="before")
-    def validate_path(cls, v) -> Path:
-        path = Path(v)
-        if not path.is_absolute():
-            path = SqliteSettings().SQLITE_DBS_BASE_PATH / path
-        return path
+    class LanceConnection(BaseModel):
+        db_path: Path | str
+        tables: dict[str, LanceModel] = Field(default_factory=dict)
+
+        @field_validator("db_path", mode="before")
+        def validate_path(cls, v) -> Path:
+            path = Path(v)
+            if not path.is_absolute():
+                path = SqliteSettings().SQLITE_DBS_BASE_PATH / path
+            return path
+
+except ImportError:
+    pass
 
 
 class PostgresConnection(BaseModel):
@@ -228,7 +233,8 @@ class DBStats(BaseModel):
             v = root() / "data" / v
         return v
 
-    def plot_daily_items(self, bars: bool = False, period: TimeWindow = TimeWindow.DAY, title: Optional[str] = "") -> "plt":
+    def plot_daily_items(self, bars: bool = False, period: TimeWindow = TimeWindow.DAY,
+                         title: Optional[str] = "") -> "plt":
         try:
             import matplotlib.dates as mdates
             import matplotlib.pyplot as plt
