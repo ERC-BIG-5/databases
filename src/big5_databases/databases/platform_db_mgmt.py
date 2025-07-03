@@ -1,6 +1,7 @@
 import sqlalchemy
 from sqlalchemy import exists
 from sqlalchemy import select
+from sqlalchemy.sql.expression import delete
 
 from .external import DBConfig, SQliteConnection, ClientTaskConfig
 from .external import BASE_DATA_PATH, CollectionStatus
@@ -36,6 +37,15 @@ class PlatformDB:
         with self.db_mgmt.get_session() as session:
             existing_tasks = session.scalars(select(DBCollectionTask.task_name).where(DBCollectionTask.task_name.in_(task_names))).all()
             return existing_tasks
+
+    def delete_tasks(self, task_names: list[str]) -> None:
+        with self.db_mgmt.get_session() as session:
+            stmt = (
+                delete(DBCollectionTask)
+                .where(DBCollectionTask.task_name.in_(task_names))
+                .execution_options(synchronize_session="fetch")
+            )
+            session.execute(stmt)
 
     def add_db_collection_task(self, collection_task: "ClientTaskConfig") -> bool:
         task_name = collection_task.task_name
@@ -80,25 +90,40 @@ class PlatformDB:
         existing_names = self.check_task_names_exists(task_names)
         new_tasks = list(filter(lambda t: t.task_name not in existing_names, collection_tasks))
         new_tasks_names = [t.task_name for t in new_tasks]
+        to_overwrite: list[str] = [] # will be deleted first...
 
         if existing_names:
             self.logger.info(f"client collection tasks exists already: {existing_names}")
         with self.db_mgmt.get_session() as session:
             # specific function. refactor out
-            for task in new_tasks:
-                task = DBCollectionTask(
-                    task_name=task.task_name,
-                    platform=task.platform,
-                    collection_config=task.model_dump()["collection_config"],
-                    transient=task.transient,
-                )
-                session.add(task)
-            if exists_and_overwrite:
-                # todo...
-                pass
+            for task in collection_tasks:
+                if task in new_tasks:
+                    task = DBCollectionTask(
+                        task_name=task.task_name,
+                        platform=task.platform,
+                        collection_config=task.model_dump()["collection_config"],
+                        transient=task.transient,
+                    )
+                    session.add(task)
+                elif task.overwrite:
+                    to_overwrite.append(task.task_name)
+
 
             session.commit()
             self.logger.info(f"Added new client collection tasks: {new_tasks_names}")
+
+            if to_overwrite:
+                self.delete_tasks(to_overwrite)
+                with self.db_mgmt.get_session() as session:
+                    for task in filter(lambda t: t.task_name in to_overwrite, collection_tasks):
+                        task = DBCollectionTask(
+                            task_name=task.task_name,
+                            platform=task.platform,
+                            collection_config=task.model_dump()["collection_config"],
+                            transient=task.transient,
+                        )
+                        session.add(task)
+            self.logger.info(f"Tasks overwritten: {to_overwrite}")
             return new_tasks_names
 
     def get_db_manager(self) -> DatabaseManager:
@@ -183,7 +208,7 @@ class PlatformDB:
             for t in tasks:
                 t.status = CollectionStatus.PAUSED
                 c += 1
-            self.logger.debug(f"Set tasks to pause: {c} tasks")
+            self.logger.debug(f"{self.platform}: Set tasks to pause: {c} tasks")
 
     @staticmethod
     def platform_tables() -> list[str]:

@@ -77,6 +77,9 @@ class DBCollectionTask(DBModelBase[CollectionTaskModel]):
     time_added: Mapped[datetime] = mapped_column(DateTime, nullable=False, server_default=func.now())
     database: Mapped[str] = mapped_column(String(20), nullable=True)
 
+    posts = relationship("DBPost", back_populates="collection_task",
+                         cascade="all, delete, delete-orphan")
+
     def __repr__(self) -> str:
         return f"CollectionTask: '{self.task_name}' / {self.platform}. ({self.status.name})"
 
@@ -104,8 +107,8 @@ class DBPost(DBModelBase[PostModel]):
     date_collected: Mapped[datetime] = mapped_column(DateTime, nullable=False, server_default=func.now())
 
     # todo: temp nullable
-    collection_task: Mapped["DBCollectionTask"] = relationship(backref="posts")
-    collection_task_id: Mapped[int] = mapped_column(ForeignKey("collection_task.id"), nullable=True)
+    collection_task: Mapped["DBCollectionTask"] = relationship(back_populates="posts")
+    collection_task_id: Mapped[int] = mapped_column(ForeignKey("collection_task.id", ondelete="CASCADE"), nullable=True)
 
     # user_id: Mapped[int] = mapped_column(ForeignKey("user.id"))
     # user: Mapped[DBUser] = relationship(back_populates="posts")
