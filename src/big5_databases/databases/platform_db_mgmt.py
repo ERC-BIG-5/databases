@@ -1,7 +1,7 @@
 import sqlalchemy
 from sqlalchemy import exists
 from sqlalchemy import select
-from sqlalchemy.sql.expression import delete
+from sqlalchemy.sql.expression import delete, update
 
 from .external import DBConfig, SQliteConnection, ClientTaskConfig
 from .external import BASE_DATA_PATH, CollectionStatus
@@ -38,8 +38,16 @@ class PlatformDB:
             existing_tasks = session.scalars(select(DBCollectionTask.task_name).where(DBCollectionTask.task_name.in_(task_names))).all()
             return existing_tasks
 
-    def delete_tasks(self, task_names: list[str]) -> None:
+    def delete_tasks(self, task_names_keep_info: list[tuple[str, bool]]) -> None:
+
         with self.db_mgmt.get_session() as session:
+            keep_posts_of_tasks = [ti[0] for ti in task_names_keep_info if ti[1]]
+
+            keep_posts_ids = session.query(DBCollectionTask.id).where(DBCollectionTask.task_name.in_(keep_posts_of_tasks)).all()
+            keep_posts_ids = [k[0] for k in  keep_posts_ids]
+            session.execute(update(DBPost).where(DBPost.collection_task_id.in_(keep_posts_ids)).values(collection_task_id=None))
+
+            task_names = [ti[0] for ti in task_names_keep_info]
             stmt = (
                 delete(DBCollectionTask)
                 .where(DBCollectionTask.task_name.in_(task_names))
@@ -47,42 +55,6 @@ class PlatformDB:
             )
             session.execute(stmt)
 
-    def add_db_collection_task(self, collection_task: "ClientTaskConfig") -> bool:
-        task_name = collection_task.task_name
-        exists_and_overwrite = False
-        if self.check_task_name_exists(task_name):
-            if collection_task.test and collection_task.overwrite:
-                exists_and_overwrite = True
-            else:
-                self.logger.info(f"client collection task exists already: {task_name}")
-                return False
-        with self.db_mgmt.get_session() as session:
-            # specific function. refactor out
-            task = DBCollectionTask(
-                task_name=task_name,
-                platform=collection_task.platform,
-                collection_config=collection_task.model_dump()["collection_config"],
-                transient=collection_task.transient,
-            )
-            if exists_and_overwrite:
-                self.logger.debug(f"Collection task set to test and overwrite. overwriting existing task")
-                prev = session.query(DBCollectionTask).where(DBCollectionTask.task_name == task_name)
-                task.id = task.id
-                try:
-                    session.query(DBPost).where(DBPost.collection_task_id == prev.first().id).delete(
-                        synchronize_session=False
-                    )
-                    prev.delete(synchronize_session=False)
-                except sqlalchemy.exc.IntegrityError as e:
-                    session.rollback()  # Rollback changes on error
-                    self.logger.warning(f"Failed to delete exising task: {task.task_name} ({repr(e)}")
-                    # Handle or re-raise the exception as needed
-                    return False
-
-            session.add(task)
-            session.commit()
-            self.logger.info(f"Added new client collection task: {task_name}")
-            return True
 
     def add_db_collection_tasks(self, collection_tasks: list["ClientTaskConfig"]) -> list[str]:
         task_names = [t.task_name for t in collection_tasks]
@@ -90,7 +62,7 @@ class PlatformDB:
         existing_names = self.check_task_names_exists(task_names)
         new_tasks = list(filter(lambda t: t.task_name not in existing_names, collection_tasks))
         new_tasks_names = [t.task_name for t in new_tasks]
-        to_overwrite: list[str] = [] # will be deleted first...
+        to_overwrite: list[tuple[str, bool]] = [] # will be deleted first tuple[task-name, keep-posts]...
 
         if existing_names:
             self.logger.info(f"client collection tasks exists already: {existing_names}")
@@ -102,16 +74,19 @@ class PlatformDB:
                         task_name=task.task_name,
                         platform=task.platform,
                         collection_config=task.model_dump()["collection_config"],
+                        platform_collection_config=task.platform_collection_config.model_dump(),
                         transient=task.transient,
                     )
                     session.add(task)
                 elif task.overwrite:
-                    to_overwrite.append(task.task_name)
+                    to_overwrite.append((task.task_name, task.keep_old_posts))
 
 
             session.commit()
             self.logger.info(f"Added new client collection tasks: {new_tasks_names}")
 
+            # todo, deletion does not work super yet.
+            # only after a 2nd time, the task re-added...
             if to_overwrite:
                 self.delete_tasks(to_overwrite)
                 with self.db_mgmt.get_session() as session:
@@ -183,11 +158,11 @@ class PlatformDB:
                 for post in posts:
                     post.collection_task_id = None
                 session.delete(task_record)
-                return posts
             task_record.status = CollectionStatus.DONE
             task_record.found_items = collection.collected_items
             task_record.added_items = len(posts)
             task_record.collection_duration = collection.duration
+            task_record.execution_ts = collection.execution_ts
 
         self.logger.info(f"Added {len(posts)} posts to database")
 

@@ -149,7 +149,6 @@ class PostModel(BaseDBModel):
     post_type: Annotated[PostType, PlainSerializer(lambda t: t.value, return_type=int, when_used='json')]
     content: dict
     metadata_content: Optional[PostMetadataModel] = Field(default_factory=PostMetadataModel)
-    date_collected: SerializableDatetime
     collection_task_id: Optional[int]
     comments: list[CommentModel] = Field(default_factory=list)
 

@@ -10,11 +10,14 @@ from pydantic import Field, computed_field, SecretStr, field_serializer
 from pydantic import field_validator
 from pydantic.functional_serializers import PlainSerializer
 from tools.env_root import root
+from tools.pydantic_annotated_types import SerializablePath, SerializableDatetime
 
 from .db_settings import SqliteSettings
 
 BASE_DATA_PATH = root() / "data"
-ENV_FILE_PATH = Path(".env")
+
+
+# ENV_FILE_PATH = Path(".env")
 
 
 class PostType(Enum):
@@ -35,7 +38,7 @@ class CollectionStatus(Enum):
 
 
 class SQliteConnection(BaseModel):
-    db_path: Path | str
+    db_path: SerializablePath | str
 
     @field_validator("db_path", mode="before")
     def validate_path(cls, v) -> Path:
@@ -54,6 +57,7 @@ class SQliteConnection(BaseModel):
 
 try:
     from lancedb.pydantic import LanceModel
+
 
     class LanceConnection(BaseModel):
         db_path: Path | str
@@ -109,45 +113,49 @@ class DBConfig(BaseModel):
 
 class ClientConfig(BaseModel):
     model_config = {'extra': "forbid", "from_attributes": True}
-    request_delay: Optional[float] = 0
-    delay_randomize: Optional[int] = 0
-    progress: bool = True
-    db_config: Optional[DBConfig] = None
+    request_delay: Optional[float] = Field(0, description="Wait-time after each task")
+    delay_randomize: Optional[int] = Field(0, description="Additional random delay (0-`value`")
+    progress: bool = Field(True, description="If platform should process tasks or not")
+    db_config: Optional[DBConfig] = Field(None, description="Configuration of the database")
 
 
 class CollectConfig(BaseModel):
     model_config = {'extra': "allow"}
-    query: Optional[str | dict] = ""
-    limit: Optional[int] = 10000  # math.inf
-    from_time: Optional[str] = None
-    to_time: Optional[str] = None
-    language: Optional[str] = None
-    location_base: Optional[str] = None
-    location_mod: Optional[str] = None
+    query: Optional[str | dict] = Field(None, description="Search query, or complex query object (e.g. for tiktok)")
+    limit: Optional[int] = Field(10000,
+                                 description="max amount to collect (client might pass over this value with pagination, but will stop immediately)")
+    from_time: Optional[str] = Field(None, description="start time filter")
+    to_time: Optional[str] =  Field(None, description="end time filter")
+    language: Optional[str] = Field(None, description="language filter")
+    location_base: Optional[str] = Field(None, description="location filter")
+    location_mod: Optional[str] = Field(None, description="2nd location filter (e.g. radius)")
 
 
 # todo, we still have something in the client
 class ClientTaskConfig(BaseModel):
     model_config = {'extra': "forbid", "from_attributes": True}
     id: Optional[int] = Field(None, init=False)
-    task_name: str
-    platform: str
-    database: Optional[str] = None  # default the same as platform
-    collection_config: CollectConfig
-    client_config: Optional[ClientConfig] = Field(default_factory=ClientConfig)
-    transient: bool = False  # will be deleted after done
+    task_name: str = Field(description="unique name of the task")
+    platform: str = Field(description="which social media platform")
+    database: Optional[str] = Field(None, description="database name", deprecated=True)  # default the same as platform
+    collection_config: CollectConfig = Field(description="the actual collection configuration")
+    platform_collection_config: Optional[dict] = None
+    # client_config: Optional[ClientConfig] = Field(default_factory=ClientConfig, deprecated=True)
+    transient: bool = Field(False, description="if the task should be deleted afterwards")
     source_file: Optional[Path] = None
     #
     test: bool = False
     overwrite: bool = False
+    keep_old_posts: bool = False  # if overwritten, the posts should be kept
     test_data: Optional[list[dict]] = None
+    timestamp_submitted: Optional[SerializableDatetime] = None
     #
-    status: CollectionStatus = Field(CollectionStatus.INIT, init=False)
-    time_added: Optional[datetime] = Field(None, init=False)
+    status: CollectionStatus = Field(CollectionStatus.INIT)  # status of the task
+    time_added: Optional[datetime] = Field(None)
 
     @field_serializer("status")
-    def serialize_status(self, value: CollectionStatus) -> int:
-        return value.value
+    def serialize_status(self, status: CollectionStatus) -> int:
+        return status.value
 
     def __repr__(self):
         return f"Collection-Task: {self.task_name} ({self.platform})"

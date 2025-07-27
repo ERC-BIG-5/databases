@@ -29,4 +29,4 @@ class VectorDBManager:
 
     def add_data(self, table: str, data: list[dict[str, Any]]) -> None:
         # assert "version" in data
-        self.get_table(table).add(data)
+        self.get_table(table).add(data, "append")

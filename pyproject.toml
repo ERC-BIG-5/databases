@@ -8,13 +8,12 @@ where = ["src"]
 
 [project]
 name = "big5-databases"
-version = "0.1.6"
-description = "0.1 also include vector db lance"
+version = "0.2.0"
+description = "database management for big5"
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
     "deprecated>=1.2.18",
-    "python-project-tools",
     "sqlalchemy>=2.0.40",
     "sqlalchemy-utils>=0.41.2",
     "tqdm>=4.67.1",
@@ -31,5 +30,5 @@ vector = [
     "lancedb>=0.23.0",
 ]
 
-[tool.uv.sources]
-python-project-tools = { git = "https://github.com/transfluxus/python-project-tools" }
+#[tool.uv.sources]
+#python-project-tools = { git = "https://github.com/transfluxus/python-project-tools" }

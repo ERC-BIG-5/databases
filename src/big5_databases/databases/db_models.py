@@ -5,12 +5,13 @@ from typing import TypedDict, TypeVar, Generic
 from pydantic import BaseModel
 from sqlalchemy import Column, String, Integer, Boolean, DateTime, ForeignKey, JSON, Enum, func, UniqueConstraint
 from sqlalchemy import Enum as SQLAlchemyEnum
+from sqlalchemy.ext.mutable import MutableDict
 from sqlalchemy.orm import relationship, Mapped, mapped_column, declarative_base
 
+from tools.pydantic_annotated_types import SerializableDatetimeAlways
 from .external import CollectionStatus, ClientTaskConfig
 from .external import PostType
-from .model_conversion import PlatformDatabaseModel, CollectionTaskModel, PostModel, PlatformDatabaseModel
-from sqlalchemy.ext.mutable import MutableDict
+from .model_conversion import CollectionTaskModel, PostModel, PlatformDatabaseModel
 
 Base = declarative_base()
 
@@ -67,6 +68,7 @@ class DBCollectionTask(DBModelBase[CollectionTaskModel]):
     task_name: Mapped[str] = mapped_column(String(50), nullable=False)
     platform: Mapped[str] = mapped_column(String(20), nullable=False)
     collection_config: Mapped[dict] = mapped_column(JSON, nullable=False)
+    platform_collection_config: Mapped[dict] = mapped_column(JSON, nullable=False)
     found_items: Mapped[int] = mapped_column(Integer, nullable=True)
     added_items: Mapped[int] = mapped_column(Integer, nullable=True)
 
@@ -75,6 +77,7 @@ class DBCollectionTask(DBModelBase[CollectionTaskModel]):
                                                      default=CollectionStatus.INIT)
     transient: Mapped[bool] = mapped_column(Boolean, nullable=True, default=False)
     time_added: Mapped[datetime] = mapped_column(DateTime, nullable=False, server_default=func.now())
+    execution_ts: Mapped[datetime] = mapped_column(DateTime, nullable=True)
     database: Mapped[str] = mapped_column(String(20), nullable=True)
 
     posts = relationship("DBPost", back_populates="collection_task",
@@ -95,7 +98,6 @@ class DBPost(DBModelBase[PostModel]):
     )
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    #
     platform: Mapped[str] = mapped_column(String(20), nullable=False)
     platform_id: Mapped[str] = mapped_column(String(50), nullable=False, unique=True)
     date_created: Mapped[datetime] = mapped_column(DateTime, nullable=False)
@@ -104,7 +106,6 @@ class DBPost(DBModelBase[PostModel]):
     post_type: Mapped[PostType] = mapped_column(Enum(PostType), nullable=False, default=PostType.REGULAR)
     #
     metadata_content: Mapped[dict] = Column(JSON, default=dict)
-    date_collected: Mapped[datetime] = mapped_column(DateTime, nullable=False, server_default=func.now())
 
     # todo: temp nullable
     collection_task: Mapped["DBCollectionTask"] = relationship(back_populates="posts")
@@ -171,7 +172,8 @@ class CollectionResult:
     users: list[DBUser]
     task: ClientTaskConfig
     duration: int
-    collected_items: int  # millis
+    collected_items: int
+    execution_ts: SerializableDatetimeAlways
 
 
 def get_orm_classes() -> dict[str, Base]:
