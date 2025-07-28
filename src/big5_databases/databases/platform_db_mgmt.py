@@ -73,7 +73,7 @@ class PlatformDB:
                     task = DBCollectionTask(
                         task_name=task.task_name,
                         platform=task.platform,
-                        collection_config=task.model_dump()["collection_config"],
+                        collection_config=task.collection_config.model_dump(exclude_defaults=True, exclude_unset=True),
                         platform_collection_config=task.platform_collection_config.model_dump(),
                         transient=task.transient,
                     )
@@ -105,12 +105,11 @@ class PlatformDB:
         """Get the underlying database manager"""
         return self.db_mgmt
 
-    def get_pending_tasks(self) -> list[ClientTaskConfig]:
+    def get_pending_tasks(self, include_paused_tasks: bool = False) -> list[ClientTaskConfig]:
         """Get all tasks that need to be executed"""
         return self.get_tasks_of_states([
-            CollectionStatus.INIT,
-            CollectionStatus.PAUSED
-        ])
+            CollectionStatus.INIT
+            ] + ([CollectionStatus.PAUSED] if include_paused_tasks else []))
 
     def get_tasks_of_states(self,
                             states: list[CollectionStatus],
@@ -173,7 +172,7 @@ class PlatformDB:
             task.status = status
             session.commit()
 
-    def pause_running_tasks(self):
+    def reset_running_tasks(self):
         with self.db_mgmt.get_session() as session:
             tasks = session.execute(select(DBCollectionTask).filter(
                 DBCollectionTask.status == CollectionStatus.RUNNING,
@@ -181,7 +180,7 @@ class PlatformDB:
 
             c = 0
             for t in tasks:
-                t.status = CollectionStatus.PAUSED
+                t.status = CollectionStatus.INIT
                 c += 1
             self.logger.debug(f"{self.platform}: Set tasks to pause: {c} tasks")
 
