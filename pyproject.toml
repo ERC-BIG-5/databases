@@ -29,6 +29,12 @@ plot = [
 vector = [
     "lancedb>=0.23.0",
 ]
+commands = [
+    "typer>=0.16.0",
+]
+dev = [
+    "pytest>=8.4.1",
+]
 
 #[tool.uv.sources]
 #python-project-tools = { git = "https://github.com/transfluxus/python-project-tools" }

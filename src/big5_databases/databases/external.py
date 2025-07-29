@@ -17,9 +17,6 @@ from .db_settings import SqliteSettings
 BASE_DATA_PATH = root() / "data"
 
 
-# ENV_FILE_PATH = Path(".env")
-
-
 class PostType(Enum):
     REGULAR = auto()
 
@@ -31,6 +28,7 @@ type VectorDBConnectionType = LanceConnection
 
 class CollectionStatus(Enum):
     INIT = auto()
+    INVALID_CONF = auto()  # collection config is not valid
     RUNNING = auto()  # started and currently running
     PAUSED = auto()  # if it's set to pause
     ABORTED = auto()  # started and aborted
@@ -122,10 +120,10 @@ class ClientConfig(BaseModel):
 class CollectConfig(BaseModel):
     model_config = {'extra': "allow"}
     query: Optional[str | dict] = Field(None, description="Search query, or complex query object (e.g. for tiktok)")
-    limit: Optional[int] = Field(10000,
+    limit: Optional[int] = Field(None,
                                  description="max amount to collect (client might pass over this value with pagination, but will stop immediately)")
     from_time: Optional[str] = Field(None, description="start time filter")
-    to_time: Optional[str] =  Field(None, description="end time filter")
+    to_time: Optional[str] = Field(None, description="end time filter")
     language: Optional[str] = Field(None, description="language filter")
     location_base: Optional[str] = Field(None, description="location filter")
     location_mod: Optional[str] = Field(None, description="2nd location filter (e.g. radius)")
@@ -143,15 +141,20 @@ class ClientTaskConfig(BaseModel):
     # client_config: Optional[ClientConfig] = Field(default_factory=ClientConfig, deprecated=True)
     transient: bool = Field(False, description="if the task should be deleted afterwards")
     source_file: Optional[Path] = None
+
     #
     test: bool = False
     overwrite: bool = False
     keep_old_posts: bool = False  # if overwritten, the posts should be kept
     test_data: Optional[list[dict]] = None
-    timestamp_submitted: Optional[SerializableDatetime] = None
+    timestamp_submitted: Optional[
+        SerializableDatetime] = None  # used already? when the config was commited/added to the db.
+    #
+    group_prefix: Optional[str] = None # keep the group_prefix, in case we have 'force_new_index'  in the group
+    force_new_index: Optional[bool] = False
     #
     status: CollectionStatus = Field(CollectionStatus.INIT)  # status of the task
-    time_added: Optional[datetime] = Field(None)
+    time_added: Optional[datetime] = Field(None) # same as timestamp_submitted?
 
     @field_serializer("status")
     def serialize_status(self, status: CollectionStatus) -> int:
@@ -215,6 +218,21 @@ class TimeWindow(str, Enum):
     DAY = "day"
     MONTH = "month"
     YEAR = "year"
+
+    @property
+    def time_str(self) -> str:
+        match self:
+            case TimeWindow.DAY:
+                # Format as YYYY-MM-DD (year-month-day)
+                return '%Y-%m-%d'
+            case TimeWindow.MONTH:
+                # Format as YYYY-MM (year-month)
+                return '%Y-%m'
+            case TimeWindow.YEAR:
+                # Format as YYYY (year)
+                return '%Y'
+            case _:
+                raise ValueError(f"Unsupported time window: {self}")
 
 
 class TimeColumn(str, Enum):

@@ -74,9 +74,11 @@ def iter_posts(db: "DatabaseManager") -> Generator[PostModel, None, None]:
         for post in session.execute(select(DBPost)).scalars():
             yield post.model()
 
-def get_posts(db_session: Session, platform_ids :list[str]) -> Generator[PostModel, None, None]:
+
+def get_posts(db_session: Session, platform_ids: list[str]) -> Generator[PostModel, None, None]:
     for post in db_session.execute(select(DBPost).where(DBPost.platform_id.in_(platform_ids))).scalars():
         yield post
+
 
 def get_tasks_with_posts(db: "DatabaseManager") -> Generator[
     tuple[CollectionTaskModel, list[PostModel]], None, None]:
@@ -96,36 +98,19 @@ def get_tasks_with_posts(db: "DatabaseManager") -> Generator[
 
 
 def get_posts_by_period(db: "DatabaseManager",
-                        period: TimeWindow= TimeWindow.DAY) -> tuple[
-    list[tuple[str, int]], list[tuple[str, int]]]:
+                        period: TimeWindow = TimeWindow.DAY) -> list[tuple[str, int]]:
+    """
+    Get created posts grouped by time period.
+
+    @returns: List of tuples containing (period, count) for created posts
     """
 
-    @returns: 2 lists of created and collected posts by period. Each list contains tuples of (period, count)
-    """
-
-
-    match period:
-        case TimeWindow.DAY:
-            # Format as YYYY-MM--DD (year-month-day)
-            time_str = '%Y-%m-%d'
-
-        case TimeWindow.MONTH:
-            # Format as YYYY-MM (year-month)
-            time_str = '%Y-%m'
-
-        case TimeWindow.YEAR:
-            # Format as YYYY (year)
-            time_str = '%Y'
-
-        case _:
-            raise ValueError(f"Unsupported time window: {period}")
+    time_str = period.time_str
 
     created_expr = func.strftime(time_str, DBPost.date_created).label('created_period')
-    collected_expr = func.strftime(time_str, DBPost.date_collected).label('collected_period')
 
     with db.get_session() as session:
-        # First, get the count by creation date
-        created_query = (
+        query = (
             select(
                 created_expr,
                 func.count().label('count')
@@ -134,53 +119,38 @@ def get_posts_by_period(db: "DatabaseManager",
             .order_by(created_expr)
         )
 
-        # Then, get the count by collection date
-        collected_query = (
+        result = session.execute(query).all()
+
+        return [(period, count) for period, count in result]
+
+
+def get_collected_posts_by_period(db: "DatabaseManager",
+                                  period: TimeWindow = TimeWindow.DAY) -> dict[str, dict[str, int]]:
+    """
+    Get collection totals grouped by time period.
+
+    @returns: List of tuples containing (period, found_items_total, added_items_total)
+    """
+
+    time_str = period.time_str
+
+    period_expr = func.strftime(time_str, DBCollectionTask.execution_ts).label('period')
+
+    with db.get_session() as session:
+        query = (
             select(
-                collected_expr,
-                func.count().label('count')
+                period_expr,
+                func.sum(DBCollectionTask.found_items).label('found_total'),
+                func.sum(DBCollectionTask.added_items).label('added_total')
             )
-            .group_by(collected_expr)
-            .order_by(collected_expr)
+            .where(DBCollectionTask.execution_ts.is_not(None))
+            .group_by(period_expr)
+            .order_by(period_expr)
         )
 
-        # Execute both queries with a UNION ALL to get results in one trip to DB
-        combined_query = created_query.union_all(collected_query)
+        result = session.execute(query).all()
 
-        # We'll need to know which results came from which query
-        # Let's use a CTE with a type marker
-        query_with_type = (
-            select(
-                created_expr,
-                func.count().label('count'),
-                literal('created').label('type')
-            )
-            .group_by(created_expr)
-            .union_all(
-                select(
-                    collected_expr,
-                    func.count().label('count'),
-                    literal('collected').label('type')
-                )
-                .group_by(collected_expr)
-            )
-            .order_by(text('type'), text('created_period, collected_period'))
-        )
-
-        result = session.execute(query_with_type).all()
-
-        # Split the results by type
-        created_results = []
-        collected_results = []
-
-        for period, count, type_ in result:
-            if type_ == 'created':
-                created_results.append((period, count))
-            else:
-                collected_results.append((period, count))
-
-        return created_results, collected_results
-
+        return {period: {"found": found_total, "added": added_total} for period, found_total, added_total in result}
 
 def count_posts(db: "DatabaseManager") -> int:
     """
@@ -193,7 +163,6 @@ def count_posts(db: "DatabaseManager") -> int:
         count = session.execute(select(func.count()).select_from(DBPost)).scalar()
         return count
 
-
 def split_by_year(db: "DatabaseManager",
                   dest_folder: Path,
                   delete_after_success: bool = True) -> list[Path]:
@@ -201,13 +170,11 @@ def split_by_year(db: "DatabaseManager",
     # check if dest/platform_SPLIT_FROM_<SRC_NAME>.sqlite exists
     raise NotImplementedError()
 
-
 def find_invalid_tasks(db: "DatabaseManager") -> list[int]:
     # todo.
     # tasks which are done but have relevant values None
     # tasks with number but invalid STATE (!= DONE)
     raise NotImplementedError()
-
 
 def count_states(self) -> dict[str, int]:
     """
@@ -225,7 +192,6 @@ def count_states(self) -> dict[str, int]:
 
         results = query.all()
         return {enum_type.name.lower(): count for enum_type, count in results}
-
 
 def find_tasks_groups(db: "DatabaseManager") -> dict[str, list[tuple[int, CollectionStatus]]]:
     """
@@ -252,7 +218,6 @@ def find_tasks_groups(db: "DatabaseManager") -> dict[str, list[tuple[int, Collec
         groups[prefix].sort()
 
     return dict(groups)
-
 
 def reorder_posts(db: "DatabaseManager") -> None:
     # todo implement

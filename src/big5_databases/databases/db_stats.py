@@ -3,7 +3,7 @@ from collections import Counter
 
 from big5_databases.databases import db_utils
 from .db_mgmt import DatabaseManager
-from .db_utils import get_posts_by_period
+from .db_utils import get_posts_by_period, get_collected_posts_by_period
 from .external import SQliteConnection, DBStats, TimeWindow, TimeColumn
 from tools.env_root import root
 
@@ -35,9 +35,10 @@ def generate_db_stats(
         )
 
         # Populate with data from the database
-        created, collected = get_posts_by_period(db, TimeWindow.DAY)
+        created = get_posts_by_period(db, TimeWindow.DAY)
         for period_str, count in created:
             stats.created_counts.set(period_str, count)
+        collected = get_collected_posts_by_period(db, TimeWindow.DAY)
         for period_str, count in collected:
             stats.collected_counts.set(period_str, count)
         return stats

@@ -68,7 +68,7 @@ class DBCollectionTask(DBModelBase[CollectionTaskModel]):
     task_name: Mapped[str] = mapped_column(String(50), nullable=False)
     platform: Mapped[str] = mapped_column(String(20), nullable=False)
     collection_config: Mapped[dict] = mapped_column(JSON, nullable=False)
-    platform_collection_config: Mapped[dict] = mapped_column(JSON, nullable=False)
+    platform_collection_config: Mapped[dict] = mapped_column(JSON, nullable=True)
     found_items: Mapped[int] = mapped_column(Integer, nullable=True)
     added_items: Mapped[int] = mapped_column(Integer, nullable=True)
 
