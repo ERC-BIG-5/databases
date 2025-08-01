@@ -1,6 +1,6 @@
 from datetime import datetime
 from pathlib import Path
-from typing import Optional, Annotated
+from typing import Optional, Annotated, Any
 
 from deprecated.classic import deprecated
 from pydantic import BaseModel, Field, field_validator, ConfigDict, PlainSerializer
@@ -127,8 +127,12 @@ class PostMetadataModel(BaseModel):
     language: Optional[dict[str, LanguageDetectionModel]] = Field(None, description="language_detection_method")
 
     orig_db_conf: Optional[tuple[str, Optional[int]]] = Field(None,
-                                                              description="original d(atabase_name, collection_task_id) for merges")
+                                                              description="original database_name, collection_task_id) for merges")
     annotations: Optional[dict[str, dict]] = Field(None, description="annotations from labelstudio")
+
+    # platform specific info
+    extra: Optional[dict[str,Any]] = Field(None,description="platform specific")
+    #hash_id: Optional[str] # WEIBO
 
     @property
     def mediafile_paths(self) -> list[Path]:

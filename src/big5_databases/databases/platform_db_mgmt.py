@@ -80,7 +80,7 @@ class PlatformDB:
         # check if existing names can be overwritten. then. delete
         group_prefix_existing_tasks:dict[str,set[int]] = defaultdict(set)
         if existing_names:
-            self.logger.info(f"client collection tasks exists already: {existing_names}")
+            self.logger.debug(f"client collection tasks exists already: {existing_names}")
             for t in collection_tasks:
                 if t.task_name in existing_names:
                     if t.overwrite:
