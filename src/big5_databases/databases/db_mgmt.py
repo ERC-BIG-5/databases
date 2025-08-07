@@ -1,5 +1,6 @@
 from contextlib import contextmanager
 from pathlib import Path
+from typing import Optional
 
 from sqlalchemy import create_engine, Engine, event
 from sqlalchemy.exc import IntegrityError
@@ -12,16 +13,19 @@ from .db_models import Base, DBPost, DBCollectionTask
 from .db_utils import filter_posts_with_existing_post_ids
 from .external import DBConfig, SQliteConnection
 from .external import PostgresConnection
+from .model_conversion import PlatformDatabaseModel
 
 
 class DatabaseManager:
 
-    def __init__(self, config: DBConfig):
+    def __init__(self, config: DBConfig, db_meta: Optional[PlatformDatabaseModel]  = None):
         self.config = config
         self.logger = get_logger(__file__)
         self.engine = self._create_engine()
         self.Session = sessionmaker(self.engine)
         self.init_database()
+        self.metadata: Optional[PlatformDatabaseModel] = None # through setter
+
 
         if self.config.db_type == "sqlite":
             event.listen(self.engine, 'connect', self._sqlite_on_connect)
@@ -159,6 +163,10 @@ class DatabaseManager:
         tables = list(Base.metadata.tables)[:]
         tables.remove("platform_databases")
         return tables
+
+    def set_meta(self, metadata: PlatformDatabaseModel) -> "DatabaseManager":
+        self.metadata = metadata
+        return self
 
 
 class AsyncDatabaseManager(DatabaseManager):

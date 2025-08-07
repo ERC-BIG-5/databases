@@ -2,7 +2,7 @@ import os
 import re
 from collections import defaultdict
 from pathlib import Path
-from typing import TYPE_CHECKING, Generator, Optional
+from typing import TYPE_CHECKING, Generator, Optional, TypedDict
 from sqlalchemy.orm import Session
 
 from sqlalchemy import func
@@ -125,7 +125,9 @@ def get_posts_by_period(db: "DatabaseManager",
 
 
 def get_collected_posts_by_period(db: "DatabaseManager",
-                                  period: TimeWindow = TimeWindow.DAY) -> dict[str, dict[str, int]]:
+                                  period: TimeWindow = TimeWindow.DAY) -> dict[str, TypedDict("col_per_day", {
+    "found": int,
+    "added": int})]:
     """
     Get collection totals grouped by time period.
 
@@ -152,6 +154,7 @@ def get_collected_posts_by_period(db: "DatabaseManager",
 
         return {period: {"found": found_total, "added": added_total} for period, found_total, added_total in result}
 
+
 def count_posts(db: "DatabaseManager") -> int:
     """
     Get the total count of posts in the database.
@@ -163,6 +166,7 @@ def count_posts(db: "DatabaseManager") -> int:
         count = session.execute(select(func.count()).select_from(DBPost)).scalar()
         return count
 
+
 def split_by_year(db: "DatabaseManager",
                   dest_folder: Path,
                   delete_after_success: bool = True) -> list[Path]:
@@ -170,11 +174,13 @@ def split_by_year(db: "DatabaseManager",
     # check if dest/platform_SPLIT_FROM_<SRC_NAME>.sqlite exists
     raise NotImplementedError()
 
+
 def find_invalid_tasks(db: "DatabaseManager") -> list[int]:
     # todo.
     # tasks which are done but have relevant values None
     # tasks with number but invalid STATE (!= DONE)
     raise NotImplementedError()
+
 
 def count_states(self) -> dict[str, int]:
     """
@@ -192,6 +198,7 @@ def count_states(self) -> dict[str, int]:
 
         results = query.all()
         return {enum_type.name.lower(): count for enum_type, count in results}
+
 
 def find_tasks_groups(db: "DatabaseManager") -> dict[str, list[tuple[int, CollectionStatus]]]:
     """
@@ -219,9 +226,11 @@ def find_tasks_groups(db: "DatabaseManager") -> dict[str, list[tuple[int, Collec
 
     return dict(groups)
 
+
 def reorder_posts(db: "DatabaseManager") -> None:
     # todo implement
     raise NotImplementedError()
+
 
 if __name__ == "__main__":
     from big5_databases.databases.db_mgmt import DatabaseManager

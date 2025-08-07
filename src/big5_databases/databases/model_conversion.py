@@ -29,27 +29,21 @@ class PlatformDatabaseContentModel(BaseDBModel):
 
 
 # Platform Models
-class PlatformDatabaseModel(BaseDBModel):
-    """Model for platform database configuration"""
-    platform: str
-    connection_str: str
-    # new, from meta_database, for now Optional
-    db_path: Optional[Path] = None
-    last_status_update: Optional[datetime] = None
-    last_stats_update: Optional[datetime] = None
-    content: Optional[dict] = None
-
 
 class PlatformDatabaseModel(BaseDBModel):
     """Model for platform database configuration"""
-    id: int
+    id: Optional[int] = None
     platform: str
+
     name: Optional[str] = None
     is_default: bool = False
     db_path: Path
-    content: MetaDatabaseContentModel
-    last_content_update: datetime
-
+    content: MetaDatabaseContentModel = Field(default_factory=MetaDatabaseContentModel)
+    last_content_update: Optional[datetime] = None
+    # these come from former class
+    # connection_str: str
+    last_status_update: Optional[datetime] = None
+    last_stats_update: Optional[datetime] = None
 
 # User Models
 class UserModel(BaseDBModel):

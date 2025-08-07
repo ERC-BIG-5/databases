@@ -121,6 +121,8 @@ class DBPost(DBModelBase[PostModel]):
 
     _pydantic_model = PostModel
 
+    def __repr__(self) -> str:
+        return f"Post: '{self.id}' / {self.platform_id}"
 
 # class DBPlatformDatabase(DBModelBase[PlatformDatabaseModel]):
 #     __tablename__ = 'platform_databases'

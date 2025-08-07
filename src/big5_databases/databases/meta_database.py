@@ -1,6 +1,9 @@
 from pathlib import Path
+from typing import Optional
 
 from big5_databases.databases import db_utils
+from big5_databases.databases.model_conversion import PlatformDatabaseModel
+from big5_databases.databases.settings import SETTINGS
 from .db_models import DBPlatformDatabase
 from .db_stats import generate_db_stats
 from .db_mgmt import DatabaseManager
@@ -8,17 +11,54 @@ from .external import DBConfig, SQliteConnection, MetaDatabaseContentModel
 from tools.env_root import root
 
 
-class MetaDatabase():
+class MetaDatabase:
 
-    def __init__(self, create: bool = False):
-        (root() / "data/dbs").mkdir(parents=True, exist_ok=True)
+    def __init__(self, db_path: Optional[Path] = None, create: bool = False):
+        if not db_path:
+            if SETTINGS.main_db_path:
+                db_path = Path(SETTINGS.meta_db_path)
+            else:
+                db_path = root() / "data/dbs/main.sqlite"
+
+        if create:
+            db_path.parent.mkdir(parents=True, exist_ok=True)
+
         self.db = DatabaseManager(config=DBConfig(
-            db_connection=SQliteConnection(db_path=root() / "data/dbs/main.sqlite"),
+            db_connection=SQliteConnection(db_path=db_path),
             create=create,
             require_existing_parent_dir=True,
             tables=["platform_databases"],
         ))
-        #self.db.init_database()
+        # self.db.init_database()
+
+    def get_registered_platforms(self) -> list[PlatformDatabaseModel]:
+        """Get all registered platforms from the main database"""
+        with self.db.get_session() as session:
+            return [o.model() for o in session.query(DBPlatformDatabase).all()]
+
+    def get_db(self, id_: int  | str) -> DatabaseManager:
+        with self.db.get_session() as session:
+            if isinstance(id_, int):
+                db_obj = session.query(DBPlatformDatabase).where(DBPlatformDatabase.id == id_).one()
+            else:
+                db_obj = session.query(DBPlatformDatabase).where(DBPlatformDatabase.name == id_).one()
+
+            return DatabaseManager.sqlite_db_from_path(db_obj.db_path).set_meta(db_obj.model())
+
+    def move_database(self, id_, new_path: str | Path):
+        with self.db.get_session() as session:
+            db_obj = session.query(DBPlatformDatabase).where(DBPlatformDatabase.id == id_).one()
+            db_obj.db_path = str(new_path)
+
+    def add_db(self, db: PlatformDatabaseModel):
+        with self.db.get_session() as session:
+            session.add(DBPlatformDatabase(
+                db_path=str(db.db_path.absolute()),
+                name=db.name,
+                platform=db.platform,
+                is_default=db.is_default,
+                content=db.content.model_dump()
+            ))
 
     def purge(self, simulate: bool = False):
         if simulate:

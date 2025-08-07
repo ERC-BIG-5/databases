@@ -111,6 +111,7 @@ class DBConfig(BaseModel):
 
 class ClientConfig(BaseModel):
     model_config = {'extra': "forbid", "from_attributes": True}
+    ignore_initial_quota_halt: Optional[bool] = Field(False, description="Ignore initial quota halt")
     request_delay: Optional[float] = Field(0, description="Wait-time after each task")
     delay_randomize: Optional[int] = Field(0, description="Additional random delay (0-`value`")
     progress: bool = Field(True, description="If platform should process tasks or not")

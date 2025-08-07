@@ -1,15 +1,14 @@
 from collections import defaultdict
 
-import sqlalchemy
 from sqlalchemy import exists
 from sqlalchemy import select
 from sqlalchemy.sql.expression import delete, update
-
-from .external import DBConfig, SQliteConnection, ClientTaskConfig
-from .external import BASE_DATA_PATH, CollectionStatus
-from .db_mgmt import DatabaseManager
-from .db_models import DBCollectionTask, DBPost, CollectionResult, Base
 from tools.project_logging import get_logger
+
+from .db_mgmt import DatabaseManager
+from .db_models import DBCollectionTask, DBPost, CollectionResult
+from .external import BASE_DATA_PATH, CollectionStatus
+from .external import DBConfig, SQliteConnection, ClientTaskConfig
 
 
 class PlatformDB:
@@ -43,7 +42,7 @@ class PlatformDB:
 
     def delete_tasks(self, task_names_keep_info: list[tuple[str, bool]]) -> None:
         """
-        get a list of tuples: str,bool: taskname, keep-posts
+        get a list of tuples: str,bool: task-name, keep-posts
         """
 
         with self.db_mgmt.get_session() as session:
@@ -65,9 +64,9 @@ class PlatformDB:
 
     def add_db_collection_tasks(self, collection_tasks: list["ClientTaskConfig"]) -> list[str]:
         """
-        If the taskname is not in the database, a task goes straight in
-        For those existing there are multiple options, based on how the task is configured:
-        - overwrite the existing task (with suboption of keeping the old posts nevertheless)
+        If the task-name is not in the database, a task goes straight in
+        For those existing; there are multiple options, based on how the task is configured:
+        - overwrite the existing task (with a suboption of keeping the old posts nevertheless)
         - force_new_index, checks for an alternative index, in case the task comes from a group. (this has to be used wisely)
         """
         task_names = [t.task_name for t in collection_tasks]
@@ -171,7 +170,7 @@ class PlatformDB:
             # todo, there must be helper for this?!
             existing_ids = session.execute(
                 select(DBPost.platform_id).filter(DBPost.platform_id.in_(list(posts_ids)))).scalars().all()
-            posts = list(filter(lambda post: post.platform_id not in existing_ids, unique_posts))
+            posts = list(filter(lambda post_: post_.platform_id not in existing_ids, unique_posts))
 
             session.add_all(posts)
             session.commit()
@@ -191,7 +190,7 @@ class PlatformDB:
             task_record.collection_duration = collection.duration
             task_record.execution_ts = collection.execution_ts
 
-        self.logger.info(f"Added {len(posts)} posts to database (from [{len(collection.posts)}])")
+        self.logger.info(f"Added {len(posts)}/{len(collection.posts)} posts to database")
 
     def update_task_status(self, task_id: int, status: CollectionStatus):
         """Update task status in database"""
