@@ -1,14 +1,16 @@
 from datetime import date
 from pathlib import Path
-from typing import Annotated
+from typing import Annotated, Optional
 
 from rich.console import Console
 from rich.table import Table
 
+from big5_databases.databases.c_db_merge import check_for_conflicts
 from big5_databases.databases.db_mgmt import DatabaseManager
 from big5_databases.databases.db_utils import get_collected_posts_by_period, get_posts_by_period
 from big5_databases.databases.external import TimeWindow
 from big5_databases.databases.meta_database import MetaDatabase
+from big5_databases.databases.model_conversion import PlatformDatabaseModel
 
 try:
     import typer
@@ -25,8 +27,8 @@ app = typer.Typer(name="Databases commands",
 def get_db(db_path_or_name: Path | str) -> DatabaseManager:
     if isinstance(db_path_or_name, Path):
         return DatabaseManager.sqlite_db_from_path(db_path_or_name)
-    else: # if SETTINGS.main_db_path:
-        return MetaDatabase().get_db(db_path_or_name)
+    else:  # if SETTINGS.main_db_path:
+        return MetaDatabase().get_db_mgmt(db_path_or_name)
 
 
 @app.command(short_help="collected_posts_per_day")
@@ -35,7 +37,7 @@ def collected_per_day(db_path: Annotated[str, typer.Argument()],
     db = get_db(db_path)
     assert period in ["day", "month", "year"]
     col_per_day = get_collected_posts_by_period(db, TimeWindow(period))
-    table = Table("date","found" ,"added", title=db.metadata.name)
+    table = Table("date", "found", "added", title=db.metadata.name)
     for date, posts in col_per_day.items():
         table.add_row(str(date), *[str(_) for _ in posts.values()])
     Console().print(table)
@@ -47,7 +49,7 @@ def posts_per_period(db_path: Annotated[str, typer.Argument()],
     db = get_db(db_path)
     assert period in ["day", "month", "year"]
     ppd = get_posts_by_period(db, TimeWindow(period))
-    table = Table("date","posts", title=f"{db.metadata.name} posts per {period}")
+    table = Table("date", "posts", title=f"{db.metadata.name} posts per {period}")
     for date_posts in ppd:
         row = [str(_) for _ in date_posts]
         if period == "day":
@@ -55,7 +57,23 @@ def posts_per_period(db_path: Annotated[str, typer.Argument()],
         table.add_row(*row)
     Console().print(table)
 
+
+@app.command(short_help="add a db-path to some metadatabase")
+def add(db_path: Annotated[str, typer.Argument()],
+        platform: str,
+        name: str,
+        meta_db_path: Annotated[Optional[str], typer.Argument()] = None):
+    MetaDatabase(meta_db_path).add_db(PlatformDatabaseModel(platform=platform, name=name, db_path=Path(db_path)))
+
+
+@app.command(short_help="compare two databases (prep for merge")
+def compare_dbs(db_path1: Annotated[str, typer.Argument()],
+                db_path2: Annotated[str, typer.Argument()]):
+    check_for_conflicts(db_path1, db_path2)
+
+
 @app.command("get_missing_days")
-def get_missing_days(db_path: Annotated[Path, typer.Argument()]):
+def get_missing_days(db_path1: Annotated[str, typer.Argument()],
+                     db_path2: Annotated[str, typer.Argument()]):
     # db = DatabaseManager.sqlite_db_from_path(db_path)
     raise NotImplementedError

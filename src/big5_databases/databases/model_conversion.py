@@ -32,12 +32,12 @@ class PlatformDatabaseContentModel(BaseDBModel):
 
 class PlatformDatabaseModel(BaseDBModel):
     """Model for platform database configuration"""
-    id: Optional[int] = None
     platform: str
-
     name: Optional[str] = None
-    is_default: bool = False
     db_path: Path
+
+    id: Optional[int] = None
+    is_default: bool = False
     content: MetaDatabaseContentModel = Field(default_factory=MetaDatabaseContentModel)
     last_content_update: Optional[datetime] = None
     # these come from former class

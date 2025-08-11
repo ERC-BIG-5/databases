@@ -1,7 +1,10 @@
 from pathlib import Path
 from typing import Optional
 
+from sqlalchemy.exc import IntegrityError
+
 from big5_databases.databases import db_utils
+from big5_databases.databases.db_utils import count_posts
 from big5_databases.databases.model_conversion import PlatformDatabaseModel
 from big5_databases.databases.settings import SETTINGS
 from .db_models import DBPlatformDatabase
@@ -9,6 +12,9 @@ from .db_stats import generate_db_stats
 from .db_mgmt import DatabaseManager
 from .external import DBConfig, SQliteConnection, MetaDatabaseContentModel
 from tools.env_root import root
+from tools.project_logging import get_logger
+
+logger = get_logger(__file__)
 
 
 class MetaDatabase:
@@ -31,13 +37,15 @@ class MetaDatabase:
         ))
         # self.db.init_database()
 
-    def get_registered_platforms(self) -> list[PlatformDatabaseModel]:
+    def get_dbs(self) -> list[PlatformDatabaseModel]:
         """Get all registered platforms from the main database"""
         with self.db.get_session() as session:
             return [o.model() for o in session.query(DBPlatformDatabase).all()]
 
-    def get_db(self, id_: int  | str) -> DatabaseManager:
+    def get_db_mgmt(self, id_: int | str | PlatformDatabaseModel) -> DatabaseManager:
         with self.db.get_session() as session:
+            if isinstance(id_, PlatformDatabaseModel):
+                id_ = id_.id
             if isinstance(id_, int):
                 db_obj = session.query(DBPlatformDatabase).where(DBPlatformDatabase.id == id_).one()
             else:
@@ -45,20 +53,29 @@ class MetaDatabase:
 
             return DatabaseManager.sqlite_db_from_path(db_obj.db_path).set_meta(db_obj.model())
 
+    def __getitem__(self, item):
+        return self.get_db_mgmt(item)
+
     def move_database(self, id_, new_path: str | Path):
         with self.db.get_session() as session:
             db_obj = session.query(DBPlatformDatabase).where(DBPlatformDatabase.id == id_).one()
             db_obj.db_path = str(new_path)
 
-    def add_db(self, db: PlatformDatabaseModel):
-        with self.db.get_session() as session:
-            session.add(DBPlatformDatabase(
-                db_path=str(db.db_path.absolute()),
-                name=db.name,
-                platform=db.platform,
-                is_default=db.is_default,
-                content=db.content.model_dump()
-            ))
+    def add_db(self, db: PlatformDatabaseModel) -> bool:
+        try:
+            with self.db.get_session() as session:
+                session.add(DBPlatformDatabase(
+                    db_path=str(db.db_path.absolute()),
+                    name=db.name,
+                    platform=db.platform,
+                    is_default=db.is_default,
+                    content=db.content.model_dump()
+                ))
+        except IntegrityError as e:
+            logger.error(f"Could not add database {db.name} to meta-database: {e.orig}")
+            session.rollback()
+            return False
+        return True
 
     def purge(self, simulate: bool = False):
         if simulate:
@@ -70,6 +87,35 @@ class MetaDatabase:
                     print("Delete", name)
                     if not simulate:
                         session.delete(db)
+
+    def general_databases_status(self, task_status: bool = True):
+
+        task_status_types = ["done", "init", "paused", "aborted"] if task_status else []
+        results = []
+
+        def calc_row(db: DatabaseManager) -> dict[str, str | int]:
+            if task_status:
+                tasks = db_utils.count_states(db)
+                status_numbers = [str(tasks.get(t, 0)) for t in task_status_types]
+            else:
+                status_numbers = []
+            total_posts = str(count_posts(db=db))
+            size = str(f"{int(db_utils.file_size(db) / (1024 * 1024))} Mb")
+            return {"total": total_posts,
+                    "size": size} | dict(zip(task_status_types, status_numbers))
+
+        # use a database
+        dbs = self.get_dbs()
+        comon_path = dbs[0].db_path
+        for db in dbs:
+            c_p = db.db_path
+            while not c_p.is_relative_to(comon_path):
+                comon_path = comon_path.parent
+        for db in dbs:
+            row = {"name": db.name, "platform": db.platform,"path": str(db.db_path.relative_to(comon_path))}
+            row.update(calc_row(self.get_db_mgmt(db)))
+            results.append(row)
+        return results
 
 
 def check_exists(path: str, metadb: DatabaseManager) -> bool:

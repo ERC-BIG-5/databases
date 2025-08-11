@@ -22,7 +22,9 @@ class PlatformDB:
             db_path=(BASE_DATA_PATH / f"{platform}.sqlite").as_posix()
         ))
 
+
     def __init__(self, platform: str, db_config: DBConfig = None):
+        # todo init this with more abstracted model, including the platform and db name
         # Only initialize if this is a new instance
         self.platform = platform
         self.db_config = db_config or self.get_platform_default_db(platform)
@@ -202,7 +204,7 @@ class PlatformDB:
     def reset_running_tasks(self):
         with self.db_mgmt.get_session() as session:
             tasks = session.execute(select(DBCollectionTask).filter(
-                DBCollectionTask.status == CollectionStatus.RUNNING,
+                DBCollectionTask.status.in_([CollectionStatus.RUNNING,CollectionStatus.ABORTED])
             )).scalars()
 
             c = 0

@@ -1,9 +1,10 @@
 import json
 from collections import Counter
+from typing import Optional
 
 from big5_databases.databases import db_utils
 from .db_mgmt import DatabaseManager
-from .db_utils import get_posts_by_period, get_collected_posts_by_period
+from .db_utils import get_posts_by_period, get_collected_posts_by_period, count_posts
 from .external import SQliteConnection, DBStats, TimeWindow, TimeColumn
 from tools.env_root import root
 
