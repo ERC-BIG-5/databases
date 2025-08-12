@@ -11,21 +11,20 @@ from tools.project_logging import get_logger
 
 from .db_models import Base, DBPost, DBCollectionTask
 from .db_utils import filter_posts_with_existing_post_ids
-from .external import DBConfig, SQliteConnection
+from .external import DBConfig, SQliteConnection, CollectionStatus
 from .external import PostgresConnection
 from .model_conversion import PlatformDatabaseModel
 
 
 class DatabaseManager:
 
-    def __init__(self, config: DBConfig, db_meta: Optional[PlatformDatabaseModel]  = None):
+    def __init__(self, config: DBConfig, db_meta: Optional[PlatformDatabaseModel] = None):
         self.config = config
         self.logger = get_logger(__file__)
         self.engine = self._create_engine()
         self.Session = sessionmaker(self.engine)
         self.init_database()
-        self.metadata: Optional[PlatformDatabaseModel] = None # through setter
-
+        self.metadata: Optional[PlatformDatabaseModel] = None  # through setter
 
         if self.config.db_type == "sqlite":
             event.listen(self.engine, 'connect', self._sqlite_on_connect)
@@ -55,6 +54,7 @@ class DatabaseManager:
         dbapi_con.execute('pragma foreign_keys=ON')
         dbapi_con.execute('pragma journal_mode=WAL')
         dbapi_con.execute('pragma synchronous=NORMAL')
+        dbapi_con.execute('pragma auto_vacuum = FULL;')
 
     def _create_postgres_db(self) -> None:
         if database_exists(self.config.connection_str):
@@ -167,6 +167,20 @@ class DatabaseManager:
     def set_meta(self, metadata: PlatformDatabaseModel) -> "DatabaseManager":
         self.metadata = metadata
         return self
+
+    def reset_collection_task_states(self, states: list[CollectionStatus] =
+    (CollectionStatus.RUNNING, CollectionStatus.ABORTED)) -> int:
+
+        with self.get_session() as session:
+            tasks = session.query(DBCollectionTask).filter(
+                DBCollectionTask.status.in_(list(states))
+            ).all()
+
+            c = 0
+            for t in tasks:
+                t.status = CollectionStatus.INIT
+                c += 1
+        return c
 
 
 class AsyncDatabaseManager(DatabaseManager):

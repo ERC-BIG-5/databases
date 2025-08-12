@@ -22,7 +22,6 @@ class PlatformDB:
             db_path=(BASE_DATA_PATH / f"{platform}.sqlite").as_posix()
         ))
 
-
     def __init__(self, platform: str, db_config: DBConfig = None):
         # todo init this with more abstracted model, including the platform and db name
         # Only initialize if this is a new instance
@@ -79,7 +78,7 @@ class PlatformDB:
 
         remove_tasks = []
         # check if existing names can be overwritten. then. delete
-        group_prefix_existing_tasks:dict[str,set[int]] = defaultdict(set)
+        group_prefix_existing_tasks: dict[str, set[int]] = defaultdict(set)
         if existing_names:
             self.logger.debug(f"client collection tasks exists already: {existing_names}")
             for t in collection_tasks:
@@ -90,11 +89,14 @@ class PlatformDB:
                     elif t.force_new_index:
                         if not group_prefix_existing_tasks.get(t.group_prefix):
                             with self.db_mgmt.get_session() as session:
-                                stmt = select(DBCollectionTask.task_name).where(DBCollectionTask.task_name.like(f'{t.group_prefix}_%'))
-                                group_prefix_existing_tasks[t.group_prefix] = set([int(tn.removeprefix(f"{t.group_prefix}_")) for tn in session.execute(stmt).scalars().all()])
+                                stmt = select(DBCollectionTask.task_name).where(
+                                    DBCollectionTask.task_name.like(f'{t.group_prefix}_%'))
+                                group_prefix_existing_tasks[t.group_prefix] = set(
+                                    [int(tn.removeprefix(f"{t.group_prefix}_")) for tn in
+                                     session.execute(stmt).scalars().all()])
                         existing_indices = group_prefix_existing_tasks[t.group_prefix]
 
-                        for next_idx in range(len(existing_indices)+1):
+                        for next_idx in range(len(existing_indices) + 1):
                             if next_idx not in existing_indices:
                                 new_t_name = f"{t.group_prefix}_{next_idx}"
                                 self.logger.debug(f"task will get new task_name {t.task_name} -> {new_t_name}")
@@ -202,16 +204,8 @@ class PlatformDB:
             session.commit()
 
     def reset_running_tasks(self):
-        with self.db_mgmt.get_session() as session:
-            tasks = session.execute(select(DBCollectionTask).filter(
-                DBCollectionTask.status.in_([CollectionStatus.RUNNING,CollectionStatus.ABORTED])
-            )).scalars()
-
-            c = 0
-            for t in tasks:
-                t.status = CollectionStatus.INIT
-                c += 1
-            self.logger.debug(f"{self.platform}: Set tasks to pause: {c} tasks")
+        c = self.db_mgmt.reset_collection_task_states()
+        self.logger.debug(f"{self.platform}: Set tasks to pause: {c} tasks")
 
     @staticmethod
     def platform_tables() -> list[str]:
