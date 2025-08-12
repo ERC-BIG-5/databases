@@ -8,7 +8,7 @@ where = ["src"]
 
 [project]
 name = "big5-databases"
-version = "0.3.1"
+version = "0.3.2"
 description = "database management for big5"
 readme = "README.md"
 requires-python = ">=3.12"
