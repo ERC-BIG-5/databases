@@ -46,7 +46,7 @@ def collected_per_day(db_path: Annotated[str, typer.Argument()],
 @app.command(short_help="posts by period")
 def posts_per_period(db_path: Annotated[str, typer.Argument()],
                      period: Annotated[str, typer.Argument(help="day,month,year")] = "day",
-                     print_: Annotated[bool, typer.Argument()] = False):
+                     print_: Annotated[bool, typer.Argument()] = True):
     db = get_db(db_path)
     assert period in ["day", "month", "year"]
     ppd = get_posts_by_period(db, TimeWindow(period))

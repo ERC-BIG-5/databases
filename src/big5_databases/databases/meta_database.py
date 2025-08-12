@@ -42,7 +42,7 @@ class MetaDatabase:
         with self.db.get_session() as session:
             return [o.model() for o in session.query(DBPlatformDatabase).all()]
 
-    def get_db_mgmt(self, id_: int | str | PlatformDatabaseModel) -> DatabaseManager:
+    def get_db_mgmt(self, id_: int | str | PlatformDatabaseModel) -> Optional[DatabaseManager]:
         with self.db.get_session() as session:
             if isinstance(id_, PlatformDatabaseModel):
                 id_ = id_.id
@@ -50,8 +50,11 @@ class MetaDatabase:
                 db_obj = session.query(DBPlatformDatabase).where(DBPlatformDatabase.id == id_).one()
             else:
                 db_obj = session.query(DBPlatformDatabase).where(DBPlatformDatabase.name == id_).one()
-
-            return DatabaseManager.sqlite_db_from_path(db_obj.db_path).set_meta(db_obj.model())
+            try:
+                return DatabaseManager.sqlite_db_from_path(db_obj.db_path).set_meta(db_obj.model())
+            except ValueError as e:
+                logger.warning(f"Could not load database {db_obj.name} from meta-database: {e}")
+                return None
 
     def __getitem__(self, item):
         return self.get_db_mgmt(item)
@@ -113,7 +116,10 @@ class MetaDatabase:
                 comon_path = comon_path.parent
         for db in dbs:
             row = {"name": db.name, "platform": db.platform,"path": str(db.db_path.relative_to(comon_path))}
-            row.update(calc_row(self.get_db_mgmt(db)))
+            db_mgmt: Optional[DatabaseManager] = self.get_db_mgmt(db)
+            if db_mgmt is None:
+                continue
+            row.update(calc_row(db_mgmt))
             results.append(row)
         return results
 
