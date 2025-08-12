@@ -118,8 +118,9 @@ class MetaDatabase:
             row = {"name": db.name, "platform": db.platform,"path": str(db.db_path.relative_to(comon_path))}
             db_mgmt: Optional[DatabaseManager] = self.get_db_mgmt(db)
             if db_mgmt is None:
-                continue
-            row.update(calc_row(db_mgmt))
+                row["path"] =f"[red]{row["path"]}[/red]"
+            else:
+                row.update(calc_row(db_mgmt))
             results.append(row)
         return results
 

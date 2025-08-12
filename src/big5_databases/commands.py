@@ -1,6 +1,6 @@
 from datetime import date
 from pathlib import Path
-from typing import Annotated, Optional
+from typing import Annotated, Optional, Any
 
 from rich.console import Console
 from rich.table import Table
@@ -24,12 +24,20 @@ app = typer.Typer(name="Databases commands",
                   short_help="Database commands for stats and edits")
 
 
-def get_db(db_path_or_name: Path | str) -> DatabaseManager:
+def get_db(db_path_or_name: Path | str) -> Optional[DatabaseManager]:
     if isinstance(db_path_or_name, Path):
         return DatabaseManager.sqlite_db_from_path(db_path_or_name)
     else:  # if SETTINGS.main_db_path:
         return MetaDatabase().get_db_mgmt(db_path_or_name)
 
+@app.command(short_help="Get the number of posts, and tasks statuses of all specified databases (RUN_CONFIG)")
+def status(task_status: bool = True,
+           database: Optional[Path] = None):
+    results: list[dict[str, Any]] = MetaDatabase().general_databases_status(task_status)
+    table = Table(*list(results[0].keys()))
+    for r in results:
+        table.add_row(*r.values())
+    Console().print(table)
 
 @app.command(short_help="collected_posts_per_day")
 def collected_per_day(db_path: Annotated[str, typer.Argument()],
