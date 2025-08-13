@@ -67,6 +67,7 @@ class MetaDatabase:
             if func is None:
                 def func_(session_, obj_):
                     return None
+                func = func_
             func(session, db_obj)
             return db_obj.model()
 
