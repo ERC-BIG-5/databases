@@ -87,16 +87,18 @@ class MetaDatabase:
             return False
         return True
 
+    def delete(self, id_: int|str):
+        self.edit(id_, lambda x: x.delete())
+
     def purge(self, simulate: bool = False):
         if simulate:
             print("SIMULATE")
-        with self.db.get_session() as session:
-            for db in session.query(DBPlatformDatabase):
-                if not Path(db.db_path).exists():
-                    name = f"{db.name}: {db.db_path} does not exist"
-                    print("Delete", name)
-                    if not simulate:
-                        session.delete(db)
+        for db in self.get_dbs():
+            if not Path(db.db_path).exists():
+                name = f"{db.name}: {db.db_path} does not exist"
+                print("Delete", name)
+                if not simulate:
+                    self.edit(db.id, lambda x: x.delete())
 
     def general_databases_status(self, task_status: bool = True):
 
