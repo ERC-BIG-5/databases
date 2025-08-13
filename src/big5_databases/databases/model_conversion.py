@@ -5,6 +5,7 @@ from typing import Optional, Annotated, Any
 from deprecated.classic import deprecated
 from pydantic import BaseModel, Field, field_validator, ConfigDict, PlainSerializer
 
+from .db_settings import SqliteSettings
 from .external import CollectionStatus, PostType, CollectConfig, MetaDatabaseContentModel
 
 
@@ -44,6 +45,12 @@ class PlatformDatabaseModel(BaseDBModel):
     # connection_str: str
     last_status_update: Optional[datetime] = None
     last_stats_update: Optional[datetime] = None
+
+    @property
+    def full_path(self) -> Path:
+        if not self.db_path.is_absolute():
+            return SqliteSettings().SQLITE_DBS_BASE_PATH / self.db_path
+        return self.db_path
 
 # User Models
 class UserModel(BaseDBModel):

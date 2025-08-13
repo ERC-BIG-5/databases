@@ -111,15 +111,15 @@ class MetaDatabase:
 
         # use a database
         dbs = self.get_dbs()
-        comon_path = dbs[0].db_path
+        comon_path = dbs[0].full_path
         for db in dbs:
-            c_p = db.db_path
+            c_p = db.full_path
             while not c_p.is_relative_to(comon_path):
                 comon_path = comon_path.parent
                 if str(comon_path) == ".":
                     comon_path = Path("/")
         for db in dbs:
-            row = {"name": db.name, "platform": db.platform, "path": str(db.db_path.relative_to(comon_path))}
+            row = {"name": db.name, "platform": db.platform, "path": str(db.full_path.relative_to(comon_path))}
             db_mgmt: Optional[DatabaseManager] = self.get_db_mgmt(db)
             if db_mgmt is None:
                 row["path"] = f"[red]{row["path"]}[/red]"
