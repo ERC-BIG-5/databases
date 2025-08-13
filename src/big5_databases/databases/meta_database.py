@@ -44,7 +44,7 @@ class MetaDatabase:
 
     def get_db_mgmt(self, id_: int | str | PlatformDatabaseModel) -> Optional[DatabaseManager]:
         dbm = self[id_]
-        if dbm is None:
+        if not dbm.full_path.exists():
             raise ValueError(f"Could not load database {id_} from meta-database")
         return DatabaseManager.sqlite_db_from_path(dbm.db_path).set_meta(dbm)
 
