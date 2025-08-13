@@ -109,17 +109,8 @@ class DBConfig(BaseModel):
         else:
             return "postgres"
 
-# class PlatformGeneralConfig(BaseModel):
-    # ignore_initial_quota_halt: Optional[bool] = Field(False, description="Ignore initial quota halt")
-    # request_delay: Optional[float] = Field(0, description="Wait-time after each task")
-    # delay_randomize: Optional[int] = Field(0, description="Additional random delay (0-`value`")
-    # progress: bool = Field(True, description="If platform should process tasks or not")
-
 class ClientConfig(BaseModel):
     model_config = {'extra': "forbid", "from_attributes": True}
-    # name: str = Field(description="unique name of the database")
-    # platform: str = Field(description="which social media platform")
-    # general_config: Optional[PlatformGeneralConfig] = Field(None, description="general configuration")
     ignore_initial_quota_halt: Optional[bool] = Field(False, description="Ignore initial quota halt")
     request_delay: Optional[float] = Field(0, description="Wait-time after each task")
     delay_randomize: Optional[int] = Field(0, description="Additional random delay (0-`value`")
