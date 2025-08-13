@@ -120,11 +120,11 @@ class MetaDatabase:
                     comon_path = Path("/")
         for db in dbs:
             row = {"name": db.name, "platform": db.platform, "path": str(db.full_path.relative_to(comon_path))}
-            db_mgmt: Optional[DatabaseManager] = self.get_db_mgmt(db)
-            if db_mgmt is None:
-                row["path"] = f"[red]{row["path"]}[/red]"
-            else:
+            try:
+                db_mgmt: Optional[DatabaseManager] = self.get_db_mgmt(db)
                 row.update(calc_row(db_mgmt))
+            except ValueError:
+                row["path"] = f"[red]{row["path"]}[/red]"
             results.append(row)
         return results
 
