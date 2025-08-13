@@ -52,7 +52,7 @@ class MetaDatabase:
     def __getitem__(self, id_: int | str | PlatformDatabaseModel) -> Optional[PlatformDatabaseModel]:
         return self.edit(id_)
 
-    def edit(self, id_: int | str , func: Optional[Callable[[Session, DBPlatformDatabase], None]] = lambda x: None):
+    def edit(self, id_: int | str , func: Optional[Callable[[Session, DBPlatformDatabase], None]] = None):
         with self.db.get_session() as session:
             try:
                 if isinstance(id_, PlatformDatabaseModel):
@@ -64,6 +64,9 @@ class MetaDatabase:
             except NoResultFound as err:
                 logger.warning(f"Could not load database {db_obj.name} from meta-database")
                 return None
+            if func is None:
+                def func_(session_, obj_):
+                    return None
             func(session, db_obj)
             return db_obj.model()
 
