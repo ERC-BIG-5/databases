@@ -5,6 +5,7 @@ from typing import Optional, Annotated, Any
 from deprecated.classic import deprecated
 from pydantic import BaseModel, Field, field_validator, ConfigDict, PlainSerializer
 
+from .db_mgmt import DatabaseManager
 from .db_settings import SqliteSettings
 from .external import CollectionStatus, PostType, CollectConfig, MetaDatabaseContentModel
 
@@ -55,6 +56,11 @@ class PlatformDatabaseModel(BaseDBModel):
 
     def exists(self):
         return self.full_path.exists()
+
+    def get_mgmt(self) -> "DatabaseManager":
+        if not self.exists():
+            raise ValueError(f"Could not load database {self.db_path} from meta-database")
+        return DatabaseManager.sqlite_db_from_path(self.db_path)
 
 # User Models
 class UserModel(BaseDBModel):

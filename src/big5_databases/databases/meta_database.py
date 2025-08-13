@@ -44,11 +44,13 @@ class MetaDatabase:
         with self.db.get_session() as session:
             return [o.model() for o in session.query(DBPlatformDatabase).all()]
 
+    def exists(self, id_: int | str | PlatformDatabaseModel) -> bool:
+        return self[id_] is not None
+
     def get_db_mgmt(self, id_: int | str | PlatformDatabaseModel) -> Optional[DatabaseManager]:
-        dbm = self[id_]
-        if not dbm.full_path.exists():
-            raise ValueError(f"Could not load database {id_} from meta-database")
-        return DatabaseManager.sqlite_db_from_path(dbm.db_path).set_meta(dbm)
+        dbm = self[id_].get_mgmt()
+        dbm.set_meta(self[id_])
+        return dbm
 
     def __getitem__(self, id_: int | str | PlatformDatabaseModel) -> Optional[PlatformDatabaseModel]:
         return self.edit(id_)
