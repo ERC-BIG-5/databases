@@ -1,7 +1,7 @@
 from pathlib import Path
 from typing import Optional
 
-from sqlalchemy.exc import IntegrityError
+from sqlalchemy.exc import IntegrityError, NoResultFound
 
 from big5_databases.databases import db_utils
 from big5_databases.databases.db_utils import count_posts
@@ -43,26 +43,28 @@ class MetaDatabase:
             return [o.model() for o in session.query(DBPlatformDatabase).all()]
 
     def get_db_mgmt(self, id_: int | str | PlatformDatabaseModel) -> Optional[DatabaseManager]:
+        dbm = self[id_]
+        if dbm is None:
+            raise ValueError(f"Could not load database {id_} from meta-database")
+        return DatabaseManager.sqlite_db_from_path(dbm.db_path).set_meta(dbm)
+
+    def __getitem__(self, id_: int | str | PlatformDatabaseModel) -> Optional[PlatformDatabaseModel]:
         with self.db.get_session() as session:
-            if isinstance(id_, PlatformDatabaseModel):
-                id_ = id_.id
-            if isinstance(id_, int):
-                db_obj = session.query(DBPlatformDatabase).where(DBPlatformDatabase.id == id_).one()
-            else:
-                db_obj = session.query(DBPlatformDatabase).where(DBPlatformDatabase.name == id_).one()
             try:
-                return DatabaseManager.sqlite_db_from_path(db_obj.db_path).set_meta(db_obj.model())
-            except ValueError as e:
-                logger.warning(f"Could not load database {db_obj.name} from meta-database: {e}")
+                if isinstance(id_, PlatformDatabaseModel):
+                    id_ = id_.id
+                if isinstance(id_, int):
+                    db_obj = session.query(DBPlatformDatabase).where(DBPlatformDatabase.id == id_).one()
+                else:
+                    db_obj = session.query(DBPlatformDatabase).where(DBPlatformDatabase.name == id_).one()
+            except NoResultFound as err:
+                logger.warning(f"Could not load database {db_obj.name} from meta-database")
                 return None
+            return db_obj.model()
 
-    def __getitem__(self, item):
-        return self.get_db_mgmt(item)
-
-    def move_database(self, id_, new_path: str | Path):
+    def move_database(self, id_: int|str, new_path: str | Path):
         with self.db.get_session() as session:
-            db_obj = session.query(DBPlatformDatabase).where(DBPlatformDatabase.id == id_).one()
-            db_obj.db_path = str(new_path)
+            self[id_].db_path = str(new_path)
 
     def add_db(self, db: PlatformDatabaseModel) -> bool:
         try:
@@ -114,11 +116,13 @@ class MetaDatabase:
             c_p = db.db_path
             while not c_p.is_relative_to(comon_path):
                 comon_path = comon_path.parent
+                if str(comon_path) == ".":
+                    break
         for db in dbs:
-            row = {"name": db.name, "platform": db.platform,"path": str(db.db_path.relative_to(comon_path))}
+            row = {"name": db.name, "platform": db.platform, "path": str(db.db_path.relative_to(comon_path))}
             db_mgmt: Optional[DatabaseManager] = self.get_db_mgmt(db)
             if db_mgmt is None:
-                row["path"] =f"[red]{row["path"]}[/red]"
+                row["path"] = f"[red]{row["path"]}[/red]"
             else:
                 row.update(calc_row(db_mgmt))
             results.append(row)

@@ -70,7 +70,7 @@ class DatabaseManager:
         Base.metadata.create_all(self.engine)
 
     def db_exists(self):
-        return database_exists(self.config.connection_string)
+        return database_exists(self.config.connection_str)
 
     def skip_confirmation_in_test(self, engine_url) -> True:
         return self.config.test_mode and Path(engine_url.database).stem.endswith("test")

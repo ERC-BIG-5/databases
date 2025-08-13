@@ -7,7 +7,8 @@ from tools.project_logging import get_logger
 
 from .db_mgmt import DatabaseManager
 from .db_models import DBCollectionTask, DBPost, CollectionResult
-from .external import BASE_DATA_PATH, CollectionStatus
+from .db_settings import SqliteSettings
+from .external import CollectionStatus
 from .external import DBConfig, SQliteConnection, ClientTaskConfig
 
 
@@ -19,7 +20,7 @@ class PlatformDB:
     @classmethod
     def get_platform_default_db(cls, platform: str) -> DBConfig:
         return DBConfig(db_connection=SQliteConnection(
-            db_path=(BASE_DATA_PATH / f"{platform}.sqlite").as_posix()
+            db_path=(SqliteSettings().SQLITE_DBS_BASE_PATH / f"{platform}.sqlite").as_posix()
         ))
 
     def __init__(self, platform: str, db_config: DBConfig = None):

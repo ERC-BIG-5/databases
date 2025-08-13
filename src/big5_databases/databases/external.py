@@ -14,6 +14,7 @@ from tools.pydantic_annotated_types import SerializablePath, SerializableDatetim
 
 from .db_settings import SqliteSettings
 
+# todo kick this out
 BASE_DATA_PATH = root() / "data"
 
 
