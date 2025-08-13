@@ -2,6 +2,7 @@ from pathlib import Path
 from typing import Optional, Callable
 
 from sqlalchemy.exc import IntegrityError, NoResultFound
+from sqlalchemy.orm.session import Session
 
 from big5_databases.databases import db_utils
 from big5_databases.databases.db_utils import count_posts
@@ -51,7 +52,7 @@ class MetaDatabase:
     def __getitem__(self, id_: int | str | PlatformDatabaseModel) -> Optional[PlatformDatabaseModel]:
         return self.edit(id_)
 
-    def edit(self, id_: int | str , func: Optional[Callable[[DBPlatformDatabase], None]] = lambda x: None):
+    def edit(self, id_: int | str , func: Optional[Callable[[Session, DBPlatformDatabase], None]] = lambda x: None):
         with self.db.get_session() as session:
             try:
                 if isinstance(id_, PlatformDatabaseModel):
@@ -63,11 +64,11 @@ class MetaDatabase:
             except NoResultFound as err:
                 logger.warning(f"Could not load database {db_obj.name} from meta-database")
                 return None
-            func(db_obj)
+            func(session, db_obj)
             return db_obj.model()
 
     def move_database(self, id_: int|str, new_path: str | Path):
-        def move_db(db: DBPlatformDatabase):
+        def move_db(session, db: DBPlatformDatabase):
             db.db_path = str(new_path)
         self.edit(id_, move_db)
 
@@ -88,7 +89,9 @@ class MetaDatabase:
         return True
 
     def delete(self, id_: int|str):
-        self.edit(id_, lambda x: x.delete())
+        def del_db(session, db: DBPlatformDatabase):
+            session.delete(db)
+        self.edit(id_, del_db)
 
     def purge(self, simulate: bool = False):
         if simulate:
