@@ -1,5 +1,5 @@
 from pathlib import Path
-from typing import Optional
+from typing import Optional, Callable
 
 from sqlalchemy.exc import IntegrityError, NoResultFound
 
@@ -49,6 +49,9 @@ class MetaDatabase:
         return DatabaseManager.sqlite_db_from_path(dbm.db_path).set_meta(dbm)
 
     def __getitem__(self, id_: int | str | PlatformDatabaseModel) -> Optional[PlatformDatabaseModel]:
+        return self.edit(id_)
+
+    def edit(self, id_: int | str , func: Optional[Callable[[DBPlatformDatabase], None]] = lambda x: None):
         with self.db.get_session() as session:
             try:
                 if isinstance(id_, PlatformDatabaseModel):
@@ -60,6 +63,7 @@ class MetaDatabase:
             except NoResultFound as err:
                 logger.warning(f"Could not load database {db_obj.name} from meta-database")
                 return None
+            func(db_obj)
             return db_obj.model()
 
     def move_database(self, id_: int|str, new_path: str | Path):
