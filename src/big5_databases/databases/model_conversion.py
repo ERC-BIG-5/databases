@@ -52,6 +52,10 @@ class PlatformDatabaseModel(BaseDBModel):
             return SqliteSettings().SQLITE_DBS_BASE_PATH / self.db_path
         return self.db_path
 
+
+    def exists(self):
+        return self.full_path.exists()
+
 # User Models
 class UserModel(BaseDBModel):
     """Model for user data"""

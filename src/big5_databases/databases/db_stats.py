@@ -1,18 +1,20 @@
 import json
 from collections import Counter
-from typing import Optional
+from typing import TYPE_CHECKING
 
 from big5_databases.databases import db_utils
-from .db_mgmt import DatabaseManager
+
 from .db_utils import get_posts_by_period, get_collected_posts_by_period, count_posts
 from .external import SQliteConnection, DBStats, TimeWindow, TimeColumn
 from tools.env_root import root
 
 RAISE_DB_ERROR = True
 
+if TYPE_CHECKING:
+    from .db_mgmt import DatabaseManager
 
 def generate_db_stats(
-        db: DatabaseManager,
+        db: "DatabaseManager",
         time_column=TimeColumn.CREATED
 ) -> DBStats:
     """
@@ -39,9 +41,10 @@ def generate_db_stats(
         created = get_posts_by_period(db, TimeWindow.DAY)
         for period_str, count in created:
             stats.created_counts.set(period_str, count)
-        collected = get_collected_posts_by_period(db, TimeWindow.DAY)
-        for period_str, count in collected:
-            stats.collected_counts.set(period_str, count)
+        # todo, integrate again, a bit broken. these are not base stats
+        # collected = get_collected_posts_by_period(db, TimeWindow.DAY)
+        # for period_str, count in collected.items():
+        #     stats.collected_counts.set(period_str, count)
         return stats
 
     except Exception as e:
@@ -100,16 +103,3 @@ def validate_period_stats(day_stats: DBStats, month_stats: DBStats, year_stats: 
         print("All month totals match between aggregated days and direct month query.")
 
 
-if __name__ == "__main__":
-    root("/home/rsoleyma/projects/platforms-clients")
-    db = DatabaseManager.sqlite_db_from_path(root() / "data/tiktok.sqlite", False)
-    stats = generate_db_stats(db)
-    print(json.dumps(stats.model_dump(), indent=2))
-
-    # stats = generate_db_stats(db, "month")
-    # print(json.dumps(stats.model_dump(), indent=2))
-
-    # stats = generate_db_stats(db, "year")
-    # print(json.dumps(stats.model_dump(), indent=2))
-    plt = stats.plot_daily_items(bars=True,period=TimeWindow.DAY)
-    plt.show()

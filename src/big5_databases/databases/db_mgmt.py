@@ -9,9 +9,11 @@ from sqlalchemy.orm import sessionmaker
 from sqlalchemy_utils import database_exists, create_database, drop_database
 from tools.project_logging import get_logger
 
+from . import db_utils
 from .db_models import Base, DBPost, DBCollectionTask
+from .db_stats import generate_db_stats
 from .db_utils import filter_posts_with_existing_post_ids
-from .external import DBConfig, SQliteConnection, CollectionStatus
+from .external import DBConfig, SQliteConnection, CollectionStatus, MetaDatabaseContentModel
 from .external import PostgresConnection
 from .model_conversion import PlatformDatabaseModel
 
@@ -182,6 +184,12 @@ class DatabaseManager:
                 c += 1
         return c
 
+    def get_base_stats(self) -> MetaDatabaseContentModel:
+        return MetaDatabaseContentModel(
+            tasks_states=db_utils.count_states(self),
+            post_count=db_utils.count_posts(db=self),
+            file_size=db_utils.file_size(self),
+            stats=generate_db_stats(self))
 
 class AsyncDatabaseManager(DatabaseManager):
     def __init__(self, config: DBConfig):

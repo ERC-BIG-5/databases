@@ -9,7 +9,7 @@ from sqlalchemy.ext.mutable import MutableDict
 from sqlalchemy.orm import relationship, Mapped, mapped_column, declarative_base
 
 from tools.pydantic_annotated_types import SerializableDatetimeAlways
-from .external import CollectionStatus, ClientTaskConfig
+from .external import CollectionStatus, ClientTaskConfig, MetaDatabaseContentModel
 from .external import PostType
 from .model_conversion import CollectionTaskModel, PostModel, PlatformDatabaseModel
 
@@ -145,7 +145,7 @@ class DBPlatformDatabase(DBModelBase[PlatformDatabaseModel]):
     is_default: Mapped[bool] = mapped_column(Boolean())
 
     db_path: Mapped[str] = mapped_column(String(120), nullable=False, unique=True)
-    content: Mapped[dict] = mapped_column(MutableDict.as_mutable(JSON()), nullable=False, default={})
+    content: Mapped[MetaDatabaseContentModel] = mapped_column(MutableDict.as_mutable(JSON()), nullable=False, default={})
     last_content_update: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, default=func.now())
 
     _pydantic_model = PlatformDatabaseModel

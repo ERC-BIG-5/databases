@@ -3,7 +3,7 @@ from pathlib import Path
 from typing import Annotated, Optional, Any
 
 from rich.console import Console
-from rich.table import Table
+from rich.table import Table, Column
 
 from big5_databases.databases.c_db_merge import check_for_conflicts
 from big5_databases.databases.db_mgmt import DatabaseManager
@@ -34,7 +34,7 @@ def get_db(db_path_or_name: Path | str) -> Optional[DatabaseManager]:
 def status(task_status: bool = True,
            database: Optional[Path] = None):
     results: list[dict[str, Any]] = MetaDatabase().general_databases_status(task_status)
-    table = Table(*list(results[0].keys()))
+    table = Table(*[Column(c, justify="right") for c in results[0].keys()])
     for r in results:
         table.add_row(*r.values())
     Console().print(table)

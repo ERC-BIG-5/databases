@@ -2,14 +2,14 @@ import os
 import re
 from collections import defaultdict
 from pathlib import Path
-from typing import TYPE_CHECKING, Generator, Optional, TypedDict
+from typing import TYPE_CHECKING, Generator, Optional, TypedDict, Union
 from sqlalchemy.orm import Session
 
 from sqlalchemy import func
 from sqlalchemy import select, literal, text
 
 from .external import CollectionStatus, SQliteConnection, TimeWindow, TimeColumn
-from .model_conversion import PostModel, CollectionTaskModel
+from .model_conversion import PostModel, CollectionTaskModel, PlatformDatabaseModel
 from tools.env_root import root
 
 if TYPE_CHECKING:
@@ -61,12 +61,14 @@ def check_platforms(db: "DatabaseManager", from_tasks: bool = True) -> set[str]:
         return set(p[0] for p in session.query(model.platform))
 
 
-def file_size(db: "DatabaseManager") -> int:
-    if isinstance(db.config.db_connection, SQliteConnection):
+def file_size(db: Union["DatabaseManager", PlatformDatabaseModel]) -> int:
+    if isinstance(db, PlatformDatabaseModel):
+        file_path = db.full_path
+    elif isinstance(db.config.db_connection, SQliteConnection):
         file_path = db.config.db_connection.db_path
-        return os.stat(file_path).st_size
     else:
         return 0
+    return os.stat(file_path).st_size
 
 
 def iter_posts(db: "DatabaseManager") -> Generator[PostModel, None, None]:

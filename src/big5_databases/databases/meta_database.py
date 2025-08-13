@@ -2,6 +2,7 @@ from pathlib import Path
 from typing import Optional, Callable
 
 from sqlalchemy.exc import IntegrityError, NoResultFound
+from sqlalchemy.orm.attributes import flag_modified
 from sqlalchemy.orm.session import Session
 
 from big5_databases.databases import db_utils
@@ -105,14 +106,16 @@ class MetaDatabase:
                 name = f"{db.name}: {db.db_path} does not exist"
                 print("Delete", name)
                 if not simulate:
-                    self.edit(db.id, lambda x: x.delete())
+                    def del_db(session, db: DBPlatformDatabase):
+                        session.delete(db)
+                    self.edit(db.id, del_db)
 
     def general_databases_status(self, task_status: bool = True):
-
         task_status_types = ["done", "init", "paused", "aborted"] if task_status else []
         results = []
 
         def calc_row(db: DatabaseManager) -> dict[str, str | int]:
+            # base_stats = db.get_base_stats()
             if task_status:
                 tasks = db_utils.count_states(db)
                 status_numbers = [str(tasks.get(t, 0)) for t in task_status_types]
@@ -124,31 +127,44 @@ class MetaDatabase:
                     "size": size} | dict(zip(task_status_types, status_numbers))
 
         # use a database
-        dbs = self.get_dbs()
-        comon_path = dbs[0].full_path
+        dbs : list[PlatformDatabaseModel]= self.get_dbs()
+        # comon_path = dbs[0].full_path.parent
         for db in dbs:
-            c_p = db.full_path
-            while not c_p.is_relative_to(comon_path):
-                comon_path = comon_path.parent
-                if str(comon_path) == ".":
-                    comon_path = Path("/")
-        for db in dbs:
-            row = {"name": db.name, "platform": db.platform, "path": str(db.full_path.relative_to(comon_path))}
+            if db.exists():
+                if db.content.file_size != int(db_utils.file_size(db)):
+                    self.update_db_items_stats(db.id)
+            # c_p = db.full_path
+            # while not c_p.is_relative_to(comon_path):
+            #     comon_path = comon_path.parent
+            #     if str(comon_path) == ".":
+            #         comon_path = Path("/")
+            row = {"name": db.name, "platform": db.platform, "path": str(db.db_path)}
             try:
                 db_mgmt: Optional[DatabaseManager] = self.get_db_mgmt(db)
                 row.update(calc_row(db_mgmt))
             except ValueError:
                 row["path"] = f"[red]{row["path"]}[/red]"
             results.append(row)
+
+
         return results
 
+    def update_db_items_stats(self, id_: int|str):
+        mgmt = self.get_db_mgmt(id_)
+        stats = mgmt.get_base_stats()
+        def update_stats(session, db: DBPlatformDatabase):
+            db.content = stats.model_dump()
+            flag_modified(db, "content")
+        self.edit(id_, update_stats)
 
+# todo kick out
 def check_exists(path: str, metadb: DatabaseManager) -> bool:
     with metadb.get_session() as session:
         return session.query(DBPlatformDatabase).filter(DBPlatformDatabase.db_path == path).scalar() is not None
 
 
 def add_db(path: str | Path, metadb: DatabaseManager, update: bool = False):
+    # todo...
     db_path = Path(path)
     full_path_str = db_path.absolute().as_posix()
     if check_exists(full_path_str, metadb):
@@ -177,18 +193,12 @@ def add_db(path: str | Path, metadb: DatabaseManager, update: bool = False):
         print(f"  {err}")
         return
 
-    content = MetaDatabaseContentModel(
-        tasks_states=db_utils.count_states(db),
-        post_count=db_utils.count_posts(db=db),
-        file_size=db_utils.file_size(db),
-        stats=stats)
-
     with metadb.get_session() as session:
         meta_db_entry = DBPlatformDatabase(
             db_path=db_path.absolute().as_posix(),
             platform=platforms[0],
             is_default=False,
-            content=content.model_dump()
+            content=db.get_base_stats().model_dump()
         )
         session.add(meta_db_entry)
 
