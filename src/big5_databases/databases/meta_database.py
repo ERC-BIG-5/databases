@@ -67,8 +67,9 @@ class MetaDatabase:
             return db_obj.model()
 
     def move_database(self, id_: int|str, new_path: str | Path):
-        with self.db.get_session() as session:
-            self[id_].db_path = str(new_path)
+        def move_db(db: DBPlatformDatabase):
+            db.db_path = str(new_path)
+        self.edit(id_, move_db)
 
     def add_db(self, db: PlatformDatabaseModel) -> bool:
         try:
