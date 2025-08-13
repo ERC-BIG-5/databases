@@ -1,14 +1,16 @@
 from datetime import datetime
 from pathlib import Path
-from typing import Optional, Annotated, Any
+from typing import Optional, Annotated, Any, TYPE_CHECKING
 
 from deprecated.classic import deprecated
 from pydantic import BaseModel, Field, field_validator, ConfigDict, PlainSerializer
 
-from .db_mgmt import DatabaseManager
+
 from .db_settings import SqliteSettings
 from .external import CollectionStatus, PostType, CollectConfig, MetaDatabaseContentModel
 
+if TYPE_CHECKING:
+    from .db_mgmt import DatabaseManager
 
 # Base Models
 class BaseDBModel(BaseModel):
@@ -60,6 +62,7 @@ class PlatformDatabaseModel(BaseDBModel):
     def get_mgmt(self) -> "DatabaseManager":
         if not self.exists():
             raise ValueError(f"Could not load database {self.db_path} from meta-database")
+        from .db_mgmt import DatabaseManager
         return DatabaseManager.sqlite_db_from_path(self.db_path)
 
 # User Models

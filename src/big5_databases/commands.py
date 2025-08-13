@@ -45,7 +45,7 @@ def collected_per_day(db_path: Annotated[str, typer.Argument()],
     db = get_db(db_path)
     assert period in ["day", "month", "year"]
     col_per_day = get_collected_posts_by_period(db, TimeWindow(period))
-    table = Table("date", "found", "added", title=db.metadata.name)
+    table = Table("date", "# tasks","found", "added", title=db.metadata.name)
     for date, posts in col_per_day.items():
         table.add_row(str(date), *[str(_) for _ in posts.values()])
     Console().print(table)

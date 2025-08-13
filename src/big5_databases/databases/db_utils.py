@@ -3,18 +3,23 @@ import re
 from collections import defaultdict
 from pathlib import Path
 from typing import TYPE_CHECKING, Generator, Optional, TypedDict, Union
-from sqlalchemy.orm import Session
 
 from sqlalchemy import func
-from sqlalchemy import select, literal, text
-
-from .external import CollectionStatus, SQliteConnection, TimeWindow, TimeColumn
-from .model_conversion import PostModel, CollectionTaskModel, PlatformDatabaseModel
+from sqlalchemy import select
+from sqlalchemy.orm import Session
 from tools.env_root import root
+
+from .external import CollectionStatus, SQliteConnection, TimeWindow
+from .model_conversion import PostModel, CollectionTaskModel, PlatformDatabaseModel
 
 if TYPE_CHECKING:
     from .db_mgmt import DatabaseManager
 from .db_models import DBPost, DBCollectionTask
+
+col_per_day = TypedDict("col_per_day", {
+    "tasks": int,
+    "found": int,
+    "added": int})
 
 
 def filter_posts_with_existing_post_ids(posts: list[DBPost | PostModel],
@@ -49,7 +54,7 @@ def reset_task_states(db: "DatabaseManager", tasks_ids: list[int]) -> None:
 def check_platforms(db: "DatabaseManager", from_tasks: bool = True) -> set[str]:
     """
     return the set of platforms of a database
-    :param db_mgmt: database-manager
+    :param db: database-manager
     :param from_tasks: use task table (otherwise post table)
     :return: set of platforms (string)
     """
@@ -75,11 +80,6 @@ def iter_posts(db: "DatabaseManager") -> Generator[PostModel, None, None]:
     with db.get_session() as session:
         for post in session.execute(select(DBPost)).scalars():
             yield post.model()
-
-
-def get_posts(db_session: Session, platform_ids: list[str]) -> Generator[PostModel, None, None]:
-    for post in db_session.execute(select(DBPost).where(DBPost.platform_id.in_(platform_ids))).scalars():
-        yield post
 
 
 def get_tasks_with_posts(db: "DatabaseManager") -> Generator[
@@ -127,9 +127,7 @@ def get_posts_by_period(db: "DatabaseManager",
 
 
 def get_collected_posts_by_period(db: "DatabaseManager",
-                                  period: TimeWindow = TimeWindow.DAY) -> dict[str, TypedDict("col_per_day", {
-    "found": int,
-    "added": int})]:
+                                  period: TimeWindow = TimeWindow.DAY) -> dict[str,col_per_day ]:
     """
     Get collection totals grouped by time period.
 
@@ -144,6 +142,7 @@ def get_collected_posts_by_period(db: "DatabaseManager",
         query = (
             select(
                 period_expr,
+                func.count(DBCollectionTask.id).label('task_count'),
                 func.sum(DBCollectionTask.found_items).label('found_total'),
                 func.sum(DBCollectionTask.added_items).label('added_total')
             )
@@ -154,7 +153,8 @@ def get_collected_posts_by_period(db: "DatabaseManager",
 
         result = session.execute(query).all()
 
-        return {period: {"found": found_total, "added": added_total} for period, found_total, added_total in result}
+        return {str(period): col_per_day(tasks=num_tasks, found=found_total,added=added_total)
+                for period, num_tasks, found_total, added_total in result}
 
 
 def count_posts(db: "DatabaseManager") -> int:
