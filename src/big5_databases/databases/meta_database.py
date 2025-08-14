@@ -176,7 +176,8 @@ def check_exists(path: str, metadb: DatabaseManager) -> bool:
         return session.query(DBPlatformDatabase).filter(DBPlatformDatabase.db_path == path).scalar() is not None
 
 
-def add_db(path: str | Path, metadb: DatabaseManager, update: bool = False) -> DBPlatformDatabaseModel:
+# todo, outdated stuff.. redo
+def add_db(path: str | Path, metadb: DatabaseManager, update: bool = False) :
     # todo...
     db_path = Path(path)
     full_path_str = db_path.absolute().as_posix()
