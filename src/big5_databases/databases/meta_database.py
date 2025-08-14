@@ -123,7 +123,6 @@ class MetaDatabase:
 
         # use a database
         dbs: list[PlatformDatabaseModel] = self.get_dbs()
-        # comon_path = dbs[0].full_path.parent
         for db in dbs:
             row = {"name": db.name,
                    "platform": db.platform,
@@ -138,7 +137,7 @@ class MetaDatabase:
                         row["name"] = f"[yellow]{row["name"]}[/yellow]"
                     else: # updated
                         row["name"] = f"[blue]{row["name"]}[/blue]"
-                db_content = db.content
+                db_content = self[db].content
                 row.update({
                     "last mod": f"{datetime.fromtimestamp(db_content.last_modified):%Y-%m-%d %H:%M}",
                     "total": str(db_content.post_count),
