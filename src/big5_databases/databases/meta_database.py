@@ -1,3 +1,4 @@
+from datetime import datetime
 from pathlib import Path
 from typing import Optional, Callable
 
@@ -55,7 +56,7 @@ class MetaDatabase:
     def __getitem__(self, id_: int | str | PlatformDatabaseModel) -> Optional[PlatformDatabaseModel]:
         return self.edit(id_)
 
-    def edit(self, id_: int | str , func: Optional[Callable[[Session, DBPlatformDatabase], None]] = None):
+    def edit(self, id_: int | str, func: Optional[Callable[[Session, DBPlatformDatabase], None]] = None):
         with self.db.get_session() as session:
             try:
                 if isinstance(id_, PlatformDatabaseModel):
@@ -70,13 +71,15 @@ class MetaDatabase:
             if func is None:
                 def func_(session_, obj_):
                     return None
+
                 func = func_
             func(session, db_obj)
             return db_obj.model()
 
-    def move_database(self, id_: int|str, new_path: str | Path):
+    def move_database(self, id_: int | str, new_path: str | Path):
         def move_db(session, db: DBPlatformDatabase):
             db.db_path = str(new_path)
+
         self.edit(id_, move_db)
 
     def add_db(self, db: PlatformDatabaseModel) -> bool:
@@ -95,9 +98,10 @@ class MetaDatabase:
             return False
         return True
 
-    def delete(self, id_: int|str):
+    def delete(self, id_: int | str):
         def del_db(session, db: DBPlatformDatabase):
             session.delete(db)
+
         self.edit(id_, del_db)
 
     def purge(self, simulate: bool = False):
@@ -110,54 +114,55 @@ class MetaDatabase:
                 if not simulate:
                     def del_db(session, db: DBPlatformDatabase):
                         session.delete(db)
+
                     self.edit(db.id, del_db)
 
     def general_databases_status(self, task_status: bool = True):
         task_status_types = ["done", "init", "paused", "aborted"] if task_status else []
         results = []
 
-        def calc_row(db: DatabaseManager) -> dict[str, str | int]:
-            # base_stats = db.get_base_stats()
-            if task_status:
-                tasks = db_utils.count_states(db)
-                status_numbers = [str(tasks.get(t, 0)) for t in task_status_types]
-            else:
-                status_numbers = []
-            total_posts = str(count_posts(db=db))
-            size = str(f"{int(db_utils.file_size(db) / (1024 * 1024))} Mb")
-            return {"total": total_posts,
-                    "size": size} | dict(zip(task_status_types, status_numbers))
-
         # use a database
-        dbs : list[PlatformDatabaseModel]= self.get_dbs()
+        dbs: list[PlatformDatabaseModel] = self.get_dbs()
         # comon_path = dbs[0].full_path.parent
         for db in dbs:
+            row = {"name": db.name,
+                   "platform": db.platform,
+                   "path": str(db.db_path)}
             if db.exists():
-                if db.content.file_size != int(db_utils.file_size(db)):
-                    self.update_db_items_stats(db.id)
-            # c_p = db.full_path
-            # while not c_p.is_relative_to(comon_path):
-            #     comon_path = comon_path.parent
-            #     if str(comon_path) == ".":
-            #         comon_path = Path("/")
-            row = {"name": db.name, "platform": db.platform, "path": str(db.db_path)}
-            try:
-                db_mgmt: Optional[DatabaseManager] = self.get_db_mgmt(db)
-                row.update(calc_row(db_mgmt))
-            except ValueError:
+                # print(db.name, db.content.file_size, int(db_utils.file_size(db)))
+                running = db_utils.currently_open(db)
+                if db.content.file_size != int(db_utils.file_size(db)) or running:
+                    print(f"updating db stats for {db.name}")
+                    self.update_db_base_stats(db.id)
+                    if running:
+                        row["name"] = f"[yellow]{row["name"]}[/yellow]"
+                    else: # updated
+                        row["name"] = f"[blue]{row["name"]}[/blue]"
+                db_content = db.content
+                row.update({
+                    "last mod": f"{datetime.fromtimestamp(db_content.last_modified):%Y-%m-%d %H:%M}",
+                    "total": str(db_content.post_count),
+                    "size": f"{int(db_content.file_size / (1024 * 1024))} Mb"})
+                row.update({k:str(db_content.tasks_states.get(k,0)) for k in task_status_types})
+                # db.content.file_size = int(db_utils.file_size(db))
+
+            else:
                 row["path"] = f"[red]{row["path"]}[/red]"
             results.append(row)
 
-
         return results
 
-    def update_db_items_stats(self, id_: int|str):
-        mgmt = self.get_db_mgmt(id_)
-        stats = mgmt.get_base_stats()
+    def update_db_base_stats(self, id_: int | str):
+        model = self[id_]
+        stats = model.get_mgmt().calc_base_stats()
+        model.content = stats
+
         def update_stats(session, db: DBPlatformDatabase):
             db.content = stats.model_dump()
             flag_modified(db, "content")
+
         self.edit(id_, update_stats)
+
 
 # todo kick out
 def check_exists(path: str, metadb: DatabaseManager) -> bool:
@@ -200,7 +205,7 @@ def add_db(path: str | Path, metadb: DatabaseManager, update: bool = False):
             db_path=db_path.absolute().as_posix(),
             platform=platforms[0],
             is_default=False,
-            content=db.get_base_stats().model_dump()
+            content=db.calc_base_stats().model_dump()
         )
         session.add(meta_db_entry)
 
@@ -217,33 +222,3 @@ def purge():
     """
 
 
-if __name__ == "__main__":
-    root("/home/rsoleyma/projects/platforms-clients")
-
-    MetaDatabase().purge(False)
-    """
-    meta_db = DatabaseManager(config=DBConfig(
-        db_connection=SQliteConnection(db_path=root() / "data/col_db/new_main.sqlite"),
-        create=True,
-        require_existing_parent_dir=False,
-        tables=["platform_databases2"]
-    ))
-    meta_db.init_database()
-    """
-
-    # add_db(root() / "data/youtube_backup_1112.sqlite", meta_db)
-
-    # for db in (root() / "data").glob("*.sqlite"):
-    #     add_db(db, meta_db)
-    #     print("*****")
-
-    # add_db(Path("/home/rsoleyma/projects/platforms-clients/data/col_db/twitter/twitter.sqlite"), meta_db)
-
-    """
-    from sqlalchemy import select
-
-    with meta_db.get_session() as session:
-        for p_db in session.execute(select(DBPlatformDatabase2)).scalars():
-            m = p_db.model()
-            print(f"{m.platform} {m.db_path} {m.content.post_count}")
-    """

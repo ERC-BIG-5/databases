@@ -3,7 +3,7 @@ from datetime import date
 from datetime import datetime
 from enum import Enum, auto
 from pathlib import Path
-from typing import Optional, Literal, Annotated
+from typing import Optional, Literal, Annotated, Any
 
 from pydantic import BaseModel
 from pydantic import Field, computed_field, SecretStr, field_serializer
@@ -338,5 +338,6 @@ class MetaDatabaseContentModel(BaseModel):
     tasks_states: dict[str, int] = Field(default_factory=dict)
     post_count: int = 0
     file_size: int = 0
+    last_modified: float = None
     stats: Optional[DBStats] = Field(None)
     annotation: Optional[str] = None

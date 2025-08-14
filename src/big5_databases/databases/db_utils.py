@@ -75,12 +75,24 @@ def file_size(db: Union["DatabaseManager", PlatformDatabaseModel]) -> int:
         return 0
     return os.stat(file_path).st_size
 
+def file_modified(db: Union["DatabaseManager", PlatformDatabaseModel]) -> float:
+    if isinstance(db, PlatformDatabaseModel):
+        file_path = db.full_path
+    elif isinstance(db.config.db_connection, SQliteConnection):
+        file_path = db.config.db_connection.db_path
+    else:
+        return 0
+    return file_path.stat().st_mtime
 
-def iter_posts(db: "DatabaseManager") -> Generator[PostModel, None, None]:
-    with db.get_session() as session:
-        for post in session.execute(select(DBPost)).scalars():
-            yield post.model()
-
+def currently_open(db: Union["DatabaseManager", PlatformDatabaseModel]) -> bool:
+    if isinstance(db, PlatformDatabaseModel):
+        file_path = db.full_path
+    elif isinstance(db.config.db_connection, SQliteConnection):
+        file_path = db.config.db_connection.db_path
+    else:
+        return False
+    wal_path = str(file_path) + '-wal'
+    return os.path.exists(wal_path) and os.path.getsize(wal_path) > 0
 
 def get_tasks_with_posts(db: "DatabaseManager") -> Generator[
     tuple[CollectionTaskModel, list[PostModel]], None, None]:

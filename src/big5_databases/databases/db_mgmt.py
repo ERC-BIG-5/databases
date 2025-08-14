@@ -184,11 +184,12 @@ class DatabaseManager:
                 c += 1
         return c
 
-    def get_base_stats(self) -> MetaDatabaseContentModel:
+    def calc_base_stats(self) -> MetaDatabaseContentModel:
         return MetaDatabaseContentModel(
             tasks_states=db_utils.count_states(self),
             post_count=db_utils.count_posts(db=self),
             file_size=db_utils.file_size(self),
+            last_modified=db_utils.file_modified(self),
             stats=generate_db_stats(self))
 
 class AsyncDatabaseManager(DatabaseManager):
