@@ -59,6 +59,7 @@ class PlatformDatabaseModel(BaseDBModel):
     def exists(self):
         return self.full_path.exists()
 
+    # todo allow passing in the config
     def get_mgmt(self) -> "DatabaseManager":
         if not self.exists():
             raise ValueError(f"Could not load database {self.db_path} from meta-database")

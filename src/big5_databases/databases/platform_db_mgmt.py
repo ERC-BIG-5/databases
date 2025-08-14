@@ -1,3 +1,4 @@
+import logging
 from collections import defaultdict
 
 from sqlalchemy import exists
@@ -130,8 +131,9 @@ class PlatformDB:
                 )
                 session.add(task)
             session.commit()
-            self.logger.info(f"Added new client collection tasks: {new_tasks_names}")
-
+            if self.logger.level <= logging.INFO:
+                task_s = new_tasks_names if (tn_le := len(task_names)) < 50 else tn_le
+                self.logger.info(f"Added new client collection tasks: {task_s}")
             return new_tasks_names
 
     def get_db_manager(self) -> DatabaseManager:

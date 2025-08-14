@@ -2,6 +2,8 @@ import json
 from collections import Counter
 from typing import TYPE_CHECKING
 
+from deprecated.classic import deprecated
+
 from big5_databases.databases import db_utils
 
 from .db_utils import get_posts_by_period, get_collected_posts_by_period, count_posts
@@ -13,6 +15,7 @@ RAISE_DB_ERROR = True
 if TYPE_CHECKING:
     from .db_mgmt import DatabaseManager
 
+@deprecated(reason="reuse some parts")
 def generate_db_stats(
         db: "DatabaseManager",
         time_column=TimeColumn.CREATED

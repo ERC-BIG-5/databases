@@ -132,12 +132,16 @@ class MetaDatabase:
                 running = db_utils.currently_open(db)
                 if db.content.file_size != int(db_utils.file_size(db)) or running:
                     print(f"updating db stats for {db.name}")
-                    self.update_db_base_stats(db.id)
+                    self.update_db_base_stats(db)
                     if running:
                         row["name"] = f"[yellow]{row["name"]}[/yellow]"
                     else: # updated
                         row["name"] = f"[blue]{row["name"]}[/blue]"
-                db_content = self[db].content
+                # todo, this needs to run through a debugger.
+
+                db_content = db.content
+                if not db_content.last_modified:
+                    self.update_db_base_stats(db)
                 row.update({
                     "last mod": f"{datetime.fromtimestamp(db_content.last_modified):%Y-%m-%d %H:%M}",
                     "total": str(db_content.post_count),
@@ -151,16 +155,19 @@ class MetaDatabase:
 
         return results
 
-    def update_db_base_stats(self, id_: int | str):
-        model = self[id_]
-        stats = model.get_mgmt().calc_base_stats()
-        model.content = stats
+    def update_db_base_stats(self, id_: int | str | PlatformDatabaseModel) -> PlatformDatabaseModel:
+        if isinstance(id_, PlatformDatabaseModel):
+            model = id_
+        else:
+            model = self[id_]
+        model.content = model.get_mgmt().calc_db_content()
 
         def update_stats(session, db: DBPlatformDatabase):
-            db.content = stats.model_dump()
+            db.content = model.content.model_dump()
             flag_modified(db, "content")
 
         self.edit(id_, update_stats)
+        return model
 
 
 # todo kick out
@@ -169,7 +176,7 @@ def check_exists(path: str, metadb: DatabaseManager) -> bool:
         return session.query(DBPlatformDatabase).filter(DBPlatformDatabase.db_path == path).scalar() is not None
 
 
-def add_db(path: str | Path, metadb: DatabaseManager, update: bool = False):
+def add_db(path: str | Path, metadb: DatabaseManager, update: bool = False) -> DBPlatformDatabaseModel:
     # todo...
     db_path = Path(path)
     full_path_str = db_path.absolute().as_posix()
@@ -192,19 +199,20 @@ def add_db(path: str | Path, metadb: DatabaseManager, update: bool = False):
         print(f"db multiple platforms: {platforms}. NOT ADDING: {path}")
         return
 
-    try:
-        stats = generate_db_stats(db)
-    except Exception as err:
-        print(f"skipping {full_path_str}")
-        print(f"  {err}")
-        return
+    # todo, generate_db_stats is deprecated
+    # try:
+    #     stats = generate_db_stats(db)
+    # except Exception as err:
+    #     print(f"skipping {full_path_str}")
+    #     print(f"  {err}")
+    #     return
 
     with metadb.get_session() as session:
         meta_db_entry = DBPlatformDatabase(
             db_path=db_path.absolute().as_posix(),
             platform=platforms[0],
             is_default=False,
-            content=db.calc_base_stats().model_dump()
+            content=db.calc_db_content().model_dump()
         )
         session.add(meta_db_entry)
 

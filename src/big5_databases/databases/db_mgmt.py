@@ -184,7 +184,7 @@ class DatabaseManager:
                 c += 1
         return c
 
-    def calc_base_stats(self) -> MetaDatabaseContentModel:
+    def calc_db_content(self) -> MetaDatabaseContentModel:
         return MetaDatabaseContentModel(
             tasks_states=db_utils.count_states(self),
             post_count=db_utils.count_posts(db=self),
