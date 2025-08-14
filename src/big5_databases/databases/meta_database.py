@@ -137,11 +137,15 @@ class MetaDatabase:
                         row["name"] = f"[yellow]{row["name"]}[/yellow]"
                     else: # updated
                         row["name"] = f"[blue]{row["name"]}[/blue]"
-                # todo, this needs to run through a debugger.
 
+                # todo hotfix for server. but need to test! and improve
                 db_content = db.content
                 if not db_content.last_modified:
-                    self.update_db_base_stats(db)
+                    # todo, not sure, why I need to re-assign
+                    db = self.update_db_base_stats(db)
+                    db_content = db.content
+
+                print(db)
                 row.update({
                     "last mod": f"{datetime.fromtimestamp(db_content.last_modified):%Y-%m-%d %H:%M}",
                     "total": str(db_content.post_count),
