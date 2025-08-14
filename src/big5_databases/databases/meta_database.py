@@ -145,7 +145,6 @@ class MetaDatabase:
                     db = self.update_db_base_stats(db)
                     db_content = db.content
 
-                print(db)
                 row.update({
                     "last mod": f"{datetime.fromtimestamp(db_content.last_modified):%Y-%m-%d %H:%M}",
                     "total": str(db_content.post_count),
