@@ -99,7 +99,7 @@ def recent_collection():
         db_mgmt = db.get_mgmt()
         col_per_day = get_collected_posts_by_period(db_mgmt, TimeWindow.DAY, t)
         for date, posts in col_per_day.items():
-            table.add_row(db.platform,str(date), *[str(_) for _ in posts.values()])
+            table.add_row(db.name,str(date), *[str(_) for _ in posts.values()])
     Console().print(table)
 
 
