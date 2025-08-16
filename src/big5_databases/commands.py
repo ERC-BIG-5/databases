@@ -86,7 +86,7 @@ def compare_dbs(db_path1: Annotated[str, typer.Argument()],
     check_for_conflicts(db_path1, db_path2)
 
 @app.command(short_help="")
-def recent_collection(db_path: Annotated[str, typer.Argument()]):
+def recent_collection():
     #db = get_db(db_path)
     for db in MetaDatabase().get_dbs():
         db = db.get_mgmt()
