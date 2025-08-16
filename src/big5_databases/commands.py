@@ -91,18 +91,16 @@ def compare_dbs(db_path1: Annotated[str, typer.Argument()],
 @app.command("recent-collection",
              short_help="get recent collection stats")
 def recent_collection():
-    # db = get_db(db_path)
+    t = datetime.today() - timedelta(days=2)
+    header = ["platform", "date", "# tasks", "found", "added"]
+    header = [Column(h, justify="right") for h in header]
+    table = Table(*header, title="recent downloads")
     for db in MetaDatabase().get_dbs():
-        db = db.get_mgmt()
-        t = datetime.today() - timedelta(days=2)
-        col_per_day = get_collected_posts_by_period(db, TimeWindow.DAY, t)
-        header = ["date", "# tasks", "found", "added"]
-        header = [Column(h, justify="right") for h in header]
-        table = Table(*header, title=db.metadata.name)
-
+        db_mgmt = db.get_mgmt()
+        col_per_day = get_collected_posts_by_period(db_mgmt, TimeWindow.DAY, t)
         for date, posts in col_per_day.items():
-            table.add_row(str(date), *[str(_) for _ in posts.values()])
-        Console().print(table)
+            table.add_row(db.platform,str(date), *[str(_) for _ in posts.values()])
+    Console().print(table)
 
 
 @app.command("get_missing_days", epilog="cool")
