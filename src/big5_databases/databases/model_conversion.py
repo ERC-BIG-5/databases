@@ -64,7 +64,9 @@ class PlatformDatabaseModel(BaseDBModel):
         if not self.exists():
             raise ValueError(f"Could not load database {self.db_path} from meta-database")
         from .db_mgmt import DatabaseManager
-        return DatabaseManager.sqlite_db_from_path(self.db_path)
+        mgmt = DatabaseManager.sqlite_db_from_path(self.db_path)
+        mgmt.metadata = self
+        return mgmt
 
 # User Models
 class UserModel(BaseDBModel):

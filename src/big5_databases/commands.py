@@ -1,4 +1,4 @@
-from datetime import date
+from datetime import date, datetime
 from pathlib import Path
 from typing import Annotated, Optional, Any
 
@@ -85,6 +85,19 @@ def compare_dbs(db_path1: Annotated[str, typer.Argument()],
                 db_path2: Annotated[str, typer.Argument()]):
     check_for_conflicts(db_path1, db_path2)
 
+@app.command(short_help="")
+def recent_collection(db_path: Annotated[str, typer.Argument()]):
+    #db = get_db(db_path)
+    for db in MetaDatabase().get_dbs():
+        db = db.get_mgmt()
+        col_per_day = get_collected_posts_by_period(db, TimeWindow("day"), datetime.today())
+        header = ["date", "# tasks","found", "added"]
+        header = [Column(h, justify="right") for h in header]
+        table = Table(*header, title=db.metadata.name)
+
+        for date, posts in col_per_day.items():
+            table.add_row(str(date), *[str(_) for _ in posts.values()])
+        Console().print(table)
 
 @app.command("get_missing_days")
 def get_missing_days(db_path1: Annotated[str, typer.Argument()],

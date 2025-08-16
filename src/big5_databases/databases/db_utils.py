@@ -1,6 +1,7 @@
 import os
 import re
 from collections import defaultdict
+from datetime import date
 from pathlib import Path
 from typing import TYPE_CHECKING, Generator, Optional, TypedDict, Union
 
@@ -139,7 +140,8 @@ def get_posts_by_period(db: "DatabaseManager",
 
 
 def get_collected_posts_by_period(db: "DatabaseManager",
-                                  period: TimeWindow = TimeWindow.DAY) -> dict[str,col_per_day ]:
+                                  period: TimeWindow = TimeWindow.DAY,
+                                  select_time: Optional[date] = None) -> dict[str,col_per_day ]:
     """
     Get collection totals grouped by time period.
 
@@ -162,7 +164,8 @@ def get_collected_posts_by_period(db: "DatabaseManager",
             .group_by(period_expr)
             .order_by(period_expr)
         )
-
+        if select:
+            query = query.where("label" == select_time.strftime(time_str))
         result = session.execute(query).all()
 
         return {str(period): col_per_day(tasks=num_tasks, found=found_total,added=added_total)
@@ -246,10 +249,3 @@ def reorder_posts(db: "DatabaseManager") -> None:
     raise NotImplementedError()
 
 
-if __name__ == "__main__":
-    from big5_databases.databases.db_mgmt import DatabaseManager
-
-    root("/home/rsoleyma/projects/platforms-clients")
-    pass
-    db = DatabaseManager.sqlite_db_from_path(root() / "data/col_db/youtube/from_twitter_db.sqlite", False)
-    print(find_tasks_groups(db))
