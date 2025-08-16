@@ -1,4 +1,4 @@
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 from pathlib import Path
 from typing import Annotated, Optional, Any
 
@@ -30,6 +30,7 @@ def get_db(db_path_or_name: Path | str) -> Optional[DatabaseManager]:
     else:  # if SETTINGS.main_db_path:
         return MetaDatabase().get_db_mgmt(db_path_or_name)
 
+
 @app.command(short_help="Get the number of posts, and tasks statuses of all specified databases (RUN_CONFIG)")
 def status(task_status: bool = True,
            database: Optional[Path] = None):
@@ -39,13 +40,14 @@ def status(task_status: bool = True,
         table.add_row(*r.values())
     Console().print(table)
 
+
 @app.command(short_help="collected_posts_per_day")
 def collected_per_day(db_path: Annotated[str, typer.Argument()],
                       period: Annotated[str, typer.Argument(help="day,month,year")] = "day"):
     db = get_db(db_path)
     assert period in ["day", "month", "year"]
     col_per_day = get_collected_posts_by_period(db, TimeWindow(period))
-    header = ["date", "# tasks","found", "added"]
+    header = ["date", "# tasks", "found", "added"]
     header = [Column(h, justify="right") for h in header]
     table = Table(*header, title=db.metadata.name)
 
@@ -85,13 +87,16 @@ def compare_dbs(db_path1: Annotated[str, typer.Argument()],
                 db_path2: Annotated[str, typer.Argument()]):
     check_for_conflicts(db_path1, db_path2)
 
-@app.command(short_help="")
+
+@app.command("recent-collection",
+             short_help="get recent collection stats")
 def recent_collection():
-    #db = get_db(db_path)
+    # db = get_db(db_path)
     for db in MetaDatabase().get_dbs():
         db = db.get_mgmt()
-        col_per_day = get_collected_posts_by_period(db, TimeWindow("day"), datetime.today())
-        header = ["date", "# tasks","found", "added"]
+        t = datetime.today() - timedelta(days=2)
+        col_per_day = get_collected_posts_by_period(db, TimeWindow.DAY, t)
+        header = ["date", "# tasks", "found", "added"]
         header = [Column(h, justify="right") for h in header]
         table = Table(*header, title=db.metadata.name)
 
@@ -99,7 +104,8 @@ def recent_collection():
             table.add_row(str(date), *[str(_) for _ in posts.values()])
         Console().print(table)
 
-@app.command("get_missing_days")
+
+@app.command("get_missing_days", epilog="cool")
 def get_missing_days(db_path1: Annotated[str, typer.Argument()],
                      db_path2: Annotated[str, typer.Argument()]):
     # db = DatabaseManager.sqlite_db_from_path(db_path)

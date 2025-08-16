@@ -165,7 +165,7 @@ def get_collected_posts_by_period(db: "DatabaseManager",
             .order_by(period_expr)
         )
         if select:
-            query = query.where("label" == select_time.strftime(time_str))
+            query = query.where(DBCollectionTask.execution_ts >= select_time)
         result = session.execute(query).all()
 
         return {str(period): col_per_day(tasks=num_tasks, found=found_total,added=added_total)
