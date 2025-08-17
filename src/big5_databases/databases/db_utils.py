@@ -164,7 +164,7 @@ def get_collected_posts_by_period(db: "DatabaseManager",
             .group_by(period_expr)
             .order_by(period_expr)
         )
-        if select:
+        if select_time:
             query = query.where(DBCollectionTask.execution_ts >= select_time)
         result = session.execute(query).all()
 
