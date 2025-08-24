@@ -90,14 +90,13 @@ def compare_dbs(db_path1: Annotated[str, typer.Argument()],
 
 @app.command("recent-collection",
              short_help="get recent collection stats")
-def recent_collection():
-    t = datetime.today() - timedelta(days=3)
+def recent_collection(days: Annotated[int, typer.Option()] = 3):
+    t = datetime.today() - timedelta(days=days)
     header = ["platform", "date", "# tasks", "found", "added"]
     header = [Column(h, justify="right") for h in header]
     table = Table(*header, title="recent downloads")
     for db in MetaDatabase().get_dbs():
-        db_mgmt = db.get_mgmt()
-        col_per_day = get_collected_posts_by_period(db_mgmt, TimeWindow.DAY, t)
+        col_per_day = get_collected_posts_by_period(db.get_mgmt(), TimeWindow.DAY, t)
         for idx, (date, posts) in enumerate(col_per_day.items()):
             table.add_row(db.name,str(date), *[str(_) for _ in posts.values()], end_section=idx == len(col_per_day) - 1)
     Console().print(table)
