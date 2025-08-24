@@ -90,7 +90,7 @@ def compare_dbs(db_path1: Annotated[str, typer.Argument()],
 
 @app.command("recent-collection",
              short_help="get recent collection stats")
-def recent_collection(days: Annotated[int, typer.Option()] = 3):
+def recent_collection(days: Annotated[int, typer.Argument()] = 3):
     t = datetime.today() - timedelta(days=days)
     header = ["platform", "date", "# tasks", "found", "added"]
     header = [Column(h, justify="right") for h in header]
