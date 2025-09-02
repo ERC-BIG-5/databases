@@ -23,18 +23,14 @@ except ModuleNotFoundError:
 app = typer.Typer(name="Databases commands",
                   short_help="Database commands for stats and edits")
 
-
-def get_db(db_path_or_name: Path | str) -> Optional[DatabaseManager]:
-    if isinstance(db_path_or_name, Path):
-        return DatabaseManager.sqlite_db_from_path(db_path_or_name)
-    else:  # if SETTINGS.main_db_path:
-        return MetaDatabase().get_db_mgmt(db_path_or_name)
+def get_db_names() -> list[str]:
+    return [db.name for db in MetaDatabase().get_dbs()]
 
 
 @app.command(short_help="Get the number of posts, and tasks statuses of all specified databases (RUN_CONFIG)")
 def status(task_status: bool = True,
            database: Optional[Path] = None):
-    results: list[dict[str, Any]] = MetaDatabase().general_databases_status(task_status)
+    results: list[dict[str, Any]] = MetaDatabase().general_databases_status(database, task_status)
     table = Table(*[Column(c, justify="right") for c in results[0].keys()])
     for r in results:
         table.add_row(*r.values())
@@ -42,10 +38,10 @@ def status(task_status: bool = True,
 
 
 @app.command(short_help="collected_posts_per_day")
-def collected_per_day(db_path: Annotated[str, typer.Argument()],
+def collected_per_day(db_name: Annotated[str, typer.Argument(autocompletion=get_db_names)],
                       period: Annotated[str, typer.Argument(help="day,month,year")] = "day"):
-    db = get_db(db_path)
     assert period in ["day", "month", "year"]
+    db = db = MetaDatabase().get_db_mgmt(db_name)
     col_per_day = get_collected_posts_by_period(db, TimeWindow(period))
     header = ["date", "# tasks", "found", "added"]
     header = [Column(h, justify="right") for h in header]
@@ -57,10 +53,10 @@ def collected_per_day(db_path: Annotated[str, typer.Argument()],
 
 
 @app.command(short_help="posts by period")
-def posts_per_period(db_path: Annotated[str, typer.Argument()],
+def posts_per_period(db_name: Annotated[str, typer.Argument(autocompletion=get_db_names)],
                      period: Annotated[str, typer.Argument(help="day,month,year")] = "day",
                      print_: Annotated[bool, typer.Argument()] = True):
-    db = get_db(db_path)
+    db = MetaDatabase().get_db_mgmt(db_name)
     assert period in ["day", "month", "year"]
     ppd = get_posts_by_period(db, TimeWindow(period))
     table = Table("date", "posts", title=f"{db.metadata.name} posts per {period}")

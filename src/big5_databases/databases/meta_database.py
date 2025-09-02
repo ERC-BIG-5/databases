@@ -49,12 +49,18 @@ class MetaDatabase:
         return self[id_] is not None
 
     def get_db_mgmt(self, id_: int | str | PlatformDatabaseModel) -> Optional[DatabaseManager]:
-        dbm = self[id_].get_mgmt()
-        dbm.set_meta(self[id_])
+        db = self[id_]
+        dbm = db.get_mgmt(db)
         return dbm
 
     def __getitem__(self, id_: int | str | PlatformDatabaseModel) -> Optional[PlatformDatabaseModel]:
         return self.edit(id_)
+
+    def get(self, id_: int | str | PlatformDatabaseModel) -> PlatformDatabaseModel:
+        db = self[id_]
+        if not db:
+            raise ValueError(f"Database : {id_} does not exist")
+        return db
 
     def edit(self, id_: int | str, func: Optional[Callable[[Session, DBPlatformDatabase], None]] = None):
         with self.db.get_session() as session:
@@ -117,13 +123,11 @@ class MetaDatabase:
 
                     self.edit(db.id, del_db)
 
-    def general_databases_status(self, task_status: bool = True):
+    def general_databases_status(self, database: Optional[str] = None, task_status: bool = True) -> list[dict]:
         task_status_types = ["done", "init", "paused", "aborted"] if task_status else []
         results = []
 
-        # use a database
-        dbs: list[PlatformDatabaseModel] = self.get_dbs()
-        for db in dbs:
+        def get_db_status(db: PlatformDatabaseModel) -> dict:
             row = {"name": db.name,
                    "platform": db.platform,
                    "path": str(db.db_path)}
@@ -154,7 +158,15 @@ class MetaDatabase:
 
             else:
                 row["path"] = f"[red]{row["path"]}[/red]"
-            results.append(row)
+            return row
+
+        if database:
+            db = self.get(database)
+            results.append(get_db_status(db))
+        # use a database
+        dbs: list[PlatformDatabaseModel] = self.get_dbs()
+        for db in dbs:
+            results.append(get_db_status(db))
 
         return results
 

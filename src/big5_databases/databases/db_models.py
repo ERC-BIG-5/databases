@@ -84,7 +84,11 @@ class DBCollectionTask(DBModelBase[CollectionTaskModel]):
                          cascade="all, delete, delete-orphan")
 
     def __repr__(self) -> str:
-        return f"CollectionTask: '{self.task_name}' / {self.platform}. ({self.status.name})"
+        base_str = f"Col-Task: '{self.task_name}' /  ({self.status.name})"
+        done_str = ""
+        if self.status == CollectionStatus.DONE:
+            done_str = f"/ {self.added_items} / {self.execution_ts:'%Y-%m-%d'}"
+        return base_str + done_str
 
     _pydantic_model = CollectionTaskModel
 

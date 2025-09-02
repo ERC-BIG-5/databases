@@ -193,11 +193,11 @@ class PlatformDB:
                 session.delete(task_record)
             task_record.status = CollectionStatus.DONE
             task_record.found_items = collection.collected_items
-            task_record.added_items = len(posts)
+            task_record.added_items = len(collection.added_posts)
             task_record.collection_duration = collection.duration
             task_record.execution_ts = collection.execution_ts
 
-        self.logger.info(f"Added {len(posts)}/{len(collection.posts)} posts to database")
+        self.logger.info(f"Added {len(collection.added_posts)}/{len(collection.posts)} posts to database")
 
     def update_task_status(self, task_id: int, status: CollectionStatus):
         """Update task status in database"""

@@ -60,12 +60,12 @@ class PlatformDatabaseModel(BaseDBModel):
         return self.full_path.exists()
 
     # todo allow passing in the config
-    def get_mgmt(self) -> "DatabaseManager":
+    def get_mgmt(self, meta_db: Optional["PlatformDatabaseModel"] = None) -> "DatabaseManager":
         if not self.exists():
             raise ValueError(f"Could not load database {self.db_path} from meta-database")
         from .db_mgmt import DatabaseManager
         mgmt = DatabaseManager.sqlite_db_from_path(self.db_path)
-        mgmt.metadata = self
+        mgmt.metadata = meta_db
         return mgmt
 
 # User Models

@@ -166,10 +166,6 @@ class DatabaseManager:
         tables.remove("platform_databases")
         return tables
 
-    def set_meta(self, metadata: PlatformDatabaseModel) -> "DatabaseManager":
-        self.metadata = metadata
-        return self
-
     def reset_collection_task_states(self, states: list[CollectionStatus] =
     (CollectionStatus.RUNNING, CollectionStatus.ABORTED)) -> int:
 
