@@ -123,7 +123,10 @@ class MetaDatabase:
 
                     self.edit(db.id, del_db)
 
-    def general_databases_status(self, database: Optional[str] = None, task_status: bool = True) -> list[dict]:
+    def general_databases_status(self,
+                                 database: Optional[str] = None,
+                                 task_status: bool = True,
+                                 force_refresh: bool = False) -> list[dict]:
         task_status_types = ["done", "init", "paused", "aborted"] if task_status else []
         results = []
 
@@ -134,7 +137,7 @@ class MetaDatabase:
             if db.exists():
                 # print(db.name, db.content.file_size, int(db_utils.file_size(db)))
                 running = db_utils.currently_open(db)
-                if db.content.file_size != int(db_utils.file_size(db)) or running:
+                if db.content.file_size != int(db_utils.file_size(db)) or running or force_refresh:
                     print(f"updating db stats for {db.name}")
                     self.update_db_base_stats(db)
                     if running:

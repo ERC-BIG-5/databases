@@ -29,8 +29,9 @@ def get_db_names() -> list[str]:
 
 @app.command(short_help="Get the number of posts, and tasks statuses of all specified databases (RUN_CONFIG)")
 def status(task_status: bool = True,
+           force_refresh: bool = False,
            database: Optional[Path] = None):
-    results: list[dict[str, Any]] = MetaDatabase().general_databases_status(database, task_status)
+    results: list[dict[str, Any]] = MetaDatabase().general_databases_status(database, task_status, force_refresh)
     table = Table(*[Column(c, justify="right") for c in results[0].keys()])
     for r in results:
         table.add_row(*r.values())
