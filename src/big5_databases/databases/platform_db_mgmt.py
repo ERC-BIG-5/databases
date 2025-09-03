@@ -1,5 +1,6 @@
 import logging
 from collections import defaultdict
+from pathlib import Path
 
 from sqlalchemy import exists
 from sqlalchemy import select
@@ -11,6 +12,7 @@ from .db_models import DBCollectionTask, DBPost, CollectionResult
 from .db_settings import SqliteSettings
 from .external import CollectionStatus
 from .external import DBConfig, SQliteConnection, ClientTaskConfig
+from .model_conversion import PostModel
 
 
 class PlatformDB:
@@ -23,6 +25,14 @@ class PlatformDB:
         return DBConfig(db_connection=SQliteConnection(
             db_path=(SqliteSettings().SQLITE_DBS_BASE_PATH / f"{platform}.sqlite").as_posix()
         ))
+
+    @staticmethod
+    def sqlite_db_from_path(platform: str,
+                            path: str | Path,
+                            create: bool = False) -> "PlatformDB":
+        return PlatformDB(platform,
+                          DBConfig(db_connection=SQliteConnection(db_path=path),
+                                   create=create, require_existing_parent_dir=True))
 
     def __init__(self, platform: str, db_config: DBConfig = None):
         # todo init this with more abstracted model, including the platform and db name
@@ -162,11 +172,13 @@ class PlatformDB:
             return task_objs
 
     # todo, check when this is called... refactor, merge usage with util, and safe_insert...
-    def insert_posts(self, collection: CollectionResult):
+    def insert_posts(self, posts: list[DBPost]) -> list[PostModel]:
+        """
+        guarantees that no duplicate posts exist
+        """
         # Store posts
         with self.db_mgmt.get_session() as session:
             # try:
-            posts = collection.posts
             unique_posts = []
             posts_ids = set()
             for post in posts:
@@ -181,7 +193,7 @@ class PlatformDB:
 
             session.add_all(posts)
             session.commit()
-            collection.added_posts = [p.model() for p in posts]
+            return [p.model() for p in posts]
             # todo ADD USERS
 
         # update task status

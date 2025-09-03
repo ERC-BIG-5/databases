@@ -166,8 +166,9 @@ class DatabaseManager:
         tables.remove("platform_databases")
         return tables
 
-    def reset_collection_task_states(self, states: list[CollectionStatus] =
-    (CollectionStatus.RUNNING, CollectionStatus.ABORTED)) -> int:
+    def reset_collection_task_states(self,
+                                     states: list[CollectionStatus] = (CollectionStatus.RUNNING,
+                                                                       CollectionStatus.ABORTED)) -> int:
 
         with self.get_session() as session:
             tasks = session.query(DBCollectionTask).filter(
@@ -187,6 +188,7 @@ class DatabaseManager:
             file_size=db_utils.file_size(self),
             last_modified=db_utils.file_modified(self),
             stats=generate_db_stats(self))
+
 
 class AsyncDatabaseManager(DatabaseManager):
     def __init__(self, config: DBConfig):
