@@ -86,6 +86,12 @@ def remove(db_name: Annotated[str, typer.Argument(autocompletion=get_db_names)])
     MetaDatabase().delete(db_name)
 
 
+@app.command(short_help="rename a database")
+def rename(db_name: Annotated[str, typer.Argument(autocompletion=get_db_names)],
+           new_db_name: Annotated[str, typer.Argument()]):
+    MetaDatabase().rename(db_name, new_db_name)
+
+
 @app.command(short_help="compare two databases (prep for merge")
 def compare_dbs(db_path1: Annotated[str, typer.Argument()],
                 db_path2: Annotated[str, typer.Argument()]):

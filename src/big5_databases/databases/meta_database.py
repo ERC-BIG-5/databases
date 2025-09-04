@@ -71,8 +71,7 @@ class MetaDatabase:
             else:
                 db_obj = session.query(DBPlatformDatabase).where(DBPlatformDatabase.name == id_).one()
         except NoResultFound as err:
-            logger.warning(f"Could not load database {id_} from meta-database")
-            return None
+            raise ValueError(f"Could not load database {id_} from meta-database")
         return db_obj
 
     def edit(self,
@@ -207,6 +206,18 @@ class MetaDatabase:
         self.edit(id_, update_stats)
         return model
 
+
+    def rename(self, id_: int | str, new_name: str) -> PlatformDatabaseModel:
+        if isinstance(id_, PlatformDatabaseModel):
+            model = id_
+        else:
+            model = self[id_]
+
+        def _rename(session, db: DBPlatformDatabase):
+            db.name = new_name
+
+        self.edit(id_, _rename)
+        return model
 
 # todo kick out
 def check_exists(path: str, metadb: DatabaseManager) -> bool:

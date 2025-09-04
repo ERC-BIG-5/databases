@@ -171,7 +171,7 @@ class PlatformDB:
                 task_objs.append(task_obj)
             return task_objs
 
-    # todo, check when this is called... refactor, merge usage with util, and safe_insert...
+    # todo, check when this is called... refactor, merge usage with util, and safe_insert...º
     def insert_posts(self, posts: list[DBPost]) -> list[PostModel]:
         """
         guarantees that no duplicate posts exist
