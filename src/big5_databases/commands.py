@@ -23,6 +23,7 @@ except ModuleNotFoundError:
 app = typer.Typer(name="Databases commands",
                   short_help="Database commands for stats and edits")
 
+
 def get_db_names() -> list[str]:
     return [db.name for db in MetaDatabase().get_dbs()]
 
@@ -79,6 +80,11 @@ def add(db_path: Annotated[str, typer.Argument()],
     MetaDatabase(meta_db_path).add_db(PlatformDatabaseModel(platform=platform, name=name, db_path=Path(db_path)))
 
 
+@app.command(short_help="remove a database")
+def remove(db_name: Annotated[str, typer.Argument(autocompletion=get_db_names)]):
+    MetaDatabase().delete(db_name)
+
+
 @app.command(short_help="compare two databases (prep for merge")
 def compare_dbs(db_path1: Annotated[str, typer.Argument()],
                 db_path2: Annotated[str, typer.Argument()]):
@@ -95,7 +101,8 @@ def recent_collection(days: Annotated[int, typer.Argument()] = 3):
     for db in MetaDatabase().get_dbs():
         col_per_day = get_collected_posts_by_period(db.get_mgmt(), TimeWindow.DAY, t)
         for idx, (date, posts) in enumerate(col_per_day.items()):
-            table.add_row(db.name,str(date), *[str(_) for _ in posts.values()], end_section=idx == len(col_per_day) - 1)
+            table.add_row(db.name, str(date), *[str(_) for _ in posts.values()],
+                          end_section=idx == len(col_per_day) - 1)
     Console().print(table)
 
 
