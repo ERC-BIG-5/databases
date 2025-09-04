@@ -71,7 +71,7 @@ class MetaDatabase:
             else:
                 db_obj = session.query(DBPlatformDatabase).where(DBPlatformDatabase.name == id_).one()
         except NoResultFound as err:
-            logger.warning(f"Could not load database {db_obj.name} from meta-database")
+            logger.warning(f"Could not load database {id_} from meta-database")
             return None
         return db_obj
 
