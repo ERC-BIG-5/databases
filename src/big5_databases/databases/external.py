@@ -338,6 +338,6 @@ class MetaDatabaseContentModel(BaseModel):
     tasks_states: dict[str, int] = Field(default_factory=dict)
     post_count: int = 0
     file_size: int = 0
-    last_modified: float = None
+    last_modified: Optional[float] = None
     stats: Optional[DBStats] = Field(None)
     annotation: Optional[str] = None

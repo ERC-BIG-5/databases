@@ -88,7 +88,7 @@ class MetaDatabase:
                 else:
                     db_obj = session.query(DBPlatformDatabase).where(DBPlatformDatabase.name == id_).one()
             except NoResultFound as err:
-                logger.warning(f"Could not load database {db_obj.name} from meta-database")
+                logger.warning(f"Could not load database {id_} from meta-database")
                 return None
             if func is None:
                 def func_(session_, obj_):
@@ -114,7 +114,7 @@ class MetaDatabase:
                     is_default=db.is_default,
                     content=db.content.model_dump()
                 ))
-                self.update_db_base_stats(db.name)
+            self.update_db_base_stats(db.name)
         except IntegrityError as e:
             logger.error(f"Could not add database {db.name} to meta-database: {e.orig}")
             session.rollback()

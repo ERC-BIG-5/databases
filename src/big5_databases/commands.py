@@ -77,6 +77,7 @@ def add(db_path: Annotated[str, typer.Argument()],
         platform: str,
         name: str,
         meta_db_path: Annotated[Optional[str], typer.Argument()] = None):
+    assert Path(db_path).exists(), f"database at path: {db_path} does not exist"
     MetaDatabase(meta_db_path).add_db(PlatformDatabaseModel(platform=platform, name=name, db_path=Path(db_path)))
 
 
