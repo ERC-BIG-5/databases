@@ -62,7 +62,23 @@ class MetaDatabase:
             raise ValueError(f"Database : {id_} does not exist")
         return db
 
-    def edit(self, id_: int | str, func: Optional[Callable[[Session, DBPlatformDatabase], None]] = None):
+    def _get(self, session, id_: int | str) -> DBPlatformDatabase:
+        try:
+            if isinstance(id_, PlatformDatabaseModel):
+                id_ = id_.id
+            if isinstance(id_, int):
+                db_obj = session.query(DBPlatformDatabase).where(DBPlatformDatabase.id == id_).one()
+            else:
+                db_obj = session.query(DBPlatformDatabase).where(DBPlatformDatabase.name == id_).one()
+        except NoResultFound as err:
+            logger.warning(f"Could not load database {db_obj.name} from meta-database")
+            return None
+        return db_obj
+
+    def edit(self,
+             id_: int | str,
+             func: Optional[Callable[[Session, DBPlatformDatabase], None]] = None,
+             model: Optional[bool] = True) -> PlatformDatabaseModel:
         with self.db.get_session() as session:
             try:
                 if isinstance(id_, PlatformDatabaseModel):
@@ -106,10 +122,13 @@ class MetaDatabase:
         return True
 
     def delete(self, id_: int | str):
-        def del_db(session, db: DBPlatformDatabase):
+        """
+        more robust cuz it also removes broken dbs that dont validate to the model
+        """
+        with self.db.get_session() as session:
+            db = self._get(id_)
             session.delete(db)
 
-        self.edit(id_, del_db)
 
     def purge(self, simulate: bool = False):
         if simulate:
@@ -143,7 +162,7 @@ class MetaDatabase:
                     self.update_db_base_stats(db)
                     if running:
                         row["name"] = f"[yellow]{row["name"]}[/yellow]"
-                    else: # updated
+                    else:  # updated
                         row["name"] = f"[blue]{row["name"]}[/blue]"
 
                 # todo hotfix for server. but need to test! and improve
@@ -157,7 +176,7 @@ class MetaDatabase:
                     "last mod": f"{datetime.fromtimestamp(db_content.last_modified):%Y-%m-%d %H:%M}",
                     "total": str(db_content.post_count),
                     "size": f"{int(db_content.file_size / (1024 * 1024))} Mb"})
-                row.update({k:str(db_content.tasks_states.get(k,0)) for k in task_status_types})
+                row.update({k: str(db_content.tasks_states.get(k, 0)) for k in task_status_types})
                 # db.content.file_size = int(db_utils.file_size(db))
 
             else:
@@ -196,7 +215,7 @@ def check_exists(path: str, metadb: DatabaseManager) -> bool:
 
 
 # todo, outdated stuff.. redo
-def add_db(path: str | Path, metadb: DatabaseManager, update: bool = False) :
+def add_db(path: str | Path, metadb: DatabaseManager, update: bool = False):
     # todo...
     db_path = Path(path)
     full_path_str = db_path.absolute().as_posix()
@@ -247,5 +266,3 @@ def purge():
     delete database-rows, which do not exist on the filesystem anymore
     :return:
     """
-
-
