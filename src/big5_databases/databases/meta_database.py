@@ -126,7 +126,7 @@ class MetaDatabase:
         more robust cuz it also removes broken dbs that dont validate to the model
         """
         with self.db.get_session() as session:
-            db = self._get(id_)
+            db = self._get(session, id_)
             session.delete(db)
 
 
