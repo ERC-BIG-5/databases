@@ -98,6 +98,7 @@ class MetaDatabase:
                     is_default=db.is_default,
                     content=db.content.model_dump()
                 ))
+                self.update_db_base_stats(db.name)
         except IntegrityError as e:
             logger.error(f"Could not add database {db.name} to meta-database: {e.orig}")
             session.rollback()
