@@ -102,6 +102,9 @@ class MetaDatabase:
         def move_db(session, db: DBPlatformDatabase):
             db.db_path = str(new_path)
 
+        db_mgmt = DatabaseManager.sqlite_db_from_path(Path(str(new_path)))
+        if not db_mgmt.db_exists():
+            raise ValueError(f"No database at location: {db_mgmt.config.db_connection.db_path}")
         self.edit(id_, move_db)
 
     def add_db(self, db: PlatformDatabaseModel) -> bool:

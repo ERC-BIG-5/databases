@@ -8,6 +8,7 @@ from rich.table import Table, Column
 
 from big5_databases.databases.c_db_merge import check_for_conflicts
 from big5_databases.databases.db_mgmt import DatabaseManager
+from big5_databases.databases.db_settings import SqliteSettings
 from big5_databases.databases.db_utils import get_collected_posts_by_period, get_posts_by_period
 from big5_databases.databases.external import TimeWindow
 from big5_databases.databases.meta_database import MetaDatabase
@@ -62,7 +63,7 @@ def posts_per_period(db_name: Annotated[str, typer.Argument(autocompletion=get_d
     db = MetaDatabase().get_db_mgmt(db_name)
     assert period in ["day", "month", "year"]
     ppd = get_posts_by_period(db, TimeWindow(period))
-    table = Table("date", "time","posts", title=f"{db.metadata.name} posts per {period}")
+    table = Table("date", "time", "posts", title=f"{db.metadata.name} posts per {period}")
     for date_posts in ppd:
         row = [str(_) for _ in date_posts]
         if period == "day":
@@ -123,3 +124,16 @@ def get_missing_days(db_path1: Annotated[str, typer.Argument()],
                      db_path2: Annotated[str, typer.Argument()]):
     # db = DatabaseManager.sqlite_db_from_path(db_path)
     raise NotImplementedError
+
+
+@app.command("base_dbs_path")
+def base_dbs_path():
+    # MetaDatabase().move_database()
+    return SqliteSettings().SQLITE_DBS_BASE_PATH
+
+
+@app.command("move_database")
+def move_database(
+        db_name: Annotated[str, typer.Argument()],
+        new_path: Annotated[str, typer.Argument()]):
+    MetaDatabase().move_database(db_name, new_path)
