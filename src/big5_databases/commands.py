@@ -1,3 +1,4 @@
+import calendar
 from datetime import date, datetime, timedelta
 from pathlib import Path
 from typing import Annotated, Optional, Any
@@ -61,11 +62,15 @@ def posts_per_period(db_name: Annotated[str, typer.Argument(autocompletion=get_d
     db = MetaDatabase().get_db_mgmt(db_name)
     assert period in ["day", "month", "year"]
     ppd = get_posts_by_period(db, TimeWindow(period))
-    table = Table("date", "posts", title=f"{db.metadata.name} posts per {period}")
+    table = Table("date", "time","posts", title=f"{db.metadata.name} posts per {period}")
     for date_posts in ppd:
         row = [str(_) for _ in date_posts]
         if period == "day":
             row.insert(1, date.fromisoformat(date_posts[0]).strftime("%A")[:3])
+        elif period == "month":
+            row.insert(1, calendar.month_name[int(date_posts[0].split("-")[1])][:3])
+        else:
+            row.insert(1, date_posts[0])
         table.add_row(*row)
     if print_:
         Console().print(table)
