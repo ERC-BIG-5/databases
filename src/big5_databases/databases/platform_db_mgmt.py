@@ -193,23 +193,20 @@ class PlatformDB:
 
             session.add_all(posts)
             session.commit()
-            return [p.model() for p in posts]
             # todo ADD USERS
+            return [p.model() for p in posts]
 
+    def update_task_results(self, col_result: CollectionResult):
         # update task status
         with self.db_mgmt.get_session() as session:
-            task_record = session.query(DBCollectionTask).get(collection.task.id)
-            if task_record.transient:
-                for post in posts:
-                    post.collection_task_id = None
+            task_record = session.query(DBCollectionTask).get(col_result.task.id)
+            if col_result.task.transient:
                 session.delete(task_record)
             task_record.status = CollectionStatus.DONE
-            task_record.found_items = collection.collected_items
-            task_record.added_items = len(collection.added_posts)
-            task_record.collection_duration = collection.duration
-            task_record.execution_ts = collection.execution_ts
-
-        self.logger.info(f"Added {len(collection.added_posts)}/{len(collection.posts)} posts to database")
+            task_record.found_items = col_result.collected_items
+            task_record.added_items = len(col_result.added_posts)
+            task_record.collection_duration = col_result.duration
+            task_record.execution_ts = col_result.execution_ts
 
     def update_task_status(self, task_id: int, status: CollectionStatus):
         """Update task status in database"""

@@ -34,6 +34,7 @@ class MetaDatabase:
 
         self.db = DatabaseManager(config=DBConfig(
             db_connection=SQliteConnection(db_path=db_path),
+            name="meta",
             create=create,
             require_existing_parent_dir=True,
             tables=["platform_databases"],
@@ -49,7 +50,7 @@ class MetaDatabase:
         return self[id_] is not None
 
     def get_db_mgmt(self, id_: int | str | PlatformDatabaseModel) -> Optional[DatabaseManager]:
-        db = self[id_]
+        db = self.get(id_)
         dbm = db.get_mgmt(db)
         return dbm
 
@@ -128,7 +129,6 @@ class MetaDatabase:
             db = self._get(session, id_)
             session.delete(db)
 
-
     def purge(self, simulate: bool = False):
         if simulate:
             print("SIMULATE")
@@ -206,7 +206,6 @@ class MetaDatabase:
         self.edit(id_, update_stats)
         return model
 
-
     def rename(self, id_: int | str, new_name: str) -> PlatformDatabaseModel:
         if isinstance(id_, PlatformDatabaseModel):
             model = id_
@@ -218,6 +217,10 @@ class MetaDatabase:
 
         self.edit(id_, _rename)
         return model
+
+    def get_db_names(self) -> list[str]:
+        return [db.name for db in self.get_dbs()]
+
 
 # todo kick out
 def check_exists(path: str, metadb: DatabaseManager) -> bool:

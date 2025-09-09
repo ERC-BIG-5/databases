@@ -86,8 +86,10 @@ class PostgresConnection(BaseModel):
                 f"{self.host}:{self.port}/{self.name}")
 
 
+
 class DBConfig(BaseModel):
     model_config = {'extra': "forbid", "from_attributes": True}
+    name: Optional[str] = None
     db_connection: DatabaseConnectionType
     create: bool = False
     reset_db: bool = False
@@ -109,13 +111,20 @@ class DBConfig(BaseModel):
         else:
             return "postgres"
 
+class DBSetupConfig(DBConfig):
+    name: str
+
 class ClientConfig(BaseModel):
     model_config = {'extra': "forbid", "from_attributes": True}
     ignore_initial_quota_halt: Optional[bool] = Field(False, description="Ignore initial quota halt")
     request_delay: Optional[float] = Field(0, description="Wait-time after each task")
     delay_randomize: Optional[int] = Field(0, description="Additional random delay (0-`value`")
     progress: bool = Field(True, description="If platform should process tasks or not")
-    db_config: Optional[DBConfig] = Field(None, description="Configuration of the database")
+
+class ClientSetup(BaseModel):
+    model_config = {'extra': "forbid", "from_attributes": True}
+    config: ClientConfig
+    db: Optional[DBSetupConfig] = Field(None, description="Configuration of the database")
 
 
 class CollectConfig(BaseModel):
@@ -136,6 +145,7 @@ class ClientTaskConfig(BaseModel):
     id: Optional[int] = Field(None, init=False)
     task_name: str = Field(description="unique name of the task")
     platform: str = Field(description="which social media platform")
+    database_name: Optional[str] = Field(None, description="required when platform more is registered more than once")
     database: Optional[str] = Field(None, description="database name", deprecated=True)  # default the same as platform
     collection_config: CollectConfig = Field(description="the actual collection configuration")
     platform_collection_config: Optional[dict] = None
@@ -341,3 +351,4 @@ class MetaDatabaseContentModel(BaseModel):
     last_modified: Optional[float] = None
     stats: Optional[DBStats] = Field(None)
     annotation: Optional[str] = None
+    config: Optional[ClientConfig] = None
