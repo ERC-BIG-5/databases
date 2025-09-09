@@ -126,7 +126,7 @@ def get_missing_days(db_path1: Annotated[str, typer.Argument()],
     raise NotImplementedError
 
 
-@app.command("base_dbs_path")
+@app.command()
 def base_dbs_path():
     print(SqliteSettings().SQLITE_DBS_BASE_PATH)
 
