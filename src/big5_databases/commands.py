@@ -83,8 +83,9 @@ def add(db_path: Annotated[str, typer.Argument()],
         platform: str,
         name: str,
         meta_db_path: Annotated[Optional[str], typer.Argument()] = None):
-    assert Path(db_path).exists(), f"database at path: {db_path} does not exist"
-    MetaDatabase(meta_db_path).add_db(PlatformDatabaseModel(platform=platform, name=name, db_path=Path(db_path)))
+    pdb = PlatformDatabaseModel(platform=platform, name=name, db_path=Path(db_path))
+    assert pdb.exists(), f"database at path: {db_path} does not exist"
+    MetaDatabase(meta_db_path).add_db(pdb)
 
 
 @app.command(short_help="remove a database")
@@ -131,7 +132,7 @@ def base_dbs_path():
     print(SqliteSettings().SQLITE_DBS_BASE_PATH)
 
 
-@app.command("move_database")
+@app.command("move")
 def move_database(
         db_name: Annotated[str, typer.Argument()],
         new_path: Annotated[str, typer.Argument()]):
