@@ -111,7 +111,7 @@ class MetaDatabase:
         try:
             with self.db.get_session() as session:
                 session.add(DBPlatformDatabase(
-                    db_path=str(db.db_path.absolute()),
+                    db_path=str(db.db_path),
                     name=db.name,
                     platform=db.platform,
                     is_default=db.is_default,

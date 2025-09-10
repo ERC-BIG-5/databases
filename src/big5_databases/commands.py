@@ -80,8 +80,8 @@ def posts_per_period(db_name: Annotated[str, typer.Argument(autocompletion=get_d
 
 @app.command(short_help="add a db-path to some metadatabase")
 def add(db_path: Annotated[str, typer.Argument()],
-        platform: str,
-        name: str,
+        platform:  Annotated[str, typer.Argument()],
+        name:  Annotated[str, typer.Argument()],
         meta_db_path: Annotated[Optional[str], typer.Argument()] = None):
     pdb = PlatformDatabaseModel(platform=platform, name=name, db_path=Path(db_path))
     assert pdb.exists(), f"database at path: {db_path} does not exist"
