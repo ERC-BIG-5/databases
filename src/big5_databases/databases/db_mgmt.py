@@ -20,7 +20,7 @@ from .model_conversion import PlatformDatabaseModel
 
 class DatabaseManager:
 
-    def __init__(self, config: DBConfig, db_meta: Optional[PlatformDatabaseModel] = None):
+    def __init__(self, config: DBConfig):
         self.config = config
         self.logger = get_logger(__file__)
         self.engine = self._create_engine()
@@ -111,8 +111,9 @@ class DatabaseManager:
                 else:
                     # no "platform_databases" for normal tables
                     tables = dict(Base.metadata.tables)
-                    if "platform_databases" in tables:
-                        del tables["platform_databases"]
+                    for table in ["platform_databases", "ppitem"]:
+                        if  table in tables:
+                            del tables[table]
                     Base.metadata.create_all(self.engine, tables=tables.values())
         else:
             PostgresConnection.model_validate(self.config)
@@ -164,6 +165,7 @@ class DatabaseManager:
     def platform_tables() -> list[str]:
         tables = list(Base.metadata.tables)[:]
         tables.remove("platform_databases")
+        tables.remove("ppitem")
         return tables
 
     def reset_collection_task_states(self,

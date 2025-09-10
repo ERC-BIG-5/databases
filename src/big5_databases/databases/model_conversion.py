@@ -228,3 +228,8 @@ class CollectionTaskModel(BaseDBModel):
     status: CollectionStatus
     time_added: datetime
     transient: Optional[bool] = False
+
+class PostProcessModel(BaseDBModel):
+    platform_id: str
+    input: dict
+    output: dict = Field(None)

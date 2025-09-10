@@ -11,7 +11,7 @@ from sqlalchemy.orm import relationship, Mapped, mapped_column, declarative_base
 from tools.pydantic_annotated_types import SerializableDatetimeAlways
 from .external import CollectionStatus, ClientTaskConfig, MetaDatabaseContentModel
 from .external import PostType
-from .model_conversion import CollectionTaskModel, PostModel, PlatformDatabaseModel
+from .model_conversion import CollectionTaskModel, PostModel, PlatformDatabaseModel, PostProcessModel
 
 Base = declarative_base()
 
@@ -105,11 +105,11 @@ class DBPost(DBModelBase[PostModel]):
     platform: Mapped[str] = mapped_column(String(20), nullable=False)
     platform_id: Mapped[str] = mapped_column(String(50), nullable=False, unique=True)
     date_created: Mapped[datetime] = mapped_column(DateTime, nullable=False)
-    content: Mapped[dict] = Column(JSON)
+    content: Mapped[dict] = mapped_column(JSON)
     post_url: Mapped[str] = mapped_column(String(60), nullable=True)
     post_type: Mapped[PostType] = mapped_column(Enum(PostType), nullable=False, default=PostType.REGULAR)
     #
-    metadata_content: Mapped[dict] = Column(JSON, default=dict)
+    metadata_content: Mapped[dict] = mapped_column(JSON, default=dict)
 
     # todo: temp nullable
     collection_task: Mapped["DBCollectionTask"] = relationship(back_populates="posts")
@@ -127,6 +127,7 @@ class DBPost(DBModelBase[PostModel]):
 
     def __repr__(self) -> str:
         return f"Post: '{self.id}' / {self.platform_id}"
+
 
 # class DBPlatformDatabase(DBModelBase[PlatformDatabaseModel]):
 #     __tablename__ = 'platform_databases'
@@ -149,11 +150,21 @@ class DBPlatformDatabase(DBModelBase[PlatformDatabaseModel]):
     is_default: Mapped[bool] = mapped_column(Boolean())
 
     db_path: Mapped[str] = mapped_column(String(120), nullable=False, unique=True)
-    content: Mapped[MetaDatabaseContentModel] = mapped_column(MutableDict.as_mutable(JSON()), nullable=False, default={})
+    content: Mapped[MetaDatabaseContentModel] = mapped_column(MutableDict.as_mutable(JSON()), nullable=False,
+                                                              default={})
     last_content_update: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, default=func.now())
 
     _pydantic_model = PlatformDatabaseModel
 
+
+class DBPostProcessItem(DBModelBase[PostProcessModel]):
+    __tablename__ = "ppitem"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    platform_id: Mapped[str] = mapped_column(String(50), nullable=False, unique=True)
+    input: Mapped[dict] = Column(JSON, nullable=False)
+    output: Mapped[dict] = Column(JSON)
+
+    _pydantic_model = PlatformDatabaseModel
 
 M_DBPlatformDatabase = TypedDict("M_DBPlatformDatabase",
                                  {
