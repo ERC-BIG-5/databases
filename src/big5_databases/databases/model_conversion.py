@@ -52,7 +52,7 @@ class PlatformDatabaseModel(BaseDBModel):
     @property
     def full_path(self) -> Path:
         if not self.db_path.is_absolute():
-            return SqliteSettings().SQLITE_DBS_BASE_PATH / self.db_path
+            return SqliteSettings().default_sqlite_dbs_base_path / self.db_path
         return self.db_path
 
 

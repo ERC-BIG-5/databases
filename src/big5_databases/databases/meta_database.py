@@ -9,8 +9,8 @@ from sqlalchemy.orm.session import Session
 from big5_databases.databases import db_utils
 from big5_databases.databases.db_utils import count_posts
 from big5_databases.databases.model_conversion import PlatformDatabaseModel
-from big5_databases.databases.settings import SETTINGS
 from .db_models import DBPlatformDatabase
+from .db_settings import SETTINGS
 from .db_stats import generate_db_stats
 from .db_mgmt import DatabaseManager
 from .external import DBConfig, SQliteConnection, MetaDatabaseContentModel
@@ -25,7 +25,7 @@ class MetaDatabase:
     def __init__(self, db_path: Optional[Path] = None, create: bool = False):
         if not db_path:
             if SETTINGS.main_db_path:
-                db_path = Path(SETTINGS.meta_db_path)
+                db_path = Path(SETTINGS.main_db_path)
             else:
                 db_path = root() / "data/dbs/main.sqlite"
 

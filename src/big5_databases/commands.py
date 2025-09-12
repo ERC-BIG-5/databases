@@ -129,7 +129,7 @@ def get_missing_days(db_path1: Annotated[str, typer.Argument()],
 
 @app.command()
 def base_dbs_path():
-    print(SqliteSettings().SQLITE_DBS_BASE_PATH)
+    print(SqliteSettings().default_sqlite_dbs_base_path)
 
 
 @app.command("move")

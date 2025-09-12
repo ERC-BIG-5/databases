@@ -43,7 +43,7 @@ class SQliteConnection(BaseModel):
     def validate_path(cls, v) -> Path:
         path = Path(v)
         if not path.is_absolute():
-            path = SqliteSettings().SQLITE_DBS_BASE_PATH / path
+            path = SqliteSettings().default_sqlite_dbs_base_path / path
         return path
 
     @property
@@ -66,7 +66,7 @@ try:
         def validate_path(cls, v) -> Path:
             path = Path(v)
             if not path.is_absolute():
-                path = SqliteSettings().SQLITE_DBS_BASE_PATH / path
+                path = SqliteSettings().default_sqlite_dbs_base_path / path
             return path
 
 except ImportError:

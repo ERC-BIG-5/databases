@@ -23,7 +23,7 @@ class PlatformDB:
     @classmethod
     def get_platform_default_db(cls, platform: str) -> DBConfig:
         return DBConfig(db_connection=SQliteConnection(
-            db_path=(SqliteSettings().SQLITE_DBS_BASE_PATH / f"{platform}.sqlite").as_posix()
+            db_path=(SqliteSettings().default_sqlite_dbs_base_path / f"{platform}.sqlite").as_posix()
         ))
 
     @staticmethod
