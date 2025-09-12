@@ -62,7 +62,7 @@ class DBMerger:
                 post_d = post.model_dump(exclude={"id"})
                 db_posts.append(DBPost(**post_d))
 
-            self.db.submit_posts(db_posts)
+            self.db.safe_submit_posts(db_posts)
             self.batch.clear()
 
     @staticmethod

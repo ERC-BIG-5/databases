@@ -2,6 +2,7 @@ import logging
 from collections import defaultdict
 from pathlib import Path
 
+from deprecated.classic import deprecated
 from sqlalchemy import exists
 from sqlalchemy import select
 from sqlalchemy.sql.expression import delete, update
@@ -171,7 +172,7 @@ class PlatformDB:
                 task_objs.append(task_obj)
             return task_objs
 
-    # todo, check when this is called... refactor, merge usage with util, and safe_insert...º
+    @deprecated(reason="replaced using db_mgmt.safe_submit_posts")
     def insert_posts(self, posts: list[DBPost]) -> list[PostModel]:
         """
         guarantees that no duplicate posts exist

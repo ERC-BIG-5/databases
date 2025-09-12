@@ -11,21 +11,6 @@ from typing import Union
 from .external import SQliteConnection
 from .model_conversion import PlatformDatabaseModel
 
-# Re-export functions from new modules for backward compatibility
-from .db_operations import (
-    filter_posts_with_existing_post_ids,
-    reset_task_states,
-    check_platforms,
-    get_tasks_with_posts,
-    count_states,
-    find_tasks_groups
-)
-
-from .db_analytics import (
-    get_posts_by_period,
-    get_collected_posts_by_period,
-    count_posts
-)
 
 # File system utilities - these should be moved to a separate filesystem utilities module
 # Kept here temporarily for compatibility

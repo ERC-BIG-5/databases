@@ -8,6 +8,7 @@ from tools.env_root import root
 
 ENV_FILE_PATH = root() / ".env"
 
+
 class PostgresCredentials(BaseSettings):
     model_config = SettingsConfigDict(env_file=ENV_FILE_PATH, env_file_encoding='utf-8', extra='allow')
     POSTGRES_USER: str
@@ -26,10 +27,11 @@ class SqliteSettings(BaseSettings):
     model_config = SettingsConfigDict(env_file=ENV_FILE_PATH, env_file_encoding='utf-8', extra='allow')
     main_db_path: Optional[Path] = Field(None, alias="MAIN_DB_PATH")
     # todo, this does not seem to be used..?
-    default_sqlite_dbs_base_path: Optional[Path] = Field((root() / "data" / "dbs"))
+    default_sqlite_dbs_base_path: Optional[Path] = Field((root() / "data" / "dbs"), alias="SQLITE_DBS_BASE_PATH")
 
     # @field_validator("model_config")
     # def set_sqlite_path(cls, v, values:ValidationInfo):
     #     return (BASE_DATA_PATH / values.data["DB_REL_PATH"]).absolute().as_posix()
+
 
 SETTINGS = SqliteSettings()

@@ -5,6 +5,7 @@ from pathlib import Path
 from typing import Optional
 
 from sqlalchemy import create_engine, Engine, event, exists, select
+from sqlalchemy.dialects.sqlite.dml import insert
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sessionmaker
 from sqlalchemy.orm import sessionmaker
@@ -140,7 +141,7 @@ class DatabaseManager:
         submit_posts = posts
         while True:
             try:
-                self.submit_posts(submit_posts)
+                self._submit_posts(submit_posts)
                 return submit_posts
             except IntegrityError as e:
                 with self.get_session() as session:
@@ -150,8 +151,9 @@ class DatabaseManager:
                 self.logger.error(f"Error submitting posts: {str(e)}")
                 return []
 
-    def submit_posts(self, posts: list[DBPost]):
+    def _submit_posts(self, posts: list[DBPost]):
         with self.get_session() as session:
+            # stmt = insert(DBPost).values()
             session.add_all(posts)
             session.commit()
 
