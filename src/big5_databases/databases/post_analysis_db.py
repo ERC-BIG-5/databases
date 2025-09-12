@@ -1,3 +1,4 @@
+import math
 import shutil
 
 from itertools import batched
@@ -44,10 +45,13 @@ def create_from_db(db: PlatformDatabaseModel, target_db: Path, input_data_method
                                          tables=["ppitem"],
                                          db_connection=SQliteConnection(db_path=target_db)))
 
+    post_count = db.content.post_count
+    expected_iter_count = math.ceil(post_count/ BATCH_SIZE)
+    logger.info(f"Estimated batches: {expected_iter_count}")
     with mgmt.get_session() as session:
         # todo, maybe just, "content", metadata_content"
         sum_inserted = 0
-        for batch in tqdm(batched(session.query(DBPost).yield_per(BATCH_SIZE), BATCH_SIZE)):
+        for batch in tqdm(batched(session.query(DBPost).yield_per(BATCH_SIZE), BATCH_SIZE),total=expected_iter_count):
             batch_data = [(p.platform_id, input_data_method(p.model())) for p in batch]
             with target_db.get_session() as t_session:
                 # todo, filter existing...
@@ -92,8 +96,6 @@ def create_packaged_databases(source_db_names: list[str],
 
 
 if __name__ == "__main__":
-
-
 
     shutil.rmtree(Path(f"ana/a_test1"), ignore_errors=True)
     create_packaged_databases(["phase-2_youtube_es"],
