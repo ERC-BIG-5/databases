@@ -92,12 +92,11 @@ def create_packaged_databases(source_db_names: list[str],
 
 
 if __name__ == "__main__":
-    def text_fct(m: PostModel) -> dict[str, str]:
-        return post_text(m)
+
 
 
     shutil.rmtree(Path(f"ana/a_test1"), ignore_errors=True)
     create_packaged_databases(["phase-2_youtube_es"],
                               Path(f"ana/a_test1"),
-                              text_fct,
+                              post_text,
                               Path(TEMP_MAIN_DB), delete_destination=True)
