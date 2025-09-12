@@ -110,7 +110,7 @@ class DatabaseManager:
                     md = Base.metadata.tables
                     # this could crash, if we pass a wrong table...
                     tables = [md[table] for table in self.config.tables]
-                    self.logger.info(f"Creating database tables: {tables}")
+                    self.logger.debug(f"Creating database tables: {tables}")
                     Base.metadata.create_all(self.engine, tables=tables)
                 else:
                     # no "platform_databases" for normal tables

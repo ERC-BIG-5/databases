@@ -21,7 +21,7 @@ logger = get_logger(__file__)
 
 class MetaDatabase:
 
-    def __init__(self, db_path: Optional[Path] = None, create: bool = False):
+    def __init__(self, db_path: Optional[Path] = None, create: bool = False, check_databases: bool = True):
         if not db_path:
             if SETTINGS.main_db_path:
                 db_path = Path(SETTINGS.main_db_path)
@@ -39,6 +39,17 @@ class MetaDatabase:
             tables=["platform_databases"],
         ))
         # self.db.init_database()
+        if check_databases:
+            missing_dbs = self.check_all_databases()
+            if missing_dbs:
+                logger.warning(f"Metadatabase contains database that does not exist: {missing_dbs}")
+
+    def check_all_databases(self) -> list[str]:
+        """
+        check if all databases exists or return those missing (paths)
+        """
+        return [db.name for db in self.get_dbs() if not db.exists()]
+
 
     def get_dbs(self) -> list[PlatformDatabaseModel]:
         """Get all registered platforms from the main database"""
