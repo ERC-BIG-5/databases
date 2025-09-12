@@ -7,7 +7,6 @@ from sqlalchemy.orm.attributes import flag_modified
 from sqlalchemy.orm.session import Session
 
 from big5_databases.databases import db_utils
-from big5_databases.databases.db_utils import count_posts
 from big5_databases.databases.model_conversion import PlatformDatabaseModel
 from .db_models import DBPlatformDatabase
 from .db_settings import SETTINGS
