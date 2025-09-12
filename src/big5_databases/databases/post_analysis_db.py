@@ -52,10 +52,10 @@ def create_from_db(db: PlatformDatabaseModel, target_db: Path, input_data_method
         # todo, maybe just, "content", metadata_content"
         sum_inserted = 0
         for batch in tqdm(batched(session.query(DBPost).yield_per(BATCH_SIZE), BATCH_SIZE),total=expected_iter_count):
+            # actually filter existing ids, first so, the function does not need to be run
             batch_data = [(p.platform_id, input_data_method(p.model())) for p in batch]
             with target_db.get_session() as t_session:
                 # todo, filter existing...
-                t_session.bulk_save_objects([])
 
                 for p in batch_data:
                     stmt = insert(DBPostProcessItem).values(platform_id=p[0], input=p[1])
@@ -94,6 +94,25 @@ def create_packaged_databases(source_db_names: list[str],
         dest_file = db.db_path.name
         create_from_db(db, destination_folder / dest_file, input_data_method)
 
+def add_db_to_package(db_name: str,
+                      destination_folder: Path,
+                      input_data_method: Callable[[PostModel], dict | list],
+                      source_meta_db: Optional[Path] = None):
+    if not destination_folder.is_absolute():
+        destination_folder = SqliteSettings().default_sqlite_dbs_base_path / destination_folder
+        logger.info(f"Setting destination dir to {destination_folder}")
+
+    if not destination_folder.exists():
+        raise ValueError(f"Destination folder missing: {destination_folder}")
+
+    meta_db = MetaDatabase(source_meta_db)
+    missing_dbs = meta_db.check_all_databases()
+    if db_name in missing_dbs:
+        raise ValueError(f"database missing: {db_name}")
+
+    db = meta_db.get(db_name)
+    dest_file = db.db_path.name
+    create_from_db(db, destination_folder / dest_file, input_data_method)
 
 if __name__ == "__main__":
 
