@@ -5,10 +5,11 @@ from typing import TYPE_CHECKING
 from deprecated.classic import deprecated
 
 from big5_databases.databases import db_utils
-from big5_databases.databases.db_analytics import get_posts_by_period
 
 from big5_databases.databases.external import SQliteConnection, DBStats, TimeWindow, TimeColumn
 from tools.env_root import root
+
+from .db_analytics import get_posts_by_period
 
 RAISE_DB_ERROR = True
 
