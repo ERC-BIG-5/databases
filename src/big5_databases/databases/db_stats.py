@@ -5,8 +5,8 @@ from typing import TYPE_CHECKING
 from deprecated.classic import deprecated
 
 from big5_databases.databases import db_utils
+from .db_analytics import get_posts_by_period
 
-from .db_utils import get_posts_by_period, get_collected_posts_by_period, count_posts
 from .external import SQliteConnection, DBStats, TimeWindow, TimeColumn
 from tools.env_root import root
 
