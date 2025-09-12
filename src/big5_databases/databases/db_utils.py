@@ -8,8 +8,8 @@
 import os
 from pathlib import Path
 from typing import Union
-from .external import SQliteConnection
-from .model_conversion import PlatformDatabaseModel
+from big5_databases.databases.external import SQliteConnection
+from big5_databases.databases.model_conversion import PlatformDatabaseModel
 
 
 # File system utilities - these should be moved to a separate filesystem utilities module
