@@ -7,9 +7,9 @@ from rich.console import Console
 from rich.table import Table, Column
 
 from big5_databases.databases.c_db_merge import check_for_conflicts
+from big5_databases.databases.db_analytics import get_collected_posts_by_period, get_posts_by_period
 from big5_databases.databases.db_mgmt import DatabaseManager
 from big5_databases.databases.db_settings import SqliteSettings
-from big5_databases.databases.db_utils import get_collected_posts_by_period, get_posts_by_period
 from big5_databases.databases.external import TimeWindow
 from big5_databases.databases.meta_database import MetaDatabase
 from big5_databases.databases.model_conversion import PlatformDatabaseModel
