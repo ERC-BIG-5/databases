@@ -203,6 +203,8 @@ class MetaDatabase:
         for db in dbs:
             results.append(get_db_status(db))
 
+        sorted(results, key=lambda x: (x["platform"], x["last mod"]), reverse=True)
+
         return results
 
     def update_db_base_stats(self, id_: int | str | PlatformDatabaseModel) -> PlatformDatabaseModel:
