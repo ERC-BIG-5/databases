@@ -203,7 +203,7 @@ class MetaDatabase:
         for db in dbs:
             results.append(get_db_status(db))
 
-        sorted(results, key=lambda x: (x["platform"], x["last mod"]), reverse=True)
+        results = sorted(results, key=lambda x: (x["platform"], x["last mod"]), reverse=True)
 
         return results
 
