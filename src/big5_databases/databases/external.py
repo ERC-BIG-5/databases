@@ -187,6 +187,10 @@ SerializablePath = Annotated[
     Path, PlainSerializer(rel_path, return_type=str)
 ]
 
+AbsSerializablePath = Annotated[
+    Path, PlainSerializer(lambda p: str(p.absolute()), return_type=str)
+]
+
 
 class RawStats(BaseModel):
     """Simple statistics model that stores counts by period string keys."""
@@ -345,6 +349,8 @@ class DBStats(BaseModel):
 
 
 class MetaDatabaseContentModel(BaseModel):
+    model_config = {'extra': "allow"}
+
     tasks_states: dict[str, int] = Field(default_factory=dict)
     post_count: int = 0
     file_size: int = 0
@@ -352,3 +358,4 @@ class MetaDatabaseContentModel(BaseModel):
     stats: Optional[DBStats] = Field(None)
     annotation: Optional[str] = None
     config: Optional[ClientConfig] = None
+    alternative_paths: Optional[dict[str,AbsSerializablePath]] = None

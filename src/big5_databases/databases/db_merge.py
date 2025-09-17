@@ -4,7 +4,7 @@ import time
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
-from typing import Generator
+from typing import Generator, Optional, Any
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -12,6 +12,7 @@ from sqlalchemy.orm import Session
 from tqdm import tqdm
 
 from big5_databases.databases.db_operations import filter_posts_with_existing_post_ids
+from big5_databases.databases.post_analysis_db import BATCH_SIZE
 from .db_mgmt import DatabaseManager
 from .db_models import DBPost, DBCollectionTask
 from .external import DBConfig, SQliteConnection, CollectionStatus
@@ -256,6 +257,50 @@ class DBMerger:
         return {"sizes": db_sizes,
                 "conflicting_posts": len(conflicting_posts),
                 "conflicts": conflicting_posts}
+
+
+def copy_posts_metadata_content(database: DatabaseManager,
+                                other_db: DatabaseManager,
+                                field: str,
+                                direction_to_other: bool = True,
+                                overwrite: bool = False):
+    source = database if direction_to_other else other_db
+    destination = other_db if direction_to_other else database
+
+    batch_size = 500
+
+    def find_and_update(pid_value_map: dict[str, Optional[Any]]):
+
+        with destination.get_session() as _session:
+            destination_batch_map = dict(list(_session.query(DBPost.platform_id, DBPost.metadata_content).where(
+                DBPost.platform_id.in_(list(pid_value_map.keys()))).all()))
+
+            for pid, new_value in pid_value_map.items():
+                if not new_value and not overwrite:
+                    continue
+                if pid in destination_batch_map and (destination_batch_map[pid] is not None or overwrite):
+                    updated_metadata = destination_batch_map[pid].copy()
+                    updated_metadata[field] = new_value
+
+                    _session.query(DBPost).filter(DBPost.platform_id == pid).update({
+                        DBPost.metadata_content: updated_metadata
+                    })
+
+    with source.get_session() as session:
+        last_id = 0
+        pbar = tqdm()
+        while True:
+            batch = session.query(DBPost.id, DBPost.platform_id, DBPost.metadata_content).filter(
+                DBPost.id > last_id).order_by(DBPost.id).limit(batch_size).all()
+
+            if not batch:
+                break
+
+            pid_map = {pid: md.get(field) for (id, pid, md) in batch}
+            find_and_update(pid_map)
+            last_id = batch[-1].id
+            pbar.update(batch_size)
+            # print(last_id)
 
 
 if __name__ == "__main__":

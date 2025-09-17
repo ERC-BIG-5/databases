@@ -35,6 +35,9 @@ class DatabaseManager:
         if self.config.db_type == "sqlite":
             event.listen(self.engine, 'connect', self._sqlite_on_connect)
 
+    def __repr__(self) -> str:
+        return f"DBManager: {self.engine.url}"
+
     @staticmethod
     def sqlite_db_from_path(path: str | Path,
                             create: bool = False) -> "DatabaseManager":

@@ -1,6 +1,6 @@
 from datetime import datetime
 from pathlib import Path
-from typing import Optional, Callable
+from typing import Optional, Callable, Literal
 
 from sqlalchemy.exc import IntegrityError, NoResultFound
 from sqlalchemy.orm.attributes import flag_modified
@@ -210,7 +210,9 @@ class MetaDatabase:
             model = id_
         else:
             model = self[id_]
+        # todo. assign parts of content, not complete content
         model.content = model.get_mgmt().calc_db_content()
+        model.content.alternative_paths = getattr(model.content,"alternative_paths",{})
 
         def update_stats(session, db: DBPlatformDatabase):
             db.content = model.content.model_dump()
@@ -233,6 +235,34 @@ class MetaDatabase:
 
     def get_db_names(self) -> list[str]:
         return [db.name for db in self.get_dbs()]
+
+    def set_alternative_path(self, db_name: str, alternative_path_name: str, alternative_path: Path):
+        db = self.get(db_name)
+
+        def _set_alt_path(session, db: DBPlatformDatabase):
+            current_content = MetaDatabaseContentModel.model_validate(db.content)
+            current_alts = current_content.alternative_paths or {}
+            current_alts[alternative_path_name] = alternative_path.absolute()
+            current_content.alternative_paths = current_alts
+            db.content = current_content.model_dump()
+            flag_modified(db, "content")
+
+        # print(type(db.content))
+        self.edit(db_name, _set_alt_path)
+
+    def copy_posts_metadata_content(self, db_name: str,
+                                    alternative_name: str,
+                                    field: str,
+                                    direction: Literal["to_alternative", "to_main"],
+                                    overwrite: bool = False):
+        db = self.get(db_name)
+        alt_dbs = db.content.alternative_paths or {}
+        if alternative_name not in alt_dbs:
+            raise ValueError(f"Database: {db_name} does not have the alternative: {alternative_name}")
+        db_mgmt = db.get_mgmt()
+        alt_mgmt = DatabaseManager.sqlite_db_from_path(alt_dbs[alternative_name])
+        from big5_databases.databases.db_merge import copy_posts_metadata_content as _copy
+        _copy(db_mgmt, alt_mgmt,field,direction == "to_alternative",overwrite)
 
 
 # todo kick out
@@ -265,20 +295,13 @@ def add_db(path: str | Path, metadb: DatabaseManager, update: bool = False):
         print(f"db multiple platforms: {platforms}. NOT ADDING: {path}")
         return
 
-    # todo, generate_db_stats is deprecated
-    # try:
-    #     stats = generate_db_stats(db)
-    # except Exception as err:
-    #     print(f"skipping {full_path_str}")
-    #     print(f"  {err}")
-    #     return
-
     with metadb.get_session() as session:
+        # todo, init with alt-paths
         meta_db_entry = DBPlatformDatabase(
             db_path=db_path.absolute().as_posix(),
             platform=platforms[0],
             is_default=False,
-            content=db.calc_db_content().model_dump()
+            content=db.calc_db_content().model_dump(),
         )
         session.add(meta_db_entry)
 
@@ -296,7 +319,7 @@ def purge():
 
 
 def get_db_mgmt(config: Optional[DBConfig], metadatabase_path: Optional[Path],
-           database_name: Optional[str]) -> DatabaseManager:
+                database_name: Optional[str]) -> DatabaseManager:
     """
     takes either a config or a meta-db-path and db-name
     """

@@ -80,8 +80,8 @@ def posts_per_period(db_name: Annotated[str, typer.Argument(autocompletion=get_d
 
 @app.command(short_help="add a db-path to some metadatabase")
 def add(db_path: Annotated[str, typer.Argument()],
-        platform:  Annotated[str, typer.Argument()],
-        name:  Annotated[str, typer.Argument()],
+        platform: Annotated[str, typer.Argument()],
+        name: Annotated[str, typer.Argument()],
         meta_db_path: Annotated[Optional[str], typer.Argument()] = None):
     pdb = PlatformDatabaseModel(platform=platform, name=name, db_path=Path(db_path))
     assert pdb.exists(), f"database at path: {db_path} does not exist"
@@ -137,3 +137,24 @@ def set_path(
         db_name: Annotated[str, typer.Argument()],
         new_path: Annotated[str, typer.Argument()]):
     MetaDatabase().move_database(db_name, new_path)
+
+
+@app.command(short_help="alternative paths are used for syncing, add moving post metadata_content around")
+def set_alternative_path(
+        db_name: Annotated[str, typer.Argument()],
+        alternative_path_name: Annotated[str, typer.Argument()],
+        alternative_path: Annotated[str, typer.Argument()]
+):
+    db = MetaDatabase().get(db_name)
+    assert Path(alternative_path).exists(), f"alternative_path does not exist: {alternative_path}"
+    MetaDatabase().set_alternative_path(db_name, alternative_path_name, Path(alternative_path))
+
+
+@app.command()
+def copy_posts_metadata_content(db_name: Annotated[str, typer.Argument()],
+                                alternative_name: Annotated[str, typer.Argument()],
+                                field: Annotated[str, typer.Argument()],
+                                direction: Annotated[str, typer.Argument()] = "to_alternative",
+                                overwrite: Annotated[bool, typer.Argument()] = False):
+    assert direction in ["to_alternative", "to_main"]
+    MetaDatabase().copy_posts_metadata_content(db_name, alternative_name, field, direction, overwrite)

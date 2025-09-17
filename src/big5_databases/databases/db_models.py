@@ -150,7 +150,7 @@ class DBPlatformDatabase(DBModelBase[PlatformDatabaseModel]):
     is_default: Mapped[bool] = mapped_column(Boolean())
 
     db_path: Mapped[str] = mapped_column(String(120), nullable=False, unique=True)
-    content: Mapped[MetaDatabaseContentModel] = mapped_column(MutableDict.as_mutable(JSON()), nullable=False,
+    content: Mapped[MetaDatabaseContentModel] = mapped_column(JSON, nullable=False,
                                                               default={})
     last_content_update: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, default=func.now())
 
