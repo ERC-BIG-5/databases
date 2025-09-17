@@ -4,13 +4,16 @@ from typing import Optional, Annotated, Any, TYPE_CHECKING
 
 from deprecated.classic import deprecated
 from pydantic import BaseModel, Field, field_validator, ConfigDict, PlainSerializer
-
+from tools.project_logging import get_logger
 
 from .db_settings import SqliteSettings
 from .external import CollectionStatus, PostType, CollectConfig, MetaDatabaseContentModel
 
 if TYPE_CHECKING:
     from .db_mgmt import DatabaseManager
+
+logger = get_logger(__file__)
+
 
 # Base Models
 class BaseDBModel(BaseModel):
@@ -55,7 +58,6 @@ class PlatformDatabaseModel(BaseDBModel):
             return SqliteSettings().default_sqlite_dbs_base_path / self.db_path
         return self.db_path
 
-
     def exists(self):
         return self.full_path.exists()
 
@@ -67,6 +69,7 @@ class PlatformDatabaseModel(BaseDBModel):
         mgmt = DatabaseManager.sqlite_db_from_path(self.db_path)
         mgmt.metadata = meta_db
         return mgmt
+
 
 # User Models
 class UserModel(BaseDBModel):
@@ -148,8 +151,9 @@ class PostMetadataModel(BaseModel):
     annotations: Optional[dict[str, dict]] = Field(None, description="annotations from labelstudio")
 
     # platform specific info
-    extra: Optional[dict[str,Any]] = Field(None,description="platform specific")
-    #hash_id: Optional[str] # WEIBO
+    extra: Optional[dict[str, Any]] = Field(None, description="platform specific")
+
+    # hash_id: Optional[str] # WEIBO
 
     @property
     def mediafile_paths(self) -> list[Path]:
@@ -202,7 +206,7 @@ class PostModel(BaseDBModel):
 
         raise ValueError(f"No get_platform_text defined for platform {self.platform}")
 
-    def get_media_urls(self) -> dict[str, list[str]]:
+    def get_media_urls(self, config: Optional[str]) -> dict[str, list[str]]:
         if self.platform == "twitter":
             return {
                 "photos": [p["url"] for p in self.content["media"].get("photos")],
@@ -211,6 +215,14 @@ class PostModel(BaseDBModel):
             }
         elif self.platform == "tiktok":
             base_url = "https://www.tiktok.com/@{username}/video/{video_id}"
+        elif self.platform == "youtube":
+            thumbnails = self.content.get("snippet", {}).get("thumbnails", {})
+            if config not in thumbnails:
+                logger.warning(f"youtube video '{self.platform_id}' has no key: '{config}' in thumbnails")
+                return {}
+            return {
+                f"thumbnail": thumbnails[config]["url"],
+            }
         else:
             raise NotImplemented(
                 f"please implement a function that gets the media paths of data of platform {self.platform}")
@@ -228,6 +240,7 @@ class CollectionTaskModel(BaseDBModel):
     status: CollectionStatus
     time_added: datetime
     transient: Optional[bool] = False
+
 
 class PostProcessModel(BaseDBModel):
     platform_id: str

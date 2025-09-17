@@ -132,8 +132,8 @@ def base_dbs_path():
     print(SqliteSettings().default_sqlite_dbs_base_path)
 
 
-@app.command("move")
-def move_database(
+@app.command()
+def set_path(
         db_name: Annotated[str, typer.Argument()],
         new_path: Annotated[str, typer.Argument()]):
     MetaDatabase().move_database(db_name, new_path)

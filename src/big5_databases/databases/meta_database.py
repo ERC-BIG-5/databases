@@ -50,7 +50,6 @@ class MetaDatabase:
         """
         return [db.name for db in self.get_dbs() if not db.exists()]
 
-
     def get_dbs(self) -> list[PlatformDatabaseModel]:
         """Get all registered platforms from the main database"""
         with self.db.get_session() as session:
@@ -294,3 +293,18 @@ def purge():
     delete database-rows, which do not exist on the filesystem anymore
     :return:
     """
+
+
+def get_db_mgmt(config: Optional[DBConfig], metadatabase_path: Optional[Path],
+           database_name: Optional[str]) -> DatabaseManager:
+    """
+    takes either a config or a meta-db-path and db-name
+    """
+    assert config or metadatabase_path and database_name, "Either database-config or metadatabase and database-name must be passed"
+    if config:
+        return DatabaseManager(DBConfig(
+            db_connection=config,
+            create=False
+        ))
+    else:
+        return MetaDatabase(metadatabase_path).get(database_name).get_mgmt()
