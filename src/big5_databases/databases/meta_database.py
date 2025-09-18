@@ -225,8 +225,9 @@ class MetaDatabase:
         else:
             model = self[id_]
         # todo. assign parts of content, not complete content
+        alternative_paths= getattr(model.content, "alternative_paths", {})
         model.content = model.get_mgmt().calc_db_content()
-        model.content.alternative_paths = getattr(model.content, "alternative_paths", {})
+        model.content.alternative_paths = alternative_paths
 
         def update_stats(session, db: DBPlatformDatabase):
             db.content = model.content.model_dump()

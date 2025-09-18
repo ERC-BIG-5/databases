@@ -134,20 +134,28 @@ def base_dbs_path():
 
 @app.command()
 def set_path(
-        db_name: Annotated[str, typer.Argument()],
+        db_name: Annotated[str, typer.Argument(autocompletion=get_db_names)],
         new_path: Annotated[str, typer.Argument()]):
     MetaDatabase().move_database(db_name, new_path)
 
 
 @app.command(short_help="alternative paths are used for syncing, add moving post metadata_content around")
 def set_alternative_path(
-        db_name: Annotated[str, typer.Argument()],
+        db_name: Annotated[str, typer.Argument(autocompletion=get_db_names)],
         alternative_path_name: Annotated[str, typer.Argument()],
-        alternative_path: Annotated[str, typer.Argument()]
+        alternative_path: Annotated[Path, typer.Argument()]
 ):
     db = MetaDatabase().get(db_name)
+    if not alternative_path.is_absolute():
+        alternative_path = SqliteSettings().default_sqlite_dbs_base_path / alternative_path
     assert Path(alternative_path).exists(), f"alternative_path does not exist: {alternative_path}"
     MetaDatabase().set_alternative_path(db_name, alternative_path_name, Path(alternative_path))
+
+@app.command(short_help="get alternative paths")
+def get_alternative_paths(
+        db_name: Annotated[str, typer.Argument(autocompletion=get_db_names)]
+):
+    print(MetaDatabase().get(db_name).content.alternative_paths)
 
 
 @app.command()
