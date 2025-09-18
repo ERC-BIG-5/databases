@@ -169,7 +169,7 @@ class MetaDatabase:
                     self.edit(db.id, del_db)
 
     def general_databases_status(self,
-                                 database: Optional[str] = None,
+                                 databases: Optional[list[str]] = None,
                                  task_status: bool = True,
                                  force_refresh: bool = False) -> list[dict]:
         task_status_types = ["done", "init", "paused", "aborted"] if task_status else []
@@ -208,11 +208,11 @@ class MetaDatabase:
                 row["path"] = f"[red]{row["path"]}[/red]"
             return row
 
-        if database:
-            db = self.get(database)
-            results.append(get_db_status(db))
-        # use a database
-        dbs: list[PlatformDatabaseModel] = self.get_dbs()
+        if databases:
+            dbs = [self.get(d) for d in databases]
+        else:
+            dbs: list[PlatformDatabaseModel] = self.get_dbs()
+
         for db in dbs:
             results.append(get_db_status(db))
 
