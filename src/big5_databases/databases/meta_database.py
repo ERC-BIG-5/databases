@@ -10,7 +10,7 @@ from sqlalchemy.orm.session import Session
 from big5_databases.databases import db_utils
 from big5_databases.databases.model_conversion import PlatformDatabaseModel
 from .db_models import DBPlatformDatabase
-from .db_settings import SETTINGS
+from .db_settings import SETTINGS, SqliteSettings
 from .db_stats import generate_db_stats
 from .db_mgmt import DatabaseManager
 from .external import DBConfig, SQliteConnection, MetaDatabaseContentModel
@@ -108,14 +108,36 @@ class MetaDatabase:
             func(session, db_obj)
             return db_obj.model()
 
-    def move_database(self, id_: int | str, new_path: str | Path):
-        def move_db(session, db: DBPlatformDatabase):
+    def set_path(self, id_: int | str, new_path: str | Path):
+        def _set_path(session, db: DBPlatformDatabase):
             db.db_path = str(new_path)
 
         db_mgmt = DatabaseManager.sqlite_db_from_path(Path(str(new_path)))
         if not db_mgmt.db_exists():
             raise ValueError(f"No database at location: {db_mgmt.config.db_connection.db_path}")
-        self.edit(id_, move_db)
+        self.edit(id_, _set_path)
+
+    def move_db(self, id_: int | str, new_path: str | Path):
+        def _set_path(session, db: DBPlatformDatabase):
+            db.db_path = str(new_path)
+
+        new_path = Path(new_path)
+
+        if new_path.exists():
+            raise ValueError(f"There is already a file at {new_path}")
+
+        db = self.get(id_)
+        if not db.exists():
+            raise ValueError(f"File for {id_}: {db.db_path}")
+
+        if not new_path.is_absolute():
+            full_new_path = SqliteSettings().default_sqlite_dbs_base_path / new_path
+            db.full_path.rename(full_new_path)
+            self.edit(id_, _set_path)
+        else:
+            db.full_path.rename(new_path)
+            self.edit(id_, _set_path)
+
 
     def add_db(self, db: PlatformDatabaseModel) -> bool:
         try:

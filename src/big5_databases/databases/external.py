@@ -123,6 +123,7 @@ class ClientConfig(BaseModel):
 
 class ClientSetup(BaseModel):
     model_config = {'extra': "forbid", "from_attributes": True}
+    platform: str = Field(description="Platform name (e.g., 'tiktok', 'twitter', 'youtube')")
     config: ClientConfig
     db: Optional[DBSetupConfig] = Field(None, description="Configuration of the database")
 

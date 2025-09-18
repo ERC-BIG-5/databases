@@ -134,14 +134,20 @@ def base_dbs_path():
 
 @app.command()
 def set_path(
-        db_name: Annotated[str, typer.Argument()],
+        db_name: Annotated[str, typer.Argument(autocompletion=get_db_names)],
         new_path: Annotated[str, typer.Argument()]):
-    MetaDatabase().move_database(db_name, new_path)
+    MetaDatabase().set_path(db_name, new_path)
+
+@app.command(help="move the db file")
+def move_db(
+        db_name: Annotated[str, typer.Argument(autocompletion=get_db_names)],
+        new_path: Annotated[str, typer.Argument()]):
+    MetaDatabase().move_db(db_name, new_path)
 
 
 @app.command(short_help="alternative paths are used for syncing, add moving post metadata_content around")
 def set_alternative_path(
-        db_name: Annotated[str, typer.Argument()],
+        db_name: Annotated[str, typer.Argument(autocompletion=get_db_names)],
         alternative_path_name: Annotated[str, typer.Argument()],
         alternative_path: Annotated[str, typer.Argument()]
 ):
@@ -151,7 +157,7 @@ def set_alternative_path(
 
 
 @app.command()
-def copy_posts_metadata_content(db_name: Annotated[str, typer.Argument()],
+def copy_posts_metadata_content(db_name: Annotated[str, typer.Argument(autocompletion=get_db_names)],
                                 alternative_name: Annotated[str, typer.Argument()],
                                 field: Annotated[str, typer.Argument()],
                                 direction: Annotated[str, typer.Argument()] = "to_alternative",
