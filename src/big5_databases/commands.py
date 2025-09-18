@@ -45,7 +45,7 @@ def status(task_status: bool = True,
 def collected_per_day(db_name: Annotated[str, typer.Argument(autocompletion=get_db_names)],
                       period: Annotated[str, typer.Argument(help="day,month,year")] = "day"):
     assert period in ["day", "month", "year"]
-    db = db = MetaDatabase().get_db_mgmt(db_name)
+    db = MetaDatabase().get_db_mgmt(db_name)
     col_per_day = get_collected_posts_by_period(db, TimeWindow(period))
     header = ["date", "# tasks", "found", "added"]
     header = [Column(h, justify="right") for h in header]
