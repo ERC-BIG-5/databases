@@ -45,3 +45,14 @@ dev = [
 
 [tool.uv.sources]
 python-project-tools = { git = "https://github.com/transfluxus/python-project-tools" }
+
+# USE WITH: uv run cz commit
+[tool.commitizen]
+name = "cz_conventional_commits"
+version = "0.1.0"
+tag_format = "v$major.$minor.$patch"
+version_files = [
+    "pyproject.toml:version"
+]
+# Add this line to auto-stage files
+update_changelog_on_bump = true

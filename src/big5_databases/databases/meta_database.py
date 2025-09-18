@@ -13,6 +13,7 @@ from .db_models import DBPlatformDatabase
 from .db_settings import SETTINGS, SqliteSettings
 from .db_stats import generate_db_stats
 from .db_mgmt import DatabaseManager
+from .external import MetaDatabaseStatsModel, MetaDatabaseConfigModel
 from .external import DBConfig, SQliteConnection, MetaDatabaseContentModel
 from tools.env_root import root
 from tools.project_logging import get_logger
@@ -191,7 +192,7 @@ class MetaDatabase:
                     self.edit(db.id, del_db)
 
     def general_databases_status(self,
-                                 database: Optional[str] = None,
+                                 databases: Optional[str] = None,
                                  task_status: bool = True,
                                  force_refresh: bool = False) -> list[dict]:
         task_status_types = ["done", "init", "paused", "aborted"] if task_status else []
@@ -230,11 +231,11 @@ class MetaDatabase:
                 row["path"] = f"[red]{row["path"]}[/red]"
             return row
 
-        if database:
-            db = self.get(database)
-            results.append(get_db_status(db))
-        # use a database
-        dbs: list[PlatformDatabaseModel] = self.get_dbs()
+        if databases:
+            dbs = [self.get(d) for d in databases]
+        else:
+            dbs: list[PlatformDatabaseModel] = self.get_dbs()
+
         for db in dbs:
             results.append(get_db_status(db))
 
@@ -246,9 +247,16 @@ class MetaDatabase:
             model = id_
         else:
             model = self[id_]
-        # todo. assign parts of content, not complete content
-        model.content = model.get_mgmt().calc_db_content()
-        model.content.alternative_paths = getattr(model.content, "alternative_paths", {})
+
+        # Preserve existing config data before updating stats
+        old_config = model.content.get_config()
+
+        # Get new stats
+        new_stats = model.get_mgmt().calc_db_stats()
+
+        # Combine new stats with preserved config
+        from big5_databases.databases.external import MetaDatabaseContentModel
+        model.content = MetaDatabaseContentModel.from_stats_and_config(new_stats, old_config)
 
         def update_stats(session, db: DBPlatformDatabase):
             db.content = model.content.model_dump()

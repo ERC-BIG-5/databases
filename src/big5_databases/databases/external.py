@@ -349,14 +349,64 @@ class DBStats(BaseModel):
         pass
 
 
-class MetaDatabaseContentModel(BaseModel):
-    model_config = {'extra': "allow"}
+class MetaDatabaseStatsModel(BaseModel):
+    """Auto-calculated database statistics that can be safely overwritten"""
+    model_config = {'extra': "forbid"}
 
     tasks_states: dict[str, int] = Field(default_factory=dict)
     post_count: int = 0
     file_size: int = 0
     last_modified: Optional[float] = None
     stats: Optional[DBStats] = Field(None)
+
+
+class MetaDatabaseConfigModel(BaseModel):
+    """Persistent user configuration that should be preserved"""
+    model_config = {'extra': "allow"}
+
     annotation: Optional[str] = None
     config: Optional[ClientConfig] = None
     alternative_paths: Optional[dict[str,AbsSerializablePath]] = Field(default_factory=dict)
+
+
+class MetaDatabaseContentModel(BaseModel):
+    """Combined model for backward compatibility"""
+    model_config = {'extra': "allow"}
+
+    # Stats (auto-calculated)
+    tasks_states: dict[str, int] = Field(default_factory=dict)
+    post_count: int = 0
+    file_size: int = 0
+    last_modified: Optional[float] = None
+    stats: Optional[DBStats] = Field(None)
+
+    # Config (persistent)
+    annotation: Optional[str] = None
+    config: Optional[ClientConfig] = None
+    alternative_paths: Optional[dict[str,AbsSerializablePath]] = Field(default_factory=dict)
+
+    @classmethod
+    def from_stats_and_config(cls, stats: MetaDatabaseStatsModel, config: MetaDatabaseConfigModel) -> "MetaDatabaseContentModel":
+        """Create combined model from separate stats and config"""
+        return cls(
+            **stats.model_dump(),
+            **config.model_dump()
+        )
+
+    def get_stats(self) -> MetaDatabaseStatsModel:
+        """Extract stats portion"""
+        return MetaDatabaseStatsModel(
+            tasks_states=self.tasks_states,
+            post_count=self.post_count,
+            file_size=self.file_size,
+            last_modified=self.last_modified,
+            stats=self.stats
+        )
+
+    def get_config(self) -> MetaDatabaseConfigModel:
+        """Extract config portion"""
+        return MetaDatabaseConfigModel(
+            annotation=self.annotation,
+            config=self.config,
+            alternative_paths=self.alternative_paths
+        )

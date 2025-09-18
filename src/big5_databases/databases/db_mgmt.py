@@ -199,6 +199,15 @@ class DatabaseManager:
             last_modified=self._file_modified(),
             stats=generate_db_stats(self))
 
+    def calc_db_stats(self) -> "MetaDatabaseStatsModel":
+        from big5_databases.databases.external import MetaDatabaseStatsModel
+        return MetaDatabaseStatsModel(
+            tasks_states=db_operations.count_states(self),
+            post_count=db_analytics.count_posts(db=self),
+            file_size=self._file_size(),
+            last_modified=self._file_modified(),
+            stats=generate_db_stats(self))
+
     # Platform-specific factory methods
     @classmethod
     def get_platform_default_db(cls, platform: str) -> "DatabaseManager":
