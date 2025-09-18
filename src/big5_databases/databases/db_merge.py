@@ -1,3 +1,4 @@
+from copy import deepcopy
 from timeit import timeit
 
 import time
@@ -266,7 +267,7 @@ def copy_posts_metadata_content(database: DatabaseManager,
                                 overwrite: bool = False):
     source = database if direction_to_other else other_db
     destination = other_db if direction_to_other else database
-
+    print(f"Source: {source} -> {destination}")
     batch_size = 500
 
     def find_and_update(pid_value_map: dict[str, Optional[Any]]):
@@ -278,13 +279,15 @@ def copy_posts_metadata_content(database: DatabaseManager,
             for pid, new_value in pid_value_map.items():
                 if not new_value and not overwrite:
                     continue
-                if pid in destination_batch_map and (destination_batch_map[pid] is not None or overwrite):
-                    updated_metadata = destination_batch_map[pid].copy()
-                    updated_metadata[field] = new_value
+                if pid in destination_batch_map:
+                    # copy dict
+                    updated_metadata = deepcopy(destination_batch_map[pid])
+                    if field not in updated_metadata or overwrite:
+                        updated_metadata[field] = new_value
 
-                    _session.query(DBPost).filter(DBPost.platform_id == pid).update({
-                        DBPost.metadata_content: updated_metadata
-                    })
+                        _session.query(DBPost).filter(DBPost.platform_id == pid).update({
+                            DBPost.metadata_content: updated_metadata
+                        })
 
     with source.get_session() as session:
         last_id = 0
@@ -301,7 +304,7 @@ def copy_posts_metadata_content(database: DatabaseManager,
             last_id = batch[-1].id
             pbar.update(batch_size)
             # print(last_id)
-
+        pbar.close()
 
 if __name__ == "__main__":
     # merger = DBMerger(Path("/home/rsoleyma/projects/platforms-clients/data/col_db/youtube/remote/merge.sqlite"),

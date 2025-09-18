@@ -7,7 +7,8 @@ from pydantic import BaseModel, Field, field_validator, ConfigDict, PlainSeriali
 from tools.project_logging import get_logger
 
 from .db_settings import SqliteSettings
-from .external import CollectionStatus, PostType, CollectConfig, MetaDatabaseContentModel
+from .external import CollectionStatus, PostType, CollectConfig, MetaDatabaseContentModel, SerializablePath, \
+    AbsSerializablePath
 
 if TYPE_CHECKING:
     from .db_mgmt import DatabaseManager
@@ -41,7 +42,7 @@ class PlatformDatabaseModel(BaseDBModel):
     """Model for platform database configuration"""
     platform: str
     name: Optional[str] = None
-    db_path: Path
+    db_path: AbsSerializablePath
 
     id: Optional[int] = None
     is_default: bool = False

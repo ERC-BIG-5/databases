@@ -1,3 +1,4 @@
+import json
 from datetime import datetime
 from pathlib import Path
 from typing import Optional, Callable, Literal
@@ -72,7 +73,7 @@ class MetaDatabase:
             raise ValueError(f"Database : {id_} does not exist")
         return db
 
-    def _get(self, session, id_: int | str) -> DBPlatformDatabase:
+    def get_obj(self, session, id_: int | str) -> Optional[DBPlatformDatabase]:
         try:
             if isinstance(id_, PlatformDatabaseModel):
                 id_ = id_.id
@@ -87,7 +88,7 @@ class MetaDatabase:
     def edit(self,
              id_: int | str,
              func: Optional[Callable[[Session, DBPlatformDatabase], None]] = None,
-             model: Optional[bool] = True) -> PlatformDatabaseModel:
+             model: Optional[bool] = True) -> Optional[PlatformDatabaseModel]:
         with self.db.get_session() as session:
             try:
                 if isinstance(id_, PlatformDatabaseModel):
@@ -135,11 +136,24 @@ class MetaDatabase:
 
     def delete(self, id_: int | str):
         """
-        more robust cuz it also removes broken dbs that dont validate to the model
+        delete a database
         """
+        # this is more robust cuz it also removes broken dbs that dont validate to the model
+        db_ = self.get(id_)
         with self.db.get_session() as session:
-            db = self._get(session, id_)
+            db = self.get_obj(session, id_)
             session.delete(db)
+
+        delete_file = input("Delete the file: [y] or mark?")
+        p = db_.full_path
+        if delete_file == "y":
+            p.unlink()
+        else:
+            p.rename(p.parent / f"DEL_{db_.db_path.name}")
+        alts = db_.content.alternative_paths
+        if alts:
+            print(
+                f"Consider also the alternative database paths:\n{json.dumps({k: str(v) for k, v in alts.items()}, indent=2)}")
 
     def purge(self, simulate: bool = False):
         if simulate:
@@ -212,7 +226,7 @@ class MetaDatabase:
             model = self[id_]
         # todo. assign parts of content, not complete content
         model.content = model.get_mgmt().calc_db_content()
-        model.content.alternative_paths = getattr(model.content,"alternative_paths",{})
+        model.content.alternative_paths = getattr(model.content, "alternative_paths", {})
 
         def update_stats(session, db: DBPlatformDatabase):
             db.content = model.content.model_dump()
@@ -262,7 +276,7 @@ class MetaDatabase:
         db_mgmt = db.get_mgmt()
         alt_mgmt = DatabaseManager.sqlite_db_from_path(alt_dbs[alternative_name])
         from big5_databases.databases.db_merge import copy_posts_metadata_content as _copy
-        _copy(db_mgmt, alt_mgmt,field,direction == "to_alternative",overwrite)
+        _copy(db_mgmt, alt_mgmt, field, direction == "to_alternative", overwrite)
 
 
 # todo kick out

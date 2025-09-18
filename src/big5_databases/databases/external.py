@@ -188,7 +188,7 @@ SerializablePath = Annotated[
 ]
 
 AbsSerializablePath = Annotated[
-    Path, PlainSerializer(lambda p: str(p.absolute()), return_type=str)
+    Path, PlainSerializer(lambda p: str(p.absolute()), return_type=str, when_used="always")
 ]
 
 
@@ -358,4 +358,4 @@ class MetaDatabaseContentModel(BaseModel):
     stats: Optional[DBStats] = Field(None)
     annotation: Optional[str] = None
     config: Optional[ClientConfig] = None
-    alternative_paths: Optional[dict[str,AbsSerializablePath]] = None
+    alternative_paths: Optional[dict[str,AbsSerializablePath]] = Field(default_factory=dict)
