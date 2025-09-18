@@ -88,7 +88,7 @@ def add(db_path: Annotated[str, typer.Argument()],
     MetaDatabase(meta_db_path).add_db(pdb)
 
 
-@app.command(short_help="remove a database")
+@app.command(short_help="remove a database", help="Remove a database from the main-db. Also ask user if they want to delete the file. it will be renamed to DEL_<filename> otherwise")
 def remove(db_name: Annotated[str, typer.Argument(autocompletion=get_db_names)]):
     MetaDatabase().delete(db_name)
 
