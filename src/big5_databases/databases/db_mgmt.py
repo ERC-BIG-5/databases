@@ -119,7 +119,7 @@ class DatabaseManager:
                     # no "platform_databases" for normal tables
                     tables = dict(Base.metadata.tables)
                     for table in ["platform_databases", "ppitem"]:
-                        if  table in tables:
+                        if table in tables:
                             del tables[table]
                     Base.metadata.create_all(self.engine, tables=tables.values())
         else:
@@ -197,7 +197,7 @@ class DatabaseManager:
             post_count=db_analytics.count_posts(db=self),
             file_size=self._file_size(),
             last_modified=self._file_modified(),
-            stats=generate_db_stats(self))
+            stats=None)  # generate_db_stats(self))
 
     # Platform-specific factory methods
     @classmethod
@@ -264,7 +264,7 @@ class DatabaseManager:
         new_tasks_names = [t.task_name for t in collection_tasks if t.task_name not in existing_names]
         to_overwrite: list[tuple[str, bool]] = []  # (task_name, keep_posts)
         remove_tasks = []
-        
+
         # Handle existing task name conflicts
         group_prefix_existing_tasks: dict[str, set[int]] = defaultdict(set)
         if existing_names:
@@ -297,7 +297,7 @@ class DatabaseManager:
                     else:
                         self.logger.debug(f"task '{t.task_name}' exists, will be skipped")
                         remove_tasks.append(t)
-                        
+
             # Delete tasks marked for overwrite
             if to_overwrite:
                 self.delete_tasks(to_overwrite)
@@ -309,8 +309,8 @@ class DatabaseManager:
         # Add new tasks to database
         with self.get_session() as session:
             for task in collection_tasks:
-                serialized_config = (task.platform_collection_config.model_dump() 
-                                   if task.platform_collection_config else None)
+                serialized_config = (task.platform_collection_config.model_dump()
+                                     if task.platform_collection_config else None)
                 db_task = DBCollectionTask(
                     task_name=task.task_name,
                     platform=task.platform,
@@ -321,7 +321,7 @@ class DatabaseManager:
                 )
                 session.add(db_task)
             session.commit()
-            
+
             if self.logger.level <= logging.INFO:
                 task_summary = new_tasks_names if len(task_names) < 50 else f"{len(task_names)} tasks"
                 self.logger.info(f"Added new collection tasks: {task_summary}")
@@ -377,7 +377,7 @@ class DatabaseManager:
             if col_result.task.transient:
                 session.delete(task_record)
                 return
-                
+
             task_record.status = CollectionStatus.DONE
             task_record.found_items = col_result.collected_items
             task_record.added_items = len(col_result.added_posts)
