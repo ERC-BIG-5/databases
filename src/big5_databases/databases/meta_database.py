@@ -146,6 +146,10 @@ class MetaDatabase:
 
         delete_file = input("Delete the file: [y] or mark?")
         p = db_.full_path
+
+        if not p.exists():
+            print("Database file not exist: '{str(p)}', so there is nothing more todo")
+
         if delete_file == "y":
             p.unlink()
         else:
@@ -216,7 +220,7 @@ class MetaDatabase:
         for db in dbs:
             results.append(get_db_status(db))
 
-        results = sorted(results, key=lambda x: (x["platform"], x["last mod"]))
+        results = sorted(results, key=lambda x: (x["platform"], x.get("last mod")))
         return results
 
     def update_db_base_stats(self, id_: int | str | PlatformDatabaseModel) -> PlatformDatabaseModel:
