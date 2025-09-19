@@ -6,6 +6,8 @@ from deprecated.classic import deprecated
 from pydantic import BaseModel, Field, field_validator, ConfigDict, PlainSerializer
 from tools.project_logging import get_logger
 
+from tools.pydantic_annotated_types import SerializableDatetimeAlways
+
 from .db_settings import SqliteSettings
 from .external import CollectionStatus, PostType, CollectConfig, MetaDatabaseContentModel, SerializablePath, \
     AbsSerializablePath
@@ -24,11 +26,6 @@ class BaseDBModel(BaseModel):
     class Config:
         from_attributes = True
         validate_assignment = True
-
-
-SerializableDatetime = Annotated[
-    datetime, PlainSerializer(lambda dt: dt.isoformat(), return_type=str, when_used='json')
-]
 
 
 class PlatformDatabaseContentModel(BaseDBModel):
@@ -171,8 +168,8 @@ class PostModel(BaseDBModel):
     platform: str
     platform_id: Optional[str]
     post_url: str
-    date_created: SerializableDatetime
-    post_type: Annotated[PostType, PlainSerializer(lambda t: t.value, return_type=int, when_used='json')]
+    date_created: SerializableDatetimeAlways
+    post_type: Annotated[PostType, PlainSerializer(lambda t: t.value, return_type=int, when_used='always')]
     content: dict
     metadata_content: Optional[PostMetadataModel] = Field(default_factory=PostMetadataModel)
     collection_task_id: Optional[int]
