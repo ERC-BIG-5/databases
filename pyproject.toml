@@ -36,11 +36,11 @@ commands = [
 ]
 dev = [
     "pytest>=8.4.1",
+    "commitizen>=4.9.1",
 ]
 
-[dependency-groups]
-dev = [
-    "commitizen>=4.9.1",
+datasets = [
+    "torch>=2.8.0",
 ]
 
 [tool.uv.sources]
