@@ -13,7 +13,6 @@ from sqlalchemy.orm import Session
 from tqdm import tqdm
 
 from big5_databases.databases.db_operations import filter_posts_with_existing_post_ids
-from big5_databases.databases.post_analysis_db import BATCH_SIZE
 from .db_mgmt import DatabaseManager
 from .db_models import DBPost, DBCollectionTask
 from .external import DBConfig, SQliteConnection, CollectionStatus
