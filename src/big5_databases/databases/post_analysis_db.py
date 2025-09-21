@@ -26,8 +26,10 @@ from sqlalchemy.orm.attributes import flag_modified
 try:
     import torch
     from torch.utils.data import Dataset
+
+    has_datasets = True
 except ImportError:
-    pass
+    has_datasets = False
 
 TEMP_MAIN_DB = "/home/rsoleyma/projects/big5/platform_clients/data/dbs/main.sqlite"
 BATCH_SIZE = 200
@@ -260,29 +262,34 @@ def add_db_to_package(db_name: str,
     _create_from_db(db, destination_folder / dest_file, input_data_method)
 
 
+if has_datasets:
+    class SQLiteDataset(Dataset):
+        def __init__(self, db_path, query, transform=None):
+            self.db_path = db_path
+            self.transform = transform
 
-class SQLiteDataset(Dataset):
-    def __init__(self, db_path, query, transform=None):
-        self.db_path = db_path
-        self.transform = transform
+            # Load data from SQLite
+            # conn = sqlite3.connect(db_path)
+            # self.data = pd.read_sql_query(query, conn)
+            # conn.close()
 
-        # Load data from SQLite
-        # conn = sqlite3.connect(db_path)
-        # self.data = pd.read_sql_query(query, conn)
-        # conn.close()
+        def __len__(self):
+            return len(self.data)
 
-    def __len__(self):
-        return len(self.data)
+        def __getitem__(self, idx):
+            row = self.data.iloc[idx]
 
-    def __getitem__(self, idx):
-        row = self.data.iloc[idx]
+            # Convert to tensors or apply transforms as needed
+            if self.transform:
+                row = self.transform(row)
 
-        # Convert to tensors or apply transforms as needed
-        if self.transform:
-            row = self.transform(row)
+            return row
+else:
+    class SQLiteDataset():
+        def __init__(self, db_path, query, transform=None):
+            raise ValueError("Cannot use SQLiteDataset without datasets package")
 
-        return row
-
+"""
 
 # Usage
 dataset = SQLiteDataset(
@@ -290,6 +297,7 @@ dataset = SQLiteDataset(
     query="SELECT * FROM your_table"
 )
 dataloader = torch.utils.data.DataLoader(dataset, batch_size=32, shuffle=True)
+"""
 
 if __name__ == "__main__":
     # Example usage for creating analysis databases
