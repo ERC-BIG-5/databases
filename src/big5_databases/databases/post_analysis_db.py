@@ -264,9 +264,8 @@ def add_db_to_package(db_name: str,
 
 if has_datasets:
     class SQLiteDataset(Dataset):
-        def __init__(self, db_path, query, transform=None):
-            self.db_path = db_path
-            self.transform = transform
+        def __init__(self, db_name: str):
+            self.db_name = db_name
 
             # Load data from SQLite
             # conn = sqlite3.connect(db_path)
@@ -278,10 +277,6 @@ if has_datasets:
 
         def __getitem__(self, idx):
             row = self.data.iloc[idx]
-
-            # Convert to tensors or apply transforms as needed
-            if self.transform:
-                row = self.transform(row)
 
             return row
 else:

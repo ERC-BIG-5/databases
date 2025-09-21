@@ -186,7 +186,8 @@ class MetaDatabase:
             if db.exists():
                 # print(db.name, db.content.file_size, int(db_utils.file_size(db)))
                 running = db_utils.currently_open(db)
-                if db.content.file_size != int(db_utils.file_size(db)) or running or force_refresh:
+                size_changed = db.content.file_size != int(db_utils.file_size(db))
+                if  size_changed or running or force_refresh or not db.content.last_modified:
                     print(f"updating db stats for {db.name}")
                     self.update_db_base_stats(db)
                     if running:
@@ -194,12 +195,7 @@ class MetaDatabase:
                     else:  # updated
                         row["name"] = f"[blue]{row["name"]}[/blue]"
 
-                # todo hotfix for server. but need to test! and improve
                 db_content = db.content
-                if not db_content.last_modified:
-                    # todo, not sure, why I need to re-assign
-                    db = self.update_db_base_stats(db)
-                    db_content = db.content
 
                 row.update({
                     "last mod": f"{datetime.fromtimestamp(db_content.last_modified):%Y-%m-%d %H:%M}",
