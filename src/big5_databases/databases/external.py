@@ -359,6 +359,7 @@ class MetaDatabaseContentModel(BaseModel):
     annotation: Optional[str] = None
     config: Optional[ClientConfig] = None
     alternative_paths: Optional[dict[str,AbsSerializablePath]] = Field(default_factory=dict)
+    run_states: Optional[list["DatabaseRunState"]] = Field(default_factory=list)
 
     def add_basestats(self, stats: "DatabaseBasestats") -> "MetaDatabaseContentModel":
         for k,v in stats.model_dump().items():
@@ -372,3 +373,10 @@ class DatabaseBasestats(BaseModel):
     post_count: int = 0
     file_size: int = 0
     last_modified: Optional[float] = None
+
+
+class DatabaseRunState(BaseModel):
+    alt_db: Optional[str] = Field(None, description="Alternative database name. None, if its on the main db")
+    pipeline_method: str
+    location: Literal["dell","vm","mn","other"]
+    other_location: Optional[str] = None

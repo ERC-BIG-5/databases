@@ -5,12 +5,11 @@ from typing import Optional, Annotated, Any, TYPE_CHECKING
 from deprecated.classic import deprecated
 from pydantic import BaseModel, Field, field_validator, ConfigDict, PlainSerializer
 from tools.project_logging import get_logger
-
 from tools.pydantic_annotated_types import SerializableDatetimeAlways
 
 from .db_settings import SqliteSettings
-from .external import CollectionStatus, PostType, CollectConfig, MetaDatabaseContentModel, SerializablePath, \
-    AbsSerializablePath
+from .external import CollectionStatus, PostType, CollectConfig, MetaDatabaseContentModel, AbsSerializablePath, \
+    DatabaseRunState
 
 if TYPE_CHECKING:
     from .db_mgmt import DatabaseManager
@@ -67,6 +66,17 @@ class PlatformDatabaseModel(BaseDBModel):
         mgmt = DatabaseManager.sqlite_db_from_path(self.db_path)
         mgmt.metadata = meta_db
         return mgmt
+
+    def add_run_state(self, run_state: DatabaseRunState) -> MetaDatabaseContentModel:
+        """
+        Add a run-state to the database content run_states list
+        do not allow the same pipeline method twice (todo, change later, when we distribute media-file collection)
+        """
+        run_states: list[DatabaseRunState] = self.content.run_states
+        for rs in run_states:
+            if rs.pipeline_method == run_state.pipeline_method:
+                raise ValueError(f"Runstate is already added to db: {rs}")
+        run_states.append(run_state)
 
 
 # User Models

@@ -6,16 +6,15 @@ from typing import Optional, Callable, Literal
 from sqlalchemy.exc import IntegrityError, NoResultFound
 from sqlalchemy.orm.attributes import flag_modified
 from sqlalchemy.orm.session import Session
+from tools.env_root import root
+from tools.project_logging import get_logger
 
 from big5_databases.databases import db_utils
 from big5_databases.databases.model_conversion import PlatformDatabaseModel
+from .db_mgmt import DatabaseManager
 from .db_models import DBPlatformDatabase
 from .db_settings import SETTINGS
-from .db_stats import generate_db_stats
-from .db_mgmt import DatabaseManager
-from .external import DBConfig, SQliteConnection, MetaDatabaseContentModel
-from tools.env_root import root
-from tools.project_logging import get_logger
+from .external import DBConfig, SQliteConnection, MetaDatabaseContentModel, DatabaseRunState
 
 logger = get_logger(__file__)
 
@@ -86,20 +85,11 @@ class MetaDatabase:
         return db_obj
 
     def edit(self,
-             id_: int | str,
+             id_: int | str | PlatformDatabaseModel,
              func: Optional[Callable[[Session, DBPlatformDatabase], None]] = None,
              model: Optional[bool] = True) -> Optional[PlatformDatabaseModel]:
         with self.db.get_session() as session:
-            try:
-                if isinstance(id_, PlatformDatabaseModel):
-                    id_ = id_.id
-                if isinstance(id_, int):
-                    db_obj = session.query(DBPlatformDatabase).where(DBPlatformDatabase.id == id_).one()
-                else:
-                    db_obj = session.query(DBPlatformDatabase).where(DBPlatformDatabase.name == id_).one()
-            except NoResultFound as err:
-                logger.warning(f"Could not load database {id_} from meta-database")
-                return None
+            db_obj = self.get_obj(session, id_)
             if func is None:
                 def func_(session_, obj_):
                     return None
@@ -276,6 +266,19 @@ class MetaDatabase:
         alt_mgmt = DatabaseManager.sqlite_db_from_path(alt_dbs[alternative_name])
         from big5_databases.databases.db_merge import copy_posts_metadata_content as _copy
         _copy(db_mgmt, alt_mgmt, field, direction == "to_alternative", overwrite)
+
+    def update_content(self, db_model: PlatformDatabaseModel):
+        def _update(session, db):
+            db.content = db_model.content.model_dump()
+            flag_modified(db, "content")
+
+        self.edit(db_model, _update)
+
+    def set_run_state(self, db_name: str, run_state: DatabaseRunState):
+        db = self.get(db_name)
+        db.add_run_state(run_state)
+
+        self.update_content(db)
 
 
 def get_db_mgmt(config: Optional[DBConfig], metadatabase_path: Optional[Path],
