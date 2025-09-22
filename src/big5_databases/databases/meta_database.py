@@ -187,7 +187,7 @@ class MetaDatabase:
                 # print(db.name, db.content.file_size, int(db_utils.file_size(db)))
                 running = db_utils.currently_open(db)
                 size_changed = db.content.file_size != int(db_utils.file_size(db))
-                if  size_changed or running or force_refresh or not db.content.last_modified:
+                if size_changed or running or force_refresh or not db.content.last_modified:
                     print(f"updating db stats for {db.name}")
                     self.update_db_base_stats(db)
                     if running:
@@ -276,59 +276,6 @@ class MetaDatabase:
         alt_mgmt = DatabaseManager.sqlite_db_from_path(alt_dbs[alternative_name])
         from big5_databases.databases.db_merge import copy_posts_metadata_content as _copy
         _copy(db_mgmt, alt_mgmt, field, direction == "to_alternative", overwrite)
-
-
-# todo kick out
-def check_exists(path: str, metadb: DatabaseManager) -> bool:
-    with metadb.get_session() as session:
-        return session.query(DBPlatformDatabase).filter(DBPlatformDatabase.db_path == path).scalar() is not None
-
-
-# todo, outdated stuff.. redo
-def add_db(path: str | Path, metadb: DatabaseManager, update: bool = False):
-    # todo...
-    db_path = Path(path)
-    full_path_str = db_path.absolute().as_posix()
-    if check_exists(full_path_str, metadb):
-        if not update:
-            print(f"{full_path_str} already exists, skipping.")
-            return
-    db = DatabaseManager.sqlite_db_from_path(db_path)
-    try:
-        platforms = list(db_utils.check_platforms(db))
-    except Exception as err:
-        print(f"skipping {full_path_str}")
-        print(f"  {err}")
-        return
-
-    if len(platforms) == 0:
-        print(f"db empty. NOT ADDING: {path}")
-        return
-    if len(platforms) > 1:
-        print(f"db multiple platforms: {platforms}. NOT ADDING: {path}")
-        return
-
-    with metadb.get_session() as session:
-        # todo, init with alt-paths
-        meta_db_entry = DBPlatformDatabase(
-            db_path=db_path.absolute().as_posix(),
-            platform=platforms[0],
-            is_default=False,
-            content=MetaDatabaseContentModel().add_basestats(db.calc_db_content())
-        )
-        session.add(meta_db_entry)
-
-
-def merge_into(src_path: Path, dest_path: Path, delete_after_full_merge: bool = True):
-    # todo
-    raise NotImplementedError()
-
-
-def purge():
-    """
-    delete database-rows, which do not exist on the filesystem anymore
-    :return:
-    """
 
 
 def get_db_mgmt(config: Optional[DBConfig], metadatabase_path: Optional[Path],
