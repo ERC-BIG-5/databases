@@ -164,9 +164,10 @@ def remove_alternative_path(
 ):
     def _remove_alt(session, db):
         del db.content.get("alternative_paths",{})[alternative_name]
+        from sqlalchemy.orm.attributes import flag_modified
+        flag_modified(db,"content")
 
     MetaDatabase().edit(db_name, _remove_alt)
-    MetaDatabase().get(db_name).content.alternative_paths.remove(alternative_name)
 
 @app.command()
 def copy_posts_metadata_content(db_name: Annotated[str, typer.Argument()],
