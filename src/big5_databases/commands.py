@@ -157,6 +157,12 @@ def get_alternative_paths(
 ):
     print(MetaDatabase().get(db_name).content.alternative_paths)
 
+@app.command()
+def remove_alternative_path(
+        db_name: Annotated[str, typer.Argument(autocompletion=get_db_names)],
+        alternative_name: Annotated[str, typer.Argument()]
+):
+    MetaDatabase().get(db_name).content.alternative_paths.remove(alternative_name)
 
 @app.command()
 def copy_posts_metadata_content(db_name: Annotated[str, typer.Argument()],

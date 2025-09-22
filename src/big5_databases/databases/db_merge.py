@@ -298,7 +298,7 @@ def copy_posts_metadata_content(database: DatabaseManager,
             if not batch:
                 break
 
-            pid_map = {pid: md.get(field) for (id, pid, md) in batch}
+            pid_map = {pid: value for (id, pid, md) in batch if (value := md.get(field))}
             find_and_update(pid_map)
             last_id = batch[-1].id
             pbar.update(batch_size)
