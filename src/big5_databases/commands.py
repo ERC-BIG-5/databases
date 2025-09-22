@@ -162,6 +162,10 @@ def remove_alternative_path(
         db_name: Annotated[str, typer.Argument(autocompletion=get_db_names)],
         alternative_name: Annotated[str, typer.Argument()]
 ):
+    def _remove_alt(session, db):
+        del db.content.get("alternative_paths",{})[alternative_name]
+
+    MetaDatabase().edit(db_name, _remove_alt)
     MetaDatabase().get(db_name).content.alternative_paths.remove(alternative_name)
 
 @app.command()
