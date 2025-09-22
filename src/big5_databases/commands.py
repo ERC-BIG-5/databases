@@ -8,9 +8,8 @@ from rich.table import Table, Column
 
 from big5_databases.databases.c_db_merge import check_for_conflicts
 from big5_databases.databases.db_analytics import get_collected_posts_by_period, get_posts_by_period
-from big5_databases.databases.db_mgmt import DatabaseManager
-from big5_databases.databases.db_settings import SqliteSettings
-from big5_databases.databases.external import TimeWindow
+from big5_databases.databases.db_settings import SqliteSettings, DatabaseSettings
+from big5_databases.databases.external import TimeWindow, DatabaseRunState
 from big5_databases.databases.meta_database import MetaDatabase
 from big5_databases.databases.model_conversion import PlatformDatabaseModel
 
@@ -88,7 +87,8 @@ def add(db_path: Annotated[str, typer.Argument()],
     MetaDatabase(meta_db_path).add_db(pdb)
 
 
-@app.command(short_help="remove a database", help="Remove a database from the main-db. Also ask user if they want to delete the file. it will be renamed to DEL_<filename> otherwise")
+@app.command(short_help="remove a database",
+             help="Remove a database from the main-db. Also ask user if they want to delete the file. it will be renamed to DEL_<filename> otherwise")
 def remove(db_name: Annotated[str, typer.Argument(autocompletion=get_db_names)]):
     MetaDatabase().delete(db_name)
 
@@ -151,11 +151,13 @@ def set_alternative_path(
     assert Path(alternative_path).exists(), f"alternative_path does not exist: {alternative_path}"
     MetaDatabase().set_alternative_path(db_name, alternative_path_name, Path(alternative_path))
 
+
 @app.command(short_help="get alternative paths")
 def get_alternative_paths(
         db_name: Annotated[str, typer.Argument(autocompletion=get_db_names)]
 ):
     print(MetaDatabase().get(db_name).content.alternative_paths)
+
 
 @app.command()
 def remove_alternative_path(
@@ -163,11 +165,12 @@ def remove_alternative_path(
         alternative_name: Annotated[str, typer.Argument()]
 ):
     def _remove_alt(session, db):
-        del db.content.get("alternative_paths",{})[alternative_name]
+        del db.content.get("alternative_paths", {})[alternative_name]
         from sqlalchemy.orm.attributes import flag_modified
-        flag_modified(db,"content")
+        flag_modified(db, "content")
 
     MetaDatabase().edit(db_name, _remove_alt)
+
 
 @app.command()
 def copy_posts_metadata_content(db_name: Annotated[str, typer.Argument()],
@@ -177,3 +180,21 @@ def copy_posts_metadata_content(db_name: Annotated[str, typer.Argument()],
                                 overwrite: Annotated[bool, typer.Argument()] = False):
     assert direction in ["to_alternative", "to_main"]
     MetaDatabase().copy_posts_metadata_content(db_name, alternative_name, field, direction, overwrite)
+
+
+@app.command(short_help="Manually add a running state")
+def add_run_state(
+        db_name: Annotated[str, typer.Argument(autocompletion=get_db_names)],
+        pipeline_method: Annotated[str, typer.Argument()],
+        alt_db_name: Annotated[Optional[str], typer.Argument()] = None,
+        location: Annotated[Optional[str], typer.Argument()] = None
+):
+    if not location:
+        location = DatabaseSettings().location
+
+    MetaDatabase().add_run_state(db_name,
+                                 DatabaseRunState(
+                                     pipeline_method=pipeline_method,
+                                     location=location,
+                                     alt_db=alt_db_name,
+                                 ))

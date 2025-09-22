@@ -376,7 +376,6 @@ class DatabaseBasestats(BaseModel):
 
 
 class DatabaseRunState(BaseModel):
-    alt_db: Optional[str] = Field(None, description="Alternative database name. None, if its on the main db")
     pipeline_method: str
-    location: Literal["dell","vm","mn","other"]
-    other_location: Optional[str] = None
+    location: str
+    alt_db: Optional[str] = Field(None, description="Alternative database name. None, if its on the main db")

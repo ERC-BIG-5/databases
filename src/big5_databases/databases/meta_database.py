@@ -274,10 +274,12 @@ class MetaDatabase:
 
         self.edit(db_model, _update)
 
-    def set_run_state(self, db_name: str, run_state: DatabaseRunState):
+    def add_run_state(self, db_name: str, run_state: DatabaseRunState):
         db = self.get(db_name)
+        if run_state.alt_db:
+            if run_state.alt_db not in db.content.alternative_paths:
+                raise ValueError(f"Database: {db_name} does not have the alternative: {run_state.alt_db}")
         db.add_run_state(run_state)
-
         self.update_content(db)
 
 
