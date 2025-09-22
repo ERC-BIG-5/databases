@@ -2,7 +2,7 @@ import logging
 from collections import defaultdict
 from contextlib import contextmanager
 from pathlib import Path
-from typing import Optional
+from typing import Optional, TypedDict
 
 from sqlalchemy import create_engine, Engine, event, exists, select
 from sqlalchemy.dialects.sqlite.dml import insert
@@ -17,7 +17,8 @@ from . import db_analytics, db_operations
 from .db_models import Base, DBPost, DBCollectionTask, CollectionResult
 from .db_settings import SqliteSettings
 from .db_stats import generate_db_stats
-from .external import DBConfig, SQliteConnection, CollectionStatus, MetaDatabaseContentModel, ClientTaskConfig
+from .external import DBConfig, SQliteConnection, CollectionStatus, MetaDatabaseContentModel, ClientTaskConfig, \
+    DatabaseBasestats
 from .external import PostgresConnection
 from .model_conversion import PlatformDatabaseModel, PostModel
 
@@ -191,15 +192,14 @@ class DatabaseManager:
                 c += 1
         return c
 
-    def calc_db_content(self) -> MetaDatabaseContentModel:
-        return MetaDatabaseContentModel(
+    def calc_db_content(self) -> DatabaseBasestats:
+        return DatabaseBasestats(
             tasks_states=db_operations.count_states(self),
             post_count=db_analytics.count_posts(db=self),
             file_size=self._file_size(),
-            last_modified=self._file_modified(),
-            stats=None)  # generate_db_stats(self))
+            last_modified=self._file_modified())
 
-    # Platform-specific factory methods
+
     @classmethod
     def get_platform_default_db(cls, platform: str) -> "DatabaseManager":
         """Create a DatabaseManager for the default platform database."""

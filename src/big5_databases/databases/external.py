@@ -349,7 +349,7 @@ class DBStats(BaseModel):
 
 
 class MetaDatabaseContentModel(BaseModel):
-    model_config = {'extra': "allow"}
+    model_config = {'extra': "forbid"}
 
     tasks_states: dict[str, int] = Field(default_factory=dict)
     post_count: int = 0
@@ -359,3 +359,16 @@ class MetaDatabaseContentModel(BaseModel):
     annotation: Optional[str] = None
     config: Optional[ClientConfig] = None
     alternative_paths: Optional[dict[str,AbsSerializablePath]] = Field(default_factory=dict)
+
+    def add_basestats(self, stats: "DatabaseBasestats") -> "MetaDatabaseContentModel":
+        for k,v in stats.model_dump().items():
+            setattr(self,k,v)
+        return self
+
+class DatabaseBasestats(BaseModel):
+    model_config = {'extra': "forbid"}
+
+    tasks_states: dict[str, int] = Field(default_factory=dict)
+    post_count: int = 0
+    file_size: int = 0
+    last_modified: Optional[float] = None

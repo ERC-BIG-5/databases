@@ -224,12 +224,10 @@ class MetaDatabase:
             model = id_
         else:
             model = self[id_]
-        # todo. assign parts of content, not complete content
-        alternative_paths= getattr(model.content, "alternative_paths", {})
-        model.content = model.get_mgmt().calc_db_content()
-        model.content.alternative_paths = alternative_paths
 
         def update_stats(session, db: DBPlatformDatabase):
+            base_stats = db.model().get_mgmt().calc_db_content()
+            model.content.add_basestats(base_stats)
             db.content = model.content.model_dump()
             flag_modified(db, "content")
 
@@ -316,7 +314,7 @@ def add_db(path: str | Path, metadb: DatabaseManager, update: bool = False):
             db_path=db_path.absolute().as_posix(),
             platform=platforms[0],
             is_default=False,
-            content=db.calc_db_content().model_dump(),
+            content=MetaDatabaseContentModel().add_basestats(db.calc_db_content())
         )
         session.add(meta_db_entry)
 
