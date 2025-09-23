@@ -22,9 +22,7 @@ class BaseDBModel(BaseModel):
     """Base model with common fields"""
     id: int
 
-    class Config:
-        from_attributes = True
-        validate_assignment = True
+    model_config = ConfigDict(from_attributes=True, validate_assignment=True)
 
 
 class PlatformDatabaseContentModel(BaseDBModel):
@@ -154,8 +152,7 @@ class PostTextReplacement(BaseModel):
 #####
 
 class PostMetadataModel(BaseModel):
-    class Config:
-        validate_assignment = True
+    model_config = ConfigDict(validate_assignment=True)
 
     media_paths: Optional[list[str]] = None
     media_base_path: Optional[str] = None
