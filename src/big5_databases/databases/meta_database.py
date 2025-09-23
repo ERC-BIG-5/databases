@@ -100,6 +100,7 @@ class MetaDatabase:
 
     def set_db_path(self, id_: int | str, new_path: Path):
 
+        # check if path exists, either if its absolute or relative to the default path
         if new_path.is_absolute() and not new_path.exists() and not (
                 SETTINGS.default_sqlite_dbs_base_path / new_path).exists():
             raise ValueError(f"No database at location: {new_path}")

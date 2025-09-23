@@ -135,8 +135,8 @@ def base_dbs_path():
 @app.command()
 def set_path(
         db_name: Annotated[str, typer.Argument(autocompletion=get_db_names)],
-        new_path: Annotated[str, typer.Argument()]):
-    MetaDatabase().move_database(db_name, new_path)
+        new_path: Annotated[Path, typer.Argument()]):
+    MetaDatabase(check_databases=False).set_db_path(db_name, new_path)
 
 
 @app.command(short_help="alternative paths are used for syncing, add moving post metadata_content around")
