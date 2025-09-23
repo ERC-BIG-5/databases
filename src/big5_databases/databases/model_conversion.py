@@ -5,10 +5,11 @@ from typing import Optional, Annotated, Any, TYPE_CHECKING
 from deprecated.classic import deprecated
 from pydantic import BaseModel, Field, field_validator, ConfigDict, PlainSerializer
 from tools.project_logging import get_logger
+from tools.pydantic_annotated_types import SerializableDatetimeAlways
 
 from .db_settings import SqliteSettings
-from .external import CollectionStatus, PostType, CollectConfig, MetaDatabaseContentModel, SerializablePath, \
-    AbsSerializablePath
+from .external import CollectionStatus, PostType, CollectConfig, MetaDatabaseContentModel, AbsSerializablePath, \
+    DatabaseRunState
 
 if TYPE_CHECKING:
     from .db_mgmt import DatabaseManager
@@ -24,11 +25,6 @@ class BaseDBModel(BaseModel):
     class Config:
         from_attributes = True
         validate_assignment = True
-
-
-SerializableDatetime = Annotated[
-    datetime, PlainSerializer(lambda dt: dt.isoformat(), return_type=str, when_used='json')
-]
 
 
 class PlatformDatabaseContentModel(BaseDBModel):
@@ -70,6 +66,29 @@ class PlatformDatabaseModel(BaseDBModel):
         mgmt = DatabaseManager.sqlite_db_from_path(self.db_path)
         mgmt.metadata = meta_db
         return mgmt
+
+    def add_run_state(self, run_state: DatabaseRunState) -> MetaDatabaseContentModel:
+        """
+        Add a run-state to the database content run_states list
+        do not allow the same pipeline method twice (todo, change later, when we distribute media-file collection)
+        """
+        run_states: list[DatabaseRunState] = self.content.run_states
+        for rs in run_states:
+            if rs.pipeline_method == run_state.pipeline_method:
+                raise ValueError(f"Runstate is already added to db: {rs}")
+        run_states.append(run_state)
+
+    def set_alternative_path(self, alternative_path_name: str, alternative_path: Path):
+        """Set an alternative path for this database"""
+        if not self.content.alternative_paths:
+            self.content.alternative_paths = {}
+        self.content.alternative_paths[alternative_path_name] = alternative_path
+
+    def update_base_stats(self):
+        """Update the base stats for this database"""
+        base_stats = self.get_mgmt().calc_db_content()
+        self.content.add_basestats(base_stats)
+
 
 
 # User Models
@@ -171,8 +190,8 @@ class PostModel(BaseDBModel):
     platform: str
     platform_id: Optional[str]
     post_url: str
-    date_created: SerializableDatetime
-    post_type: Annotated[PostType, PlainSerializer(lambda t: t.value, return_type=int, when_used='json')]
+    date_created: SerializableDatetimeAlways
+    post_type: Annotated[PostType, PlainSerializer(lambda t: t.value, return_type=int, when_used='always')]
     content: dict
     metadata_content: Optional[PostMetadataModel] = Field(default_factory=PostMetadataModel)
     collection_task_id: Optional[int]

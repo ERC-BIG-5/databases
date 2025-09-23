@@ -371,7 +371,7 @@ class MetaDatabaseConfigModel(BaseModel):
 
 class MetaDatabaseContentModel(BaseModel):
     """Combined model for backward compatibility"""
-    model_config = {'extra': "allow"}
+    model_config = {'extra': "forbid"}
 
     # Stats (auto-calculated)
     tasks_states: dict[str, int] = Field(default_factory=dict)
@@ -384,6 +384,26 @@ class MetaDatabaseContentModel(BaseModel):
     annotation: Optional[str] = None
     config: Optional[ClientConfig] = None
     alternative_paths: Optional[dict[str,AbsSerializablePath]] = Field(default_factory=dict)
+    run_states: Optional[list["DatabaseRunState"]] = Field(default_factory=list)
+
+    def add_basestats(self, stats: "DatabaseBasestats") -> "MetaDatabaseContentModel":
+        for k,v in stats.model_dump().items():
+            setattr(self,k,v)
+        return self
+
+class DatabaseBasestats(BaseModel):
+    model_config = {'extra': "forbid"}
+
+    tasks_states: dict[str, int] = Field(default_factory=dict)
+    post_count: int = 0
+    file_size: int = 0
+    last_modified: Optional[float] = None
+
+
+class DatabaseRunState(BaseModel):
+    pipeline_method: str
+    location: str
+    alt_db: Optional[str] = Field(None, description="Alternative database name. None, if its on the main db")
 
     @classmethod
     def from_stats_and_config(cls, stats: MetaDatabaseStatsModel, config: MetaDatabaseConfigModel) -> "MetaDatabaseContentModel":

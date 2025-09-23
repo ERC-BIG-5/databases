@@ -9,7 +9,7 @@ from sqlalchemy.ext.mutable import MutableDict
 from sqlalchemy.orm import relationship, Mapped, mapped_column, declarative_base
 
 from tools.pydantic_annotated_types import SerializableDatetimeAlways
-from .external import CollectionStatus, ClientTaskConfig, MetaDatabaseContentModel
+from .external import CollectionStatus, ClientTaskConfig, MetaDatabaseContentModel, DatabaseRunState
 from .external import PostType
 from .model_conversion import CollectionTaskModel, PostModel, PlatformDatabaseModel, PostProcessModel
 
@@ -155,6 +155,10 @@ class DBPlatformDatabase(DBModelBase[PlatformDatabaseModel]):
     last_content_update: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, default=func.now())
 
     _pydantic_model = PlatformDatabaseModel
+
+    def content_model(self) -> MetaDatabaseContentModel:
+        return MetaDatabaseContentModel.model_validate(self.content)
+
 
 
 class DBPostProcessItem(DBModelBase[PostProcessModel]):

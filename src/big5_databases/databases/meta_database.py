@@ -6,10 +6,15 @@ from typing import Optional, Callable, Literal
 from sqlalchemy.exc import IntegrityError, NoResultFound
 from sqlalchemy.orm.attributes import flag_modified
 from sqlalchemy.orm.session import Session
+from tools.env_root import root
+from tools.project_logging import get_logger
 
 from big5_databases.databases import db_utils
 from big5_databases.databases.model_conversion import PlatformDatabaseModel
+from .db_mgmt import DatabaseManager
 from .db_models import DBPlatformDatabase
+from .db_settings import SETTINGS
+from .external import DBConfig, SQliteConnection, MetaDatabaseContentModel, DatabaseRunState
 from .db_settings import SETTINGS, SqliteSettings
 from .db_stats import generate_db_stats
 from .db_mgmt import DatabaseManager
@@ -87,20 +92,11 @@ class MetaDatabase:
         return db_obj
 
     def edit(self,
-             id_: int | str,
+             id_: int | str | PlatformDatabaseModel,
              func: Optional[Callable[[Session, DBPlatformDatabase], None]] = None,
              model: Optional[bool] = True) -> Optional[PlatformDatabaseModel]:
         with self.db.get_session() as session:
-            try:
-                if isinstance(id_, PlatformDatabaseModel):
-                    id_ = id_.id
-                if isinstance(id_, int):
-                    db_obj = session.query(DBPlatformDatabase).where(DBPlatformDatabase.id == id_).one()
-                else:
-                    db_obj = session.query(DBPlatformDatabase).where(DBPlatformDatabase.name == id_).one()
-            except NoResultFound as err:
-                logger.warning(f"Could not load database {id_} from meta-database")
-                return None
+            db_obj = self.get_obj(session, id_)
             if func is None:
                 def func_(session_, obj_):
                     return None
@@ -109,36 +105,17 @@ class MetaDatabase:
             func(session, db_obj)
             return db_obj.model()
 
-    def set_path(self, id_: int | str, new_path: str | Path):
-        def _set_path(session, db: DBPlatformDatabase):
-            db.db_path = str(new_path)
+    def set_db_path(self, id_: int | str, new_path: Path):
 
-        db_mgmt = DatabaseManager.sqlite_db_from_path(Path(str(new_path)))
-        if not db_mgmt.db_exists():
-            raise ValueError(f"No database at location: {db_mgmt.config.db_connection.db_path}")
-        self.edit(id_, _set_path)
+        # check if path exists, either if its absolute or relative to the default path
+        if new_path.is_absolute() and not new_path.exists() and not (
+                SETTINGS.default_sqlite_dbs_base_path / new_path).exists():
+            raise ValueError(f"No database at location: {new_path}")
 
-    def move_db(self, id_: int | str, new_path: str | Path):
-        def _set_path(session, db: DBPlatformDatabase):
-            db.db_path = str(new_path)
+        def _set_db_path(session_: Session, db_obj: DBPlatformDatabase):
+            db_obj.db_path = str(new_path)
 
-        new_path = Path(new_path)
-
-        if new_path.exists():
-            raise ValueError(f"There is already a file at {new_path}")
-
-        db = self.get(id_)
-        if not db.exists():
-            raise ValueError(f"File for {id_}: {db.db_path}")
-
-        if not new_path.is_absolute():
-            full_new_path = SqliteSettings().default_sqlite_dbs_base_path / new_path
-            db.full_path.rename(full_new_path)
-            self.edit(id_, _set_path)
-        else:
-            db.full_path.rename(new_path)
-            self.edit(id_, _set_path)
-
+        self.edit(id_, _set_db_path)
 
     def add_db(self, db: PlatformDatabaseModel) -> bool:
         try:
@@ -169,6 +146,10 @@ class MetaDatabase:
 
         delete_file = input("Delete the file: [y] or mark?")
         p = db_.full_path
+
+        if not p.exists():
+            print("Database file not exist: '{str(p)}', so there is nothing more todo")
+
         if delete_file == "y":
             p.unlink()
         else:
@@ -192,7 +173,7 @@ class MetaDatabase:
                     self.edit(db.id, del_db)
 
     def general_databases_status(self,
-                                 databases: Optional[str] = None,
+                                 databases: Optional[list[str]] = None,
                                  task_status: bool = True,
                                  force_refresh: bool = False) -> list[dict]:
         task_status_types = ["done", "init", "paused", "aborted"] if task_status else []
@@ -205,7 +186,8 @@ class MetaDatabase:
             if db.exists():
                 # print(db.name, db.content.file_size, int(db_utils.file_size(db)))
                 running = db_utils.currently_open(db)
-                if db.content.file_size != int(db_utils.file_size(db)) or running or force_refresh:
+                size_changed = db.content.file_size != int(db_utils.file_size(db))
+                if size_changed or running or force_refresh or not db.content.last_modified:
                     print(f"updating db stats for {db.name}")
                     self.update_db_base_stats(db)
                     if running:
@@ -213,12 +195,7 @@ class MetaDatabase:
                     else:  # updated
                         row["name"] = f"[blue]{row["name"]}[/blue]"
 
-                # todo hotfix for server. but need to test! and improve
                 db_content = db.content
-                if not db_content.last_modified:
-                    # todo, not sure, why I need to re-assign
-                    db = self.update_db_base_stats(db)
-                    db_content = db.content
 
                 row.update({
                     "last mod": f"{datetime.fromtimestamp(db_content.last_modified):%Y-%m-%d %H:%M}",
@@ -239,60 +216,29 @@ class MetaDatabase:
         for db in dbs:
             results.append(get_db_status(db))
 
-        results = sorted(results, key=lambda x: (x["platform"], x["last mod"]))
+        results = sorted(results, key=lambda x: (x["platform"], x.get("last mod")))
         return results
 
     def update_db_base_stats(self, id_: int | str | PlatformDatabaseModel) -> PlatformDatabaseModel:
-        if isinstance(id_, PlatformDatabaseModel):
-            model = id_
-        else:
-            model = self[id_]
-
-        # Preserve existing config data before updating stats
-        old_config = model.content.get_config()
-
-        # Get new stats
-        new_stats = model.get_mgmt().calc_db_stats()
-
-        # Combine new stats with preserved config
-        from big5_databases.databases.external import MetaDatabaseContentModel
-        model.content = MetaDatabaseContentModel.from_stats_and_config(new_stats, old_config)
-
-        def update_stats(session, db: DBPlatformDatabase):
-            db.content = model.content.model_dump()
-            flag_modified(db, "content")
-
-        self.edit(id_, update_stats)
-        return model
+        db = self.get(id_) if not isinstance(id_, PlatformDatabaseModel) else id_
+        db.update_base_stats()
+        self.update_content(db)
+        return db
 
     def rename(self, id_: int | str, new_name: str) -> PlatformDatabaseModel:
-        if isinstance(id_, PlatformDatabaseModel):
-            model = id_
-        else:
-            model = self[id_]
 
-        def _rename(session, db: DBPlatformDatabase):
-            db.name = new_name
+        def _rename(session, db_obj: DBPlatformDatabase):
+            db_obj.name = new_name
 
-        self.edit(id_, _rename)
-        return model
+        return self.edit(id_, _rename)
 
     def get_db_names(self) -> list[str]:
         return [db.name for db in self.get_dbs()]
 
     def set_alternative_path(self, db_name: str, alternative_path_name: str, alternative_path: Path):
         db = self.get(db_name)
-
-        def _set_alt_path(session, db: DBPlatformDatabase):
-            current_content = MetaDatabaseContentModel.model_validate(db.content)
-            current_alts = current_content.alternative_paths or {}
-            current_alts[alternative_path_name] = alternative_path.absolute()
-            current_content.alternative_paths = current_alts
-            db.content = current_content.model_dump()
-            flag_modified(db, "content")
-
-        # print(type(db.content))
-        self.edit(db_name, _set_alt_path)
+        db.set_alternative_path(alternative_path_name, alternative_path.absolute())
+        self.update_content(db)
 
     def copy_posts_metadata_content(self, db_name: str,
                                     alternative_name: str,
@@ -308,58 +254,20 @@ class MetaDatabase:
         from big5_databases.databases.db_merge import copy_posts_metadata_content as _copy
         _copy(db_mgmt, alt_mgmt, field, direction == "to_alternative", overwrite)
 
+    def update_content(self, db_model: PlatformDatabaseModel):
+        def _update(session, db):
+            db.content = db_model.content.model_dump()
+            flag_modified(db, "content")
 
-# todo kick out
-def check_exists(path: str, metadb: DatabaseManager) -> bool:
-    with metadb.get_session() as session:
-        return session.query(DBPlatformDatabase).filter(DBPlatformDatabase.db_path == path).scalar() is not None
+        self.edit(db_model, _update)
 
-
-# todo, outdated stuff.. redo
-def add_db(path: str | Path, metadb: DatabaseManager, update: bool = False):
-    # todo...
-    db_path = Path(path)
-    full_path_str = db_path.absolute().as_posix()
-    if check_exists(full_path_str, metadb):
-        if not update:
-            print(f"{full_path_str} already exists, skipping.")
-            return
-    db = DatabaseManager.sqlite_db_from_path(db_path)
-    try:
-        platforms = list(db_utils.check_platforms(db))
-    except Exception as err:
-        print(f"skipping {full_path_str}")
-        print(f"  {err}")
-        return
-
-    if len(platforms) == 0:
-        print(f"db empty. NOT ADDING: {path}")
-        return
-    if len(platforms) > 1:
-        print(f"db multiple platforms: {platforms}. NOT ADDING: {path}")
-        return
-
-    with metadb.get_session() as session:
-        # todo, init with alt-paths
-        meta_db_entry = DBPlatformDatabase(
-            db_path=db_path.absolute().as_posix(),
-            platform=platforms[0],
-            is_default=False,
-            content=db.calc_db_content().model_dump(),
-        )
-        session.add(meta_db_entry)
-
-
-def merge_into(src_path: Path, dest_path: Path, delete_after_full_merge: bool = True):
-    # todo
-    raise NotImplementedError()
-
-
-def purge():
-    """
-    delete database-rows, which do not exist on the filesystem anymore
-    :return:
-    """
+    def add_run_state(self, db_name: str, run_state: DatabaseRunState):
+        db = self.get(db_name)
+        if run_state.alt_db:
+            if run_state.alt_db not in db.content.alternative_paths:
+                raise ValueError(f"Database: {db_name} does not have the alternative: {run_state.alt_db}")
+        db.add_run_state(run_state)
+        self.update_content(db)
 
 
 def get_db_mgmt(config: Optional[DBConfig], metadatabase_path: Optional[Path],

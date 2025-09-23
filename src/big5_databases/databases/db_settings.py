@@ -29,6 +29,11 @@ class SqliteSettings(BaseSettings):
     # todo, this does not seem to be used..?
     default_sqlite_dbs_base_path: Optional[Path] = Field((root() / "data" / "dbs"), alias="SQLITE_DBS_BASE_PATH")
 
+class DatabaseSettings(BaseSettings):
+    model_config = SettingsConfigDict(env_file=ENV_FILE_PATH, env_file_encoding='utf-8', extra='allow')
+    location: str
+
+
     # @field_validator("model_config")
     # def set_sqlite_path(cls, v, values:ValidationInfo):
     #     return (BASE_DATA_PATH / values.data["DB_REL_PATH"]).absolute().as_posix()
