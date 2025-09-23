@@ -1,5 +1,6 @@
 from dataclasses import dataclass
 from datetime import datetime
+from pathlib import Path
 from typing import TypedDict, TypeVar, Generic
 
 from pydantic import BaseModel
@@ -9,6 +10,8 @@ from sqlalchemy.ext.mutable import MutableDict
 from sqlalchemy.orm import relationship, Mapped, mapped_column, declarative_base
 
 from tools.pydantic_annotated_types import SerializableDatetimeAlways
+
+from .db_settings import SqliteSettings
 from .external import CollectionStatus, ClientTaskConfig, MetaDatabaseContentModel, DatabaseRunState
 from .external import PostType
 from .model_conversion import CollectionTaskModel, PostModel, PlatformDatabaseModel, PostProcessModel
@@ -159,6 +162,11 @@ class DBPlatformDatabase(DBModelBase[PlatformDatabaseModel]):
     def content_model(self) -> MetaDatabaseContentModel:
         return MetaDatabaseContentModel.model_validate(self.content)
 
+    @property
+    def full_path(self):
+        if not Path(self.db_path).is_absolute():
+            return SqliteSettings().default_sqlite_dbs_base_path / self.db_path
+        return self.db_path
 
 
 class DBPostProcessItem(DBModelBase[PostProcessModel]):
@@ -169,6 +177,7 @@ class DBPostProcessItem(DBModelBase[PostProcessModel]):
     output: Mapped[dict] = Column(JSON)
 
     _pydantic_model = PlatformDatabaseModel
+
 
 M_DBPlatformDatabase = TypedDict("M_DBPlatformDatabase",
                                  {

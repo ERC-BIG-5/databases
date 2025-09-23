@@ -88,7 +88,13 @@ class MetaDatabase:
             else:
                 db_obj = session.query(DBPlatformDatabase).where(DBPlatformDatabase.name == id_).one()
         except NoResultFound as err:
-            raise ValueError(f"Could not load database {id_} from meta-database")
+            if isinstance(id_, PlatformDatabaseModel):
+                name = id_.name
+            else:
+                name = id_
+            from tools.fast_levenhstein import levenhstein_get_closest_matches
+            similar = levenhstein_get_closest_matches(name, self.get_db_names(), threshold=0.8)
+            raise ValueError(f"Could not load database {id_} from meta-database. Candidates: {similar}")
         return db_obj
 
     def edit(self,
@@ -117,15 +123,24 @@ class MetaDatabase:
 
         self.edit(id_, _set_db_path)
 
-    def add_db(self, db: PlatformDatabaseModel) -> bool:
+    def add_db(self, db: PlatformDatabaseModel, client_setup: Optional["ClientSetup"] = None) -> bool:
         try:
             with self.db.get_session() as session:
+                # Store client_setup in content if provided
+                content = db.content.model_dump()
+                if client_setup:
+                    # Exclude computed fields to avoid validation errors
+                    content["client_setup"] = client_setup.model_dump(exclude={"db": {"connection_str", "db_type"}})
+
+                # Validate content dict against MetaDatabaseContentModel before insertion
+                validated_content = MetaDatabaseContentModel.model_validate(content)
+
                 session.add(DBPlatformDatabase(
                     db_path=str(db.db_path),
                     name=db.name,
                     platform=db.platform,
                     is_default=db.is_default,
-                    content=db.content.model_dump()
+                    content=validated_content.model_dump()
                 ))
             self.update_db_base_stats(db.name)
         except IntegrityError as e:
@@ -138,26 +153,27 @@ class MetaDatabase:
         """
         delete a database
         """
+        print("dell")
         # this is more robust cuz it also removes broken dbs that dont validate to the model
-        db_ = self.get(id_)
+        full_path = None
         with self.db.get_session() as session:
             db = self.get_obj(session, id_)
+            alt_paths = db.content["alternative_paths"]
+            full_path = db.full_path
             session.delete(db)
 
         delete_file = input("Delete the file: [y] or mark?")
-        p = db_.full_path
 
-        if not p.exists():
+        if not full_path.exists():
             print("Database file not exist: '{str(p)}', so there is nothing more todo")
 
         if delete_file == "y":
-            p.unlink()
+            full_path.unlink()
         else:
-            p.rename(p.parent / f"DEL_{db_.db_path.name}")
-        alts = db_.content.alternative_paths
-        if alts:
+            full_path.rename(full_path.parent / f"DEL_{full_path.db_path.name}")
+        if alt_paths:
             print(
-                f"Consider also the alternative database paths:\n{json.dumps({k: str(v) for k, v in alts.items()}, indent=2)}")
+                f"Consider also the alternative database paths:\n{json.dumps({k: str(v) for k, v in alt_paths.items()}, indent=2)}")
 
     def purge(self, simulate: bool = False):
         if simulate:
@@ -256,10 +272,15 @@ class MetaDatabase:
 
     def update_content(self, db_model: PlatformDatabaseModel):
         def _update(session, db):
-            db.content = db_model.content.model_dump()
+            # Validate content dict against MetaDatabaseContentModel before updating
+            content_dict = db_model.content.model_dump()
+            validated_content = MetaDatabaseContentModel.model_validate(content_dict)
+            db.content = validated_content.model_dump()
             flag_modified(db, "content")
 
-        self.edit(db_model, _update)
+        # Use db_model.id or db_model.name as the identifier, not the whole model object
+        identifier = db_model.id if db_model.id is not None else db_model.name
+        self.edit(identifier, _update)
 
     def add_run_state(self, db_name: str, run_state: DatabaseRunState):
         db = self.get(db_name)
@@ -268,6 +289,49 @@ class MetaDatabase:
                 raise ValueError(f"Database: {db_name} does not have the alternative: {run_state.alt_db}")
         db.add_run_state(run_state)
         self.update_content(db)
+
+    def get_client_setup(self, db_name: str) -> "ClientSetup":
+        """
+        Get ClientSetup from database content if stored, otherwise build from database metadata.
+        This enables simplified processor initialization with just a database name.
+        """
+        from .external import ClientSetup, ClientConfig, DBSetupConfig, SQliteConnection
+
+        db = self.get(db_name)
+
+        # Check if client_setup is stored in database content
+        if db.content.client_setup:
+            logger.debug(f"Using stored client_setup for database: {db_name}")
+            return db.content.client_setup
+
+        # Fallback: Build configuration from stored metadata
+        logger.debug(f"Building client_setup from metadata for database: {db_name}")
+
+        # Build database configuration from stored metadata
+        db_setup = DBSetupConfig(
+            name=db.name,
+            db_connection=SQliteConnection(db_path=db.db_path),
+            create=False,  # Database should already exist in MetaDatabase
+            require_existing_parent_dir=True,
+            tables=[]  # Will be set by platform manager
+        )
+
+        # Use stored config if available, otherwise use defaults
+        client_config = db.content.config if db.content.config else ClientConfig(
+            progress=True,  # Active by default
+            request_delay=0,
+            delay_randomize=0,
+            ignore_initial_quota_halt=False
+        )
+
+        # Build complete client setup
+        client_setup = ClientSetup(
+            platform=db.platform,
+            config=client_config,
+            db=db_setup
+        )
+
+        return client_setup
 
 
 def get_db_mgmt(config: Optional[DBConfig], metadatabase_path: Optional[Path],

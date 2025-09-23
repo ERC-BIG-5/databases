@@ -98,12 +98,10 @@ class DBConfig(BaseModel):
                                                         description="SQLITE: When the db is created, it requires an existing parent directory.")
     tables: Optional[list[str]] = Field(default_factory=list)
 
-    @computed_field
     @property
     def connection_str(self) -> str:
         return self.db_connection.connection_str
 
-    @computed_field
     @property
     def db_type(self) -> DatabaseType:
         if isinstance(self.db_connection, SQliteConnection):
@@ -124,7 +122,7 @@ class ClientConfig(BaseModel):
 class ClientSetup(BaseModel):
     model_config = {'extra': "forbid", "from_attributes": True}
     platform: str = Field(description="Platform name (e.g., 'tiktok', 'twitter', 'youtube')")
-    config: ClientConfig
+    config: Optional[ClientConfig] = None
     db: Optional[DBSetupConfig] = Field(None, description="Configuration of the database")
 
 
@@ -147,7 +145,7 @@ class ClientTaskConfig(BaseModel):
     task_name: str = Field(description="unique name of the task")
     platform: str = Field(description="which social media platform")
     database_name: Optional[str] = Field(None, description="required when platform more is registered more than once")
-    database: Optional[str] = Field(None, description="database name", deprecated=True)  # default the same as platform
+    database: Optional[str] = Field(None, description="database name", deprecated=True)  # default the same as the platform
     collection_config: CollectConfig = Field(description="the actual collection configuration")
     platform_collection_config: Optional[dict] = None
     # client_config: Optional[ClientConfig] = Field(default_factory=ClientConfig, deprecated=True)
@@ -383,6 +381,7 @@ class MetaDatabaseContentModel(BaseModel):
     # Config (persistent)
     annotation: Optional[str] = None
     config: Optional[ClientConfig] = None
+    client_setup: Optional["ClientSetup"] = None
     alternative_paths: Optional[dict[str,AbsSerializablePath]] = Field(default_factory=dict)
     run_states: Optional[list["DatabaseRunState"]] = Field(default_factory=list)
 
