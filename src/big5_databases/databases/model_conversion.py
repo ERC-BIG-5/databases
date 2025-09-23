@@ -78,6 +78,18 @@ class PlatformDatabaseModel(BaseDBModel):
                 raise ValueError(f"Runstate is already added to db: {rs}")
         run_states.append(run_state)
 
+    def set_alternative_path(self, alternative_path_name: str, alternative_path: Path):
+        """Set an alternative path for this database"""
+        if not self.content.alternative_paths:
+            self.content.alternative_paths = {}
+        self.content.alternative_paths[alternative_path_name] = alternative_path
+
+    def update_base_stats(self):
+        """Update the base stats for this database"""
+        base_stats = self.get_mgmt().calc_db_content()
+        self.content.add_basestats(base_stats)
+
+
 
 # User Models
 class UserModel(BaseDBModel):

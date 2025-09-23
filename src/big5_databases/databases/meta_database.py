@@ -98,14 +98,16 @@ class MetaDatabase:
             func(session, db_obj)
             return db_obj.model()
 
-    def move_database(self, id_: int | str, new_path: str | Path):
-        def move_db(session, db: DBPlatformDatabase):
-            db.db_path = str(new_path)
+    def set_db_path(self, id_: int | str, new_path: Path):
 
-        db_mgmt = DatabaseManager.sqlite_db_from_path(Path(str(new_path)))
-        if not db_mgmt.db_exists():
-            raise ValueError(f"No database at location: {db_mgmt.config.db_connection.db_path}")
-        self.edit(id_, move_db)
+        if new_path.is_absolute() and not new_path.exists() and not (
+                SETTINGS.default_sqlite_dbs_base_path / new_path).exists():
+            raise ValueError(f"No database at location: {new_path}")
+
+        def _set_db_path(session_: Session, db_obj: DBPlatformDatabase):
+            db_obj.db_path = str(new_path)
+
+        self.edit(id_, _set_db_path)
 
     def add_db(self, db: PlatformDatabaseModel) -> bool:
         try:
@@ -210,48 +212,25 @@ class MetaDatabase:
         return results
 
     def update_db_base_stats(self, id_: int | str | PlatformDatabaseModel) -> PlatformDatabaseModel:
-        if isinstance(id_, PlatformDatabaseModel):
-            model = id_
-        else:
-            model = self[id_]
-
-        def update_stats(session, db: DBPlatformDatabase):
-            base_stats = db.model().get_mgmt().calc_db_content()
-            model.content.add_basestats(base_stats)
-            db.content = model.content.model_dump()
-            flag_modified(db, "content")
-
-        self.edit(id_, update_stats)
-        return model
+        db = self.get(id_) if not isinstance(id_, PlatformDatabaseModel) else id_
+        db.update_base_stats()
+        self.update_content(db)
+        return db
 
     def rename(self, id_: int | str, new_name: str) -> PlatformDatabaseModel:
-        if isinstance(id_, PlatformDatabaseModel):
-            model = id_
-        else:
-            model = self[id_]
 
-        def _rename(session, db: DBPlatformDatabase):
-            db.name = new_name
+        def _rename(session, db_obj: DBPlatformDatabase):
+            db_obj.name = new_name
 
-        self.edit(id_, _rename)
-        return model
+        return self.edit(id_, _rename)
 
     def get_db_names(self) -> list[str]:
         return [db.name for db in self.get_dbs()]
 
     def set_alternative_path(self, db_name: str, alternative_path_name: str, alternative_path: Path):
         db = self.get(db_name)
-
-        def _set_alt_path(session, db: DBPlatformDatabase):
-            current_content = MetaDatabaseContentModel.model_validate(db.content)
-            current_alts = current_content.alternative_paths or {}
-            current_alts[alternative_path_name] = alternative_path.absolute()
-            current_content.alternative_paths = current_alts
-            db.content = current_content.model_dump()
-            flag_modified(db, "content")
-
-        # print(type(db.content))
-        self.edit(db_name, _set_alt_path)
+        db.set_alternative_path(alternative_path_name, alternative_path.absolute())
+        self.update_content(db)
 
     def copy_posts_metadata_content(self, db_name: str,
                                     alternative_name: str,
