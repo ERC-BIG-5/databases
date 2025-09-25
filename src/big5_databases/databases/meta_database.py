@@ -229,8 +229,27 @@ class MetaDatabase:
         else:
             dbs: list[PlatformDatabaseModel] = self.get_dbs()
 
-        for db in dbs:
-            results.append(get_db_status(db))
+        # Parallelize database status processing
+        from concurrent.futures import ThreadPoolExecutor, as_completed
+
+        with ThreadPoolExecutor(max_workers=min(len(dbs), 4)) as executor:
+            # Submit all database status tasks
+            future_to_db = {executor.submit(get_db_status, db): db for db in dbs}
+
+            # Collect results as they complete
+            for future in as_completed(future_to_db):
+                db = future_to_db[future]
+                try:
+                    result = future.result()
+                    results.append(result)
+                except Exception as e:
+                    # Handle individual database failures gracefully
+                    error_result = {
+                        "name": f"[red]{db.name}[/red]",
+                        "platform": db.platform,
+                        "path": f"[red]ERROR: {str(e)}[/red]"
+                    }
+                    results.append(error_result)
 
         results = sorted(results, key=lambda x: (x["platform"], x.get("last mod")))
         return results

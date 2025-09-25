@@ -45,21 +45,6 @@ def reset_task_states(db: "DatabaseManager", tasks_ids: list[int]) -> None:
         )
 
 
-def check_platforms(db: "DatabaseManager", from_tasks: bool = True) -> set[str]:
-    """
-    Return the set of platforms in a database.
-    
-    :param db: database-manager
-    :param from_tasks: use task table (otherwise post table)
-    :return: set of platforms (string)
-    """
-    with db.get_session() as session:
-        if from_tasks:
-            model = DBCollectionTask
-        else:
-            model = DBPost
-        return set(p[0] for p in session.query(model.platform))
-
 
 def get_tasks_with_posts(db: "DatabaseManager") -> Generator[
     tuple[CollectionTaskModel, list[PostModel]], None, None]:
