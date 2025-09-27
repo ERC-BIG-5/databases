@@ -88,7 +88,7 @@ class PostgresConnection(BaseModel):
 
 
 class DBConfig(BaseModel):
-    model_config = {'extra': "forbid", "from_attributes": True}
+    model_config = {'extra': "allow", "from_attributes": True}
     name: Optional[str] = None
     db_connection: DatabaseConnectionType
     create: bool = False
@@ -113,14 +113,14 @@ class DBSetupConfig(DBConfig):
     name: str
 
 class ClientConfig(BaseModel):
-    model_config = {'extra': "forbid", "from_attributes": True}
+    model_config = {'extra': "ignore", "from_attributes": True}
     ignore_initial_quota_halt: Optional[bool] = Field(False, description="Ignore initial quota halt")
     request_delay: Optional[float] = Field(0, description="Wait-time after each task")
     delay_randomize: Optional[int] = Field(0, description="Additional random delay (0-`value`")
     progress: bool = Field(True, description="If platform should process tasks or not")
 
 class ClientSetup(BaseModel):
-    model_config = {'extra': "forbid", "from_attributes": True}
+    model_config = {'extra': "allow", "from_attributes": True}
     platform: str = Field(description="Platform name (e.g., 'tiktok', 'twitter', 'youtube')")
     config: Optional[ClientConfig] = None
     db: Optional[DBSetupConfig] = Field(None, description="Configuration of the database")
@@ -369,7 +369,7 @@ class MetaDatabaseConfigModel(BaseModel):
 
 class MetaDatabaseContentModel(BaseModel):
     """Combined model for backward compatibility"""
-    model_config = {'extra': "forbid"}
+    model_config = {'extra': "allow"}
 
     # Stats (auto-calculated)
     tasks_states: dict[str, int] = Field(default_factory=dict)
