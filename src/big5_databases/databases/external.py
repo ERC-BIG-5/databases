@@ -120,7 +120,11 @@ class ClientConfig(BaseModel):
     progress: bool = Field(True, description="If platform should process tasks or not")
 
 class ClientSetup(BaseModel):
-    model_config = {'extra': "allow", "from_attributes": True}
+
+    class Config:
+        extra= "allow"
+        from_attributes = True
+
     platform: str = Field(description="Platform name (e.g., 'tiktok', 'twitter', 'youtube')")
     config: Optional[ClientConfig] = None
     db: Optional[DBSetupConfig] = Field(None, description="Configuration of the database")
