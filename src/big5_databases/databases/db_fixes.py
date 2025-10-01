@@ -44,8 +44,8 @@ def check_media_files(db: DatabaseManager, media_folders: list[Path]) -> tuple[l
         complete_orphan_files.extend(list(base_p.glob(f"{pid}*.*")))
 
     complete_missing_files : list[str] = []
-    for folder, files in remaining_file_pids:
-        complete_missing_files.extend(files)
+    for folder_files in remaining_file_pids:
+        complete_missing_files.extend(folder_files)
 
     return complete_orphan_files, complete_missing_files
 
