@@ -176,7 +176,7 @@ class PostMetadataModel(BaseModel):
         media_ps = self.media_paths or []
         if not media_ps:
             return []
-        if self.media_paths:
+        if self.media_base_path:
             base = Path(self.media_base_path)
             return [base / p for p in media_ps]
         else:
