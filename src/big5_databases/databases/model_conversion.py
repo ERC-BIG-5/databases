@@ -88,7 +88,6 @@ class PlatformDatabaseModel(BaseDBModel):
         self.content.add_basestats(base_stats)
 
 
-
 # User Models
 class UserModel(BaseDBModel):
     """Model for user data"""
