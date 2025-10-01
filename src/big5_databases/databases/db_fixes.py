@@ -6,7 +6,7 @@ from big5_databases.databases.db_mgmt import DatabaseManager
 from big5_databases.databases.db_models import DBPost
 
 
-def check_media_files(db: DatabaseManager, media_folders: list[Path]) -> tuple[list[str], list[list[str]]]:
+def check_media_files(db: DatabaseManager, media_folders: list[Path]) -> tuple[list[Path], list[str]]:
     """
 
     todo, this does not check multiple files, also does not check the right path
@@ -16,8 +16,8 @@ def check_media_files(db: DatabaseManager, media_folders: list[Path]) -> tuple[l
         [file.name.split("_")[0] for file in media_folder.iterdir()] for media_folder in media_folders
     ]
 
-    # files but not marked in the db
-    not_in_db: list[str] = []
+    # files but not marked in the db, base_path and pid
+    orphan_files: list[tuple[Path, str]] = []
 
     with db.get_session() as session:
         pbar = tqdm()
@@ -28,9 +28,9 @@ def check_media_files(db: DatabaseManager, media_folders: list[Path]) -> tuple[l
                                         for k in ["media_paths", "media_base_path", "media_dl_failed"])
             # check if we actually have it
             if failed or not paths:
-                for mf in remaining_file_pids:
+                for f_idx, mf in enumerate(remaining_file_pids):
                     if pid in mf:
-                        not_in_db.append(pid)
+                        orphan_files.append((media_folders[f_idx], pid))
             else:
                 mf_found = False
                 for mf in remaining_file_pids:
@@ -39,5 +39,15 @@ def check_media_files(db: DatabaseManager, media_folders: list[Path]) -> tuple[l
                         mf.remove(pid)
                         break
 
+    complete_orphan_files: list[Path] = []
+    for base_p, pid in orphan_files:
+        complete_orphan_files.extend(list(base_p.glob(f"{pid}*.*")))
 
-    return not_in_db, remaining_file_pids
+    complete_missing_files : list[str] = []
+    for folder, files in remaining_file_pids:
+        complete_missing_files.extend(files)
+
+    return complete_orphan_files, complete_missing_files
+
+    def fix_media_files(orphan_files: list[Path], missing_files):
+        pass
