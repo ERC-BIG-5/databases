@@ -1,5 +1,7 @@
 from pathlib import Path
 
+from tqdm import tqdm
+
 from big5_databases.databases.db_mgmt import DatabaseManager
 from big5_databases.databases.db_models import DBPost
 
@@ -18,8 +20,10 @@ def check_media_files(db: DatabaseManager, media_folders: list[Path]) -> tuple[l
     not_in_db: list[str] = []
 
     with db.get_session() as session:
+        pbar = tqdm()
         query = session.query(DBPost.id, DBPost.platform_id, DBPost.metadata_content).yield_per(200)
         for (id, pid, metadata) in query:
+            pbar.update(1)
             paths, base, failed = tuple(metadata.get(k)
                                         for k in ["media_paths", "media_base_path", "media_dl_failed"])
             # check if we actually have it
@@ -34,5 +38,6 @@ def check_media_files(db: DatabaseManager, media_folders: list[Path]) -> tuple[l
                         mf_found = True
                         mf.remove(pid)
                         break
+
 
     return not_in_db, remaining_file_pids
