@@ -4,7 +4,7 @@ from big5_databases.databases.db_mgmt import DatabaseManager
 from big5_databases.databases.db_models import DBPost
 
 
-def check_media_files(db: DatabaseManager, media_folders: list[Path]) -> None:
+def check_media_files(db: DatabaseManager, media_folders: list[Path]) -> tuple[list[str], list[list[str]]]:
     """
 
     todo, this does not check multiple files, also does not check the right path
@@ -15,7 +15,7 @@ def check_media_files(db: DatabaseManager, media_folders: list[Path]) -> None:
     ]
 
     # files but not marked in the db
-    not_in_db = []
+    not_in_db: list[str] = []
 
     with db.get_session() as session:
         query = session.query(DBPost.id, DBPost.platform_id, DBPost.metadata_content).yield_per(200)
@@ -35,3 +35,4 @@ def check_media_files(db: DatabaseManager, media_folders: list[Path]) -> None:
                         mf.remove(pid)
                         break
 
+    return not_in_db, remaining_file_pids
