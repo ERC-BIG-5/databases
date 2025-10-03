@@ -51,6 +51,23 @@ def post_text(platform: str, content: dict, metadata_content: dict = None) -> di
             raise ValueError(f"unknown platform: {platform}")
 
 
+def media_files(platform: str, content: dict, metadata_content: dict = None) -> dict[str, str | list[str]]:
+    match platform:
+        case "youtube":
+            tn = content.get("snippet", {}).get("thumbnails", {}).get("high")
+            if not tn:
+                return {}
+            return {"thumbnail": tn}
+        case "twitter":
+            return {"photos": [p["url"] for p in content["media"].get("photos")]}
+        case "tiktok":
+            return {"video": "https://www.tiktok.com/@{content['username']}/video/{content['id']}"}
+        case "instagram":
+            return {}
+        case _:
+            raise ValueError(f"unknown platform: {platform}")
+
+
 def merge_back_analysis_results(
         analysis_folder: Path,
         analysis_key: str,
@@ -165,11 +182,11 @@ def _create_from_db(db: PlatformDatabaseModel, target_db: Path,
                     input_data_method: Callable[[str, dict, dict], dict | list]):
     mgmt = db.get_mgmt()
 
-    target_db = DatabaseManager(DBConfig(name=db.name,
-                                         create=True,
-                                         require_existing_parent_dir=False,
-                                         tables=["ppitem"],
-                                         db_connection=SQliteConnection(db_path=target_db)))
+    target_db_mgmt = DatabaseManager(DBConfig(name=db.name,
+                                              create=True,
+                                              require_existing_parent_dir=False,
+                                              tables=["ppitem"],
+                                              db_connection=SQliteConnection(db_path=target_db)))
 
     post_count = db.content.post_count
     expected_iter_count = math.ceil(post_count / BATCH_SIZE)
@@ -183,7 +200,7 @@ def _create_from_db(db: PlatformDatabaseModel, target_db: Path,
             # Extract platform_ids from the batch
             batch_platform_ids = [row.platform_id for row in batch]
 
-            with target_db.get_session() as t_session:
+            with target_db_mgmt.get_session() as t_session:
                 # Filter out existing platform_ids to avoid processing duplicates
                 existing_ids = t_session.execute(
                     select(DBPostProcessItem.platform_id).filter(
