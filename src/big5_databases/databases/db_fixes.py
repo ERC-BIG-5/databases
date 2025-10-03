@@ -7,7 +7,7 @@ from big5_databases.databases.db_models import DBPost
 from big5_databases.databases.model_conversion import PostMetadataModel
 
 
-def check_media_files(db: DatabaseManager, media_folders: list[Path]) -> tuple[list[Path], list[Path]]:
+def check_media_files(db: DatabaseManager, media_folders: list[Path]) -> tuple[list[Path], list[str]]:
     """
 
     todo, this does not check multiple files, also does not check the right path
@@ -16,7 +16,7 @@ def check_media_files(db: DatabaseManager, media_folders: list[Path]) -> tuple[l
     remaining_file_pids = [
         [file.name.split("_")[0] for file in media_folder.iterdir()] for media_folder in media_folders
     ]
-    missing2 = []
+    missing2: list[str] = []
 
     # # todo, out,  TEST
     assert "7237785209738005762" in remaining_file_pids[0]
@@ -45,7 +45,7 @@ def check_media_files(db: DatabaseManager, media_folders: list[Path]) -> tuple[l
                 full_paths = m.mediafile_paths
                 for fp in full_paths:
                     if not fp.exists():
-                        missing2.append(fp)
+                        missing2.append(pid)
 
                 # mf_found = False
                 # for mf in remaining_file_pids:
@@ -58,11 +58,13 @@ def check_media_files(db: DatabaseManager, media_folders: list[Path]) -> tuple[l
     for base_p, pid in orphan_files:
         complete_orphan_files.extend(list(base_p.glob(f"{pid}*.*")))
 
+    """
     complete_missing_files : list[str] = []
     for folder_files in remaining_file_pids:
         complete_missing_files.extend(folder_files)
+    """
 
-    return complete_orphan_files, missing2 #complete_missing_files
+    return complete_orphan_files, missing2  # complete_missing_files
 
-    def fix_media_files(orphan_files: list[Path], missing_files):
+    def fix_media_files(orphan_files: list[Path], missing_files: list[str]):
         pass

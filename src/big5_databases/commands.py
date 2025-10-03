@@ -12,6 +12,7 @@ from big5_databases.databases.db_settings import SqliteSettings, DatabaseSetting
 from big5_databases.databases.external import TimeWindow, DatabaseRunState
 from big5_databases.databases.meta_database import MetaDatabase
 from big5_databases.databases.model_conversion import PlatformDatabaseModel
+from big5_databases.databases.post_analysis_db import create_packaged_databases, proc_pacakge_method
 
 try:
     import typer
@@ -47,8 +48,8 @@ def collected_per_day(db_name: Annotated[str, typer.Argument(autocompletion=get_
     db = MetaDatabase().get_db_mgmt(db_name)
     col_per_day = get_collected_posts_by_period(db, TimeWindow(period))
     header = ["date", "# tasks", "found", "added"]
-    header = [Column(h, justify="right") for h in header]
-    table = Table(*header, title=db.metadata.name)
+    theader = [Column(h, justify="right") for h in header]
+    table = Table(*theader, title=db.metadata.name)
 
     for date, posts in col_per_day.items():
         table.add_row(str(date), *[str(_) for _ in posts.values()])
@@ -110,8 +111,8 @@ def compare_dbs(db_path1: Annotated[str, typer.Argument()],
 def recent_collection(days: Annotated[int, typer.Argument()] = 3):
     t = datetime.today() - timedelta(days=days)
     header = ["platform", "date", "# tasks", "found", "added"]
-    header = [Column(h, justify="right") for h in header]
-    table = Table(*header, title="recent downloads")
+    theader = [Column(h, justify="right") for h in header]
+    table = Table(*theader, title="recent downloads")
     for db in MetaDatabase().get_dbs():
         col_per_day = get_collected_posts_by_period(db.get_mgmt(), TimeWindow.DAY, t)
         for idx, (date, posts) in enumerate(col_per_day.items()):
@@ -180,6 +181,14 @@ def copy_posts_metadata_content(db_name: Annotated[str, typer.Argument(autocompl
                                 overwrite: Annotated[bool, typer.Argument()] = False):
     assert direction in ["to_alternative", "to_main"]
     MetaDatabase().copy_posts_metadata_content(db_name, alternative_name, field, direction, overwrite)
+
+
+@app.command()
+def create_proc_db(db_name: Annotated[str, typer.Argument(autocompletion=get_db_names)],
+                   data_type: Annotated[str, typer.Argument(autocompletion=lambda: ["text", "media"])],
+                   proc_db_path: Annotated[Optional[Path], typer.Argument()] = None):
+    create_packaged_databases([db_name], proc_db_path,
+                              proc_pacakge_method(data_type), delete_destination=False, exists_ok=True)
 
 
 @app.command(short_help="Manually add a running state")

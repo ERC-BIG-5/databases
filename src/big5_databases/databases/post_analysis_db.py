@@ -6,7 +6,7 @@ import shutil
 
 from itertools import batched
 from pathlib import Path
-from typing import Callable, Optional, Type
+from typing import Callable, Optional, Type, Literal
 
 from pydantic import BaseModel, ValidationError
 
@@ -254,6 +254,15 @@ def create_packaged_databases(source_db_names: list[str],
         _create_from_db(db, destination_folder / dest_file, input_data_method)
 
 
+def proc_pacakge_method(method: Literal["text", "media"]) -> Callable[[str, dict, dict], dict | list]:
+    if method == "text":
+        return post_text
+    elif method == "media":
+        return media_files
+    else:
+        raise ValueError(f"Unknown method: {method}")
+
+
 def add_db_to_package(db_name: str,
                       destination_folder: Path,
                       input_data_method: Callable[[str, dict, dict], dict | list],
@@ -312,24 +321,22 @@ dataloader = torch.utils.data.DataLoader(dataset, batch_size=32, shuffle=True)
 """
 
 if __name__ == "__main__":
-    # Example usage for creating analysis databases
-    # shutil.rmtree(Path(f"ana/a_test1"), ignore_errors=True)
-    create_packaged_databases(["phase-2_youtube_es"],
-                              Path(f"ana/a_test1"),
-                              post_text,
-                              Path(TEMP_MAIN_DB), delete_destination=False, exists_ok=True)
+    pass
+# Example usage for creating analysis databases
+# shutil.rmtree(Path(f"ana/a_test1"), ignore_errors=True)
 
-    # Example usage for merging back results
-    # class SentimentResult(BaseModel):
-    #     score: float
-    #     label: str
-    #     confidence: float
-    #
-    # stats = merge_back_analysis_results(
-    #     analysis_folder=Path("ana/sentiment_analysis"),
-    #     analysis_key="sentiment",
-    #     output_model=SentimentResult,
-    #     overwrite=False,
-    #     source_meta_db=Path(TEMP_MAIN_DB)
-    # )
-    # print(stats)
+
+# Example usage for merging back results
+# class SentimentResult(BaseModel):
+#     score: float
+#     label: str
+#     confidence: float
+#
+# stats = merge_back_analysis_results(
+#     analysis_folder=Path("ana/sentiment_analysis"),
+#     analysis_key="sentiment",
+#     output_model=SentimentResult,
+#     overwrite=False,
+#     source_meta_db=Path(TEMP_MAIN_DB)
+# )
+# print(stats)
