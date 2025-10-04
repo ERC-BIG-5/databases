@@ -205,8 +205,3 @@ class CollectionResult:
     collected_items: int
     execution_ts: SerializableDatetimeAlways
 
-
-def get_orm_classes() -> dict[str, Base]:
-    return {
-        c.__tablename__: c for c in [DBCollectionTask, DBPost, DBComment]
-    }

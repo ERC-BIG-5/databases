@@ -35,6 +35,8 @@ class DatabaseManager:
 
         if self.config.db_type == "sqlite":
             event.listen(self.engine, 'connect', self._sqlite_on_connect)
+        # todo, store here if its a regular: task, post; post-process-item, or meta-db
+        #self.db_type = self.config.type
 
     def __repr__(self) -> str:
         return f"DBManager: {self.engine.url}"

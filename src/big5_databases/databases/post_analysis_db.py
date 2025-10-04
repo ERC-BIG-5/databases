@@ -223,7 +223,7 @@ def _create_from_db(db: PlatformDatabaseModel, target_db: Path,
         logger.info(f"Added {sum_inserted} posts")
 
 
-def create_packaged_databases(source_db_names: list[str],
+def create_packaged_databases(source_db_names: str | list[str],
                               destination_folder: Path,
                               input_data_method: Callable[[str, dict, dict], dict | list],
                               source_meta_db: Optional[Path] = None,
@@ -248,6 +248,8 @@ def create_packaged_databases(source_db_names: list[str],
         raise ValueError(f"Some databases are missing: {required_missing}")
 
     destination_folder.mkdir(parents=True, exist_ok=True)
+    if isinstance(source_db_names, str):
+        source_db_names = [source_db_names]
     for db_name in tqdm(source_db_names):
         db = meta_db.get(db_name)
         dest_file = db.db_path.name
@@ -306,9 +308,10 @@ if has_datasets:
 
             return row
 else:
-    class SQLiteDataset():
-        def __init__(self, db_path, query, transform=None):
-            raise ValueError("Cannot use SQLiteDataset without datasets package")
+    pass
+    # class SQLiteDataset():
+    #     def __init__(self, db_path, query, transform=None):
+    #         raise ValueError("Cannot use SQLiteDataset without datasets package")
 
 """
 

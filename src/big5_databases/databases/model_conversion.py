@@ -264,3 +264,11 @@ class PostProcessModel(BaseDBModel):
     platform_id: str
     input: dict
     output: dict = Field(None)
+    platform: Optional[str] = Field(None, description="Platform extracted from input data")
+
+    @property
+    def get_media_urls(self):
+        # todo. later, this is just passed by the manager...
+        """Compatibility method for media downloader"""
+        # Extract media URLs from input data if available
+        return self.input.get('content', {}).get('media', {})

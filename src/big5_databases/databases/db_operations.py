@@ -1,5 +1,6 @@
 import re
 from collections import defaultdict
+from pathlib import Path
 from typing import TYPE_CHECKING, Generator, Optional
 
 from sqlalchemy import func
@@ -108,3 +109,10 @@ def find_tasks_groups(db: "DatabaseManager") -> dict[str, list[tuple[int, Collec
         groups[prefix].sort()
 
     return dict(groups)
+
+def get_sample(db: "DatabaseManager", dest: Path, size: int= 1000):
+    """
+    todo
+    with db.get_session() as session:
+        session.query(DBPost).order_by(func.random()).limit(size)
+    """
