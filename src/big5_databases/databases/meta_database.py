@@ -1,7 +1,7 @@
 import json
 from datetime import datetime
 from pathlib import Path
-from typing import Optional, Callable, Literal
+from typing import Optional, Callable, Literal, TYPE_CHECKING
 
 from sqlalchemy.exc import IntegrityError, NoResultFound
 from sqlalchemy.orm.attributes import flag_modified
@@ -22,6 +22,9 @@ from .external import MetaDatabaseStatsModel, MetaDatabaseConfigModel
 from .external import DBConfig, SQliteConnection, MetaDatabaseContentModel
 from tools.env_root import root
 from tools.project_logging import get_logger
+
+if TYPE_CHECKING:
+    from .platform_db_mgmt import PlatformDB
 
 logger = get_logger(__file__)
 
@@ -66,9 +69,15 @@ class MetaDatabase:
         return self[id_] is not None
 
     def get_db_mgmt(self, id_: int | str | PlatformDatabaseModel) -> Optional[DatabaseManager]:
+        """Get DatabaseManager for generic database operations (deprecated)"""
         db = self.get(id_)
         dbm = db.get_mgmt(db)
         return dbm
+
+    def get_platform_db(self, id_: int | str | PlatformDatabaseModel, table_type: Literal["posts", "process"] = "posts") -> "PlatformDB":
+        """Get proper PlatformDB instance with platform context"""
+        db = self.get(id_)
+        return db.get_platform_db(table_type=table_type)
 
     def __getitem__(self, id_: int | str | PlatformDatabaseModel) -> Optional[PlatformDatabaseModel]:
         return self.edit(id_)
@@ -356,8 +365,9 @@ class MetaDatabase:
 def get_db_mgmt(config: Optional[DBConfig], metadatabase_path: Optional[Path],
                 database_name: Optional[str]) -> DatabaseManager:
     """
-    takes either a config or a meta-db-path and db-name
+    Get DatabaseManager - deprecated, use get_platform_db for platform-specific operations
     """
+    logger.warning("get_db_mgmt() is deprecated. Use get_platform_db() for platform-specific operations.")
     assert config or metadatabase_path and database_name, "Either database-config or metadatabase and database-name must be passed"
     if config:
         return DatabaseManager(DBConfig(
@@ -366,3 +376,19 @@ def get_db_mgmt(config: Optional[DBConfig], metadatabase_path: Optional[Path],
         ))
     else:
         return MetaDatabase(metadatabase_path).get(database_name).get_mgmt()
+
+
+def get_platform_db(metadatabase_path: Path, database_name: str, table_type: Literal["posts", "process"] = "posts") -> "PlatformDB":
+    """
+    Get proper PlatformDB instance with platform context from meta database
+
+    Args:
+        metadatabase_path: Path to the meta database
+        database_name: Name of the platform database
+        table_type: Type of tables ("posts" or "process")
+
+    Returns:
+        PlatformDB instance with proper platform context
+    """
+    meta_db = MetaDatabase(metadatabase_path)
+    return meta_db.get_platform_db(database_name, table_type=table_type)

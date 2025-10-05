@@ -1,20 +1,22 @@
 import logging
 from collections import defaultdict
 from pathlib import Path
-from typing import Optional
+from typing import Optional, Sequence, Union, Literal
 
 from deprecated.classic import deprecated
 from sqlalchemy import exists
 from sqlalchemy import select
 from sqlalchemy.sql.expression import delete, update
+from sqlalchemy.exc import IntegrityError
 from tools.project_logging import get_logger
 
 from .db_mgmt import DatabaseManager
 from .db_models import DBCollectionTask, DBPost, CollectionResult
 from .db_settings import SqliteSettings
-from .external import CollectionStatus
+from .external import CollectionStatus, DatabaseBasestats
 from .external import DBConfig, PlatformDBConfig, SQliteConnection, ClientTaskConfig
 from .model_conversion import PostModel
+from . import db_analytics, db_operations
 
 
 class PlatformDB(DatabaseManager):
@@ -23,7 +25,7 @@ class PlatformDB(DatabaseManager):
     """
 
     @classmethod
-    def create_default_config(cls, platform: str, table_type: str = "posts") -> PlatformDBConfig:
+    def create_default_config(cls, platform: str, table_type: Literal["posts", "process"] = "posts") -> PlatformDBConfig:
         """Create a default configuration for a platform"""
         return PlatformDBConfig(
             platform=platform,
@@ -37,7 +39,7 @@ class PlatformDB(DatabaseManager):
     def sqlite_db_from_path(platform: str,
                             path: str | Path,
                             create: bool = False,
-                            table_type: str = "posts") -> "PlatformDB":
+                            table_type: Literal["posts", "process"] = "posts") -> "PlatformDB":
         config = PlatformDBConfig(
             platform=platform,
             db_connection=SQliteConnection(db_path=path),
@@ -127,7 +129,8 @@ class PlatformDB(DatabaseManager):
                                 self.logger.debug(f"task will get new task_name {t.task_name} -> {new_t_name}")
                                 t.task_name = new_t_name
                                 existing_indices.add(next_idx)
-                        pass
+                                new_tasks_names.append(t.task_name)
+                                break
                     else:
                         self.logger.debug(f"task '{t.task_name}' exists, will be skipped")
                         remove_tasks.append(t)
@@ -141,7 +144,9 @@ class PlatformDB(DatabaseManager):
             # specific function. refactor out
             for task in collection_tasks:
                 if task.platform_collection_config:
-                    serialized_config = task.platform_collection_config.model_dump()
+                    serialized_config = (task.platform_collection_config.model_dump()
+                                        if hasattr(task.platform_collection_config, 'model_dump')
+                                        else task.platform_collection_config)
                 else:
                     serialized_config = None
                 task = DBCollectionTask(
@@ -211,11 +216,13 @@ class PlatformDB(DatabaseManager):
             task_record = session.query(DBCollectionTask).get(col_result.task.id)
             if col_result.task.transient:
                 session.delete(task_record)
-            task_record.status = CollectionStatus.DONE
-            task_record.found_items = col_result.collected_items
-            task_record.added_items = len(col_result.added_posts)
-            task_record.collection_duration = col_result.duration
-            task_record.execution_ts = col_result.execution_ts
+            else:
+                task_record.status = CollectionStatus.DONE
+                task_record.found_items = col_result.collected_items
+                task_record.added_items = len(col_result.added_posts)
+                task_record.collection_duration = col_result.duration
+                task_record.execution_ts = col_result.execution_ts
+            session.commit()
 
     def update_task_status(self, task_id: int, status: CollectionStatus):
         """Update task status in database"""
@@ -224,9 +231,118 @@ class PlatformDB(DatabaseManager):
             task.status = status
             session.commit()
 
-    def reset_running_tasks(self):
-        c = self.reset_collection_task_states()
+    def reset_running_tasks(self,
+                            states: Sequence[CollectionStatus] = (CollectionStatus.RUNNING,
+                                                               CollectionStatus.ABORTED)) -> int:
+
+        with self.get_session() as session:
+            tasks = session.query(DBCollectionTask).filter(
+                DBCollectionTask.status.in_(list(states))
+            ).all()
+
+            c = 0
+            for t in tasks:
+                t.status = CollectionStatus.INIT
+                c += 1
+            session.commit()
         self.logger.debug(f"{self.platform}: Set tasks to pause: {c} tasks")
+        return c
+
+    def safe_submit_posts(self, posts: list[Union[DBPost, PostModel]]) -> list[PostModel]:
+        """
+        Safely submit posts, handling both DBPost and PostModel objects.
+        Returns PostModel objects for the successfully submitted posts.
+        """
+        # Convert PostModel objects to DBPost if needed
+        db_posts = []
+        for post in posts:
+            if isinstance(post, PostModel):
+                # Convert PostModel to DBPost
+                db_post = DBPost(
+                    platform_id=post.platform_id,
+                    platform=post.platform,
+                    content=post.content,
+                    post_url=post.post_url,
+                    date_created=post.date_created,
+                    post_type=post.post_type,
+                    metadata_content=post.metadata_content.model_dump() if hasattr(post.metadata_content, 'model_dump') else post.metadata_content or {},
+                    collection_task_id=post.collection_task_id,
+                )
+                db_posts.append(db_post)
+            else:
+                db_posts.append(post)
+
+        submit_posts = db_posts
+        while True:
+            try:
+                submitted_posts = self._submit_posts(submit_posts)
+                return [p.model() for p in submitted_posts]
+            except IntegrityError:
+                with self.get_session() as session:
+                    filtered_posts = db_operations.filter_posts_with_existing_post_ids(submit_posts, session)
+                    return [p.model() for p in filtered_posts]
+            except Exception as e:
+                self.logger.error(f"Error submitting posts: {str(e)}")
+                return []
+
+    def _submit_posts(self, posts: list[DBPost]) -> list[DBPost]:
+        """Internal method to submit posts to database"""
+        with self.get_session() as session:
+            session.add_all(posts)
+            session.commit()
+            return posts
+
+    def insert_posts_with_deduplication(self, posts: list[DBPost]) -> list[PostModel]:
+        """
+        Insert posts while guaranteeing no duplicates exist.
+        """
+        with self.get_session() as session:
+            # Remove duplicates within the provided posts
+            unique_posts = []
+            posts_ids = set()
+            for post in posts:
+                if post.platform_id not in posts_ids:
+                    unique_posts.append(post)
+                    posts_ids.add(post.platform_id)
+
+            # Filter out posts that already exist in database
+            existing_ids = session.execute(
+                select(DBPost.platform_id).filter(DBPost.platform_id.in_(list(posts_ids)))).scalars().all()
+            filtered_posts = [post for post in unique_posts if post.platform_id not in existing_ids]
+
+            session.add_all(filtered_posts)
+            session.commit()
+            return [p.model() for p in filtered_posts]
+
+    def update_task(self, task_id: int, status: str, found_items: int, added_items: int, duration: int):
+        """Update task with execution results"""
+        with self.get_session() as session:
+            task = session.query(DBCollectionTask).get(task_id)
+            task.status = status
+            task.found_items = found_items
+            task.added_items = added_items
+            task.collection_duration = int(duration * 1000)
+            session.commit()
+
+    def calc_db_content(self) -> DatabaseBasestats:
+        """Calculate basic database statistics"""
+        return DatabaseBasestats(
+            tasks_states=db_operations.count_states(self),
+            post_count=db_analytics.count_posts(db=self),
+            file_size=self._file_size(),
+            last_modified=self._file_modified())
+
+    def calc_db_stats(self) -> "MetaDatabaseStatsModel":
+        """Calculate comprehensive database statistics"""
+        from .external import MetaDatabaseStatsModel
+        from .db_stats import generate_db_stats
+
+        return MetaDatabaseStatsModel(
+            tasks_states=db_operations.count_states(self),
+            post_count=db_analytics.count_posts(db=self),
+            file_size=self._file_size(),
+            last_modified=self._file_modified(),
+            stats=generate_db_stats(self))
 
     @deprecated(reason="PlatformDB now inherits from DatabaseManager. Use methods directly on PlatformDB instance.")
     def get_db_manager(self) -> DatabaseManager:

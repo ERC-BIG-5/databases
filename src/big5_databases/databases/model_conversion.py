@@ -1,6 +1,6 @@
 from datetime import datetime
 from pathlib import Path
-from typing import Optional, Annotated, Any, TYPE_CHECKING
+from typing import Optional, Annotated, Any, TYPE_CHECKING, Literal
 
 from deprecated.classic import deprecated
 from pydantic import BaseModel, Field, field_validator, ConfigDict, PlainSerializer
@@ -13,6 +13,7 @@ from .external import CollectionStatus, PostType, CollectConfig, MetaDatabaseCon
 
 if TYPE_CHECKING:
     from .db_mgmt import DatabaseManager
+    from .platform_db_mgmt import PlatformDB
 
 logger = get_logger(__file__)
 
@@ -56,14 +57,34 @@ class PlatformDatabaseModel(BaseDBModel):
     def exists(self):
         return self.full_path.exists()
 
-    # todo allow passing in the config
     def get_mgmt(self, meta_db: Optional["PlatformDatabaseModel"] = None) -> "DatabaseManager":
+        """Get DatabaseManager for generic database operations (deprecated)"""
+        logger.warning("get_mgmt() is deprecated. Use get_platform_db() for platform-specific operations.")
         if not self.exists():
             raise ValueError(f"Could not load database {self.db_path} from meta-database. Database does not exist")
         from .db_mgmt import DatabaseManager
         mgmt = DatabaseManager.sqlite_db_from_path(self.db_path)
         mgmt.metadata = meta_db
         return mgmt
+
+    def get_platform_db(self, table_type: Literal["posts", "process"] = "posts") -> "PlatformDB":
+        """Get proper PlatformDB instance with platform context"""
+        if not self.exists():
+            raise ValueError(f"Could not load database {self.db_path} from meta-database. Database does not exist")
+
+        from .platform_db_mgmt import PlatformDB
+        from .external import PlatformDBConfig, SQliteConnection
+
+        config = PlatformDBConfig(
+            platform=self.platform,
+            db_connection=SQliteConnection(db_path=self.db_path),
+            table_type=table_type,
+            create=False,
+            require_existing_parent_dir=True
+        )
+        platform_db = PlatformDB(config)
+        platform_db.metadata = self  # Set metadata reference
+        return platform_db
 
     def add_run_state(self, run_state: DatabaseRunState) -> MetaDatabaseContentModel:
         """
