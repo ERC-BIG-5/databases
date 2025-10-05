@@ -112,6 +112,21 @@ class DBConfig(BaseModel):
 class DBSetupConfig(DBConfig):
     name: str
 
+
+class PlatformDBConfig(DBConfig):
+    """Configuration for platform-specific databases with table type specification"""
+    platform: str = Field(description="Platform name (e.g., 'tiktok', 'twitter', 'youtube')")
+    table_type: Literal["posts", "process"] = Field(default="posts", description="Type of database: posts (content storage) or process (task processing)")
+
+    @property
+    def platform_tables(self) -> list[str]:
+        """Get constant tables based on table_type"""
+        if self.table_type == "posts":
+            return ["posts", "users", "collection_tasks"]
+        else:  # process
+            return ["collection_tasks", "process_status"]
+
+
 class ClientConfig(BaseModel):
     model_config = {'extra': "ignore", "from_attributes": True}
     ignore_initial_quota_halt: Optional[bool] = Field(False, description="Ignore initial quota halt")
