@@ -276,7 +276,7 @@ class PlatformDB(DatabaseManager):
         while True:
             try:
                 submitted_posts = self._submit_posts(submit_posts)
-                return [p.model() for p in submitted_posts]
+                return submitted_posts
             except IntegrityError:
                 with self.get_session() as session:
                     filtered_posts = db_operations.filter_posts_with_existing_post_ids(submit_posts, session)
@@ -285,12 +285,12 @@ class PlatformDB(DatabaseManager):
                 self.logger.error(f"Error submitting posts: {str(e)}")
                 return []
 
-    def _submit_posts(self, posts: list[DBPost]) -> list[DBPost]:
+    def _submit_posts(self, posts: list[DBPost]) -> list[PostModel]:
         """Internal method to submit posts to database"""
         with self.get_session() as session:
             session.add_all(posts)
             session.commit()
-            return posts
+            return [p.model() for p in posts]
 
     def insert_posts_with_deduplication(self, posts: list[DBPost]) -> list[PostModel]:
         """
