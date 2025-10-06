@@ -53,7 +53,7 @@ class PlatformDB(DatabaseManager):
         self.platform = config.platform
 
         # Set platform-specific tables based on table_type
-        config.tables = config.platform_tables
+        config.tables = config.tables
 
         super().__init__(config)
         self.logger = get_logger(__file__)
