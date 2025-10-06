@@ -88,7 +88,20 @@ class MetaDatabase:
             raise ValueError(f"Database : {id_} does not exist")
         return db
 
-    def get_obj(self, session, id_: int | str) -> Optional[DBPlatformDatabase]:
+    def has(self, id_: int | str | PlatformDatabaseModel) -> bool:
+        with self.db.get_session() as session:
+            return self._get_obj(session, id_) is not None
+
+    def _get_obj(self, session, id_: int | str) -> Optional[DBPlatformDatabase]:
+        if isinstance(id_, PlatformDatabaseModel):
+            id_ = id_.id
+        if isinstance(id_, int):
+            db_obj = session.query(DBPlatformDatabase).where(DBPlatformDatabase.id == id_).one_or_none()
+        else:
+            db_obj = session.query(DBPlatformDatabase).where(DBPlatformDatabase.name == id_).one_or_none()
+        return None
+
+    def get_obj(self, session, id_: int | str) -> DBPlatformDatabase:
         try:
             if isinstance(id_, PlatformDatabaseModel):
                 id_ = id_.id
@@ -115,7 +128,6 @@ class MetaDatabase:
             if func is None:
                 def func_(session_, obj_):
                     return None
-
                 func = func_
             func(session, db_obj)
             return db_obj.model()
@@ -151,7 +163,8 @@ class MetaDatabase:
                     is_default=db.is_default,
                     content=validated_content.model_dump()
                 ))
-            self.update_db_base_stats(db.name)
+            # todo, eventually bring this back...
+            #self.update_db_base_stats(db.name)
         except IntegrityError as e:
             logger.error(f"Could not add database {db.name} to meta-database: {e.orig}")
             session.rollback()
