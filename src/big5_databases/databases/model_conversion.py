@@ -105,7 +105,7 @@ class PlatformDatabaseModel(BaseDBModel):
 
     def update_base_stats(self):
         """Update the base stats for this database"""
-        base_stats = self.get_mgmt().calc_db_content()
+        base_stats = self.get_platform_db().calc_db_content()
         self.content.add_basestats(base_stats)
 
 
