@@ -1,7 +1,7 @@
 import calendar
 from datetime import date, datetime, timedelta
 from pathlib import Path
-from typing import Annotated, Optional, Any
+from typing import Annotated, Optional, Any, Literal
 
 from rich.console import Console
 from rich.table import Table, Column
@@ -185,10 +185,17 @@ def copy_posts_metadata_content(db_name: Annotated[str, typer.Argument(autocompl
 
 @app.command()
 def create_proc_db(db_name: Annotated[str, typer.Argument(autocompletion=get_db_names)],
-                   data_type: Annotated[str, typer.Argument(autocompletion=lambda: ["text", "media"])],
+                   data_type: Annotated[
+                       Literal["text", "media"], typer.Argument(autocompletion=lambda: ["text", "media"])],
+                   filter_finished: Annotated[
+                       bool, typer.Argument(help="For media: filter out when we have the media or it failed")] = True,
                    proc_db_path: Annotated[Optional[Path], typer.Argument()] = None):
-    create_packaged_databases([db_name], proc_db_path,
-                              proc_pacakge_method(data_type), delete_destination=False, exists_ok=True)
+    create_packaged_databases([db_name],
+                              proc_db_path,
+                              proc_pacakge_method(data_type),
+                              filter_method(data_type) if filter_finished else None,
+                              delete_destination=False,
+                              exists_ok=True)
 
 
 @app.command(short_help="Manually add a running state")

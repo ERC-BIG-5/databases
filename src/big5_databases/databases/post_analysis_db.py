@@ -51,7 +51,7 @@ def post_text(platform: str, content: dict, metadata_content: dict = None) -> di
             raise ValueError(f"unknown platform: {platform}")
 
 
-def media_files(platform: str, content: dict, metadata_content: dict = None) -> dict[str, str | list[str]]:
+def media_files(platform: str, content: dict, metadata_content: Optional[dict] = None) -> dict[str, str | list[str]]:
     match platform:
         case "youtube":
             tn = content.get("snippet", {}).get("thumbnails", {}).get("high")
@@ -66,6 +66,12 @@ def media_files(platform: str, content: dict, metadata_content: dict = None) -> 
             return {}
         case _:
             raise ValueError(f"unknown platform: {platform}")
+
+
+def filter_media_files(platform: str, content: dict, metadata_content: Optional[dict] = None) -> bool:
+    if metadata_content["media_paths"] or metadata_content["media_dl_failed"]:
+        return False
+    return True
 
 
 def merge_back_analysis_results(
@@ -179,7 +185,8 @@ def merge_back_analysis_results(
 
 
 def _create_from_db(db: PlatformDatabaseModel, target_db: Path,
-                    input_data_method: Callable[[str, dict, dict], dict | list]):
+                    input_data_method: Callable[[str, dict, dict], dict | list],
+                    filter_method: Optional[Callable[[str, dict, dict], bool]]):
     mgmt = db.get_mgmt()
 
     target_db_mgmt = DatabaseManager(DBConfig(name=db.name,
@@ -210,6 +217,11 @@ def _create_from_db(db: PlatformDatabaseModel, target_db: Path,
 
                 # Only process posts that don't already exist
                 filtered_posts = [row for row in batch if row.platform_id not in existing_ids]
+                # Do additional filtering (media already downloaded)
+                if filter_method:
+                    filtered_posts = [
+                        row for row in batch if filter_method(row.platform, row.content, row.metadata_content)
+                    ]
 
                 # Now run the expensive input_data_method only on new posts
                 batch_data = [(row.platform_id, input_data_method(row.platform, row.content, row.metadata_content)) for
@@ -226,6 +238,7 @@ def _create_from_db(db: PlatformDatabaseModel, target_db: Path,
 def create_packaged_databases(source_db_names: str | list[str],
                               destination_folder: Path,
                               input_data_method: Callable[[str, dict, dict], dict | list],
+                              filter_finished: Optional[bool] = True,
                               source_meta_db: Optional[Path] = None,
                               delete_destination: bool = False,
                               exists_ok: bool = False
@@ -239,7 +252,7 @@ def create_packaged_databases(source_db_names: str | list[str],
             shutil.rmtree(destination_folder)
         elif not exists_ok:
             raise ValueError(f"Destination exists already: {destination_folder}")
-        # If exists_ok=True, continue without removing existing folder
+        # If exists_ok=True, continue without removing the existing folder
 
     meta_db = MetaDatabase(source_meta_db)
     missing_dbs = meta_db.check_all_databases()
@@ -261,6 +274,13 @@ def proc_pacakge_method(method: Literal["text", "media"]) -> Callable[[str, dict
         return post_text
     elif method == "media":
         return media_files
+    else:
+        raise ValueError(f"Unknown method: {method}")
+
+
+def filter_method(method: Literal["text", "media"]) -> Callable[[str, dict, dict], bool]:
+    if method == "media":
+        return filter_media_files
     else:
         raise ValueError(f"Unknown method: {method}")
 
