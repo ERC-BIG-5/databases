@@ -63,7 +63,8 @@ def collected_per_day(db_name: Annotated[str, typer.Argument(autocompletion=get_
 @app.command(short_help="posts by period")
 def posts_per_period(db_name: Annotated[str, typer.Argument(autocompletion=get_db_names)],
                      period: Annotated[str, typer.Argument(help="day,month,year")] = "day",
-                     print_: Annotated[bool, typer.Argument()] = True):
+                     print_: Annotated[bool, typer.Argument()] = True,
+                     dump_to_file: Annotated[Optional[Path], typer.Argument(help="dump to file")] = None):
     db = MetaDatabase().get_db_mgmt(db_name)
     assert period in ["day", "month", "year"]
     ppd = get_posts_by_period(db, TimeWindow(period))
@@ -79,7 +80,8 @@ def posts_per_period(db_name: Annotated[str, typer.Argument(autocompletion=get_d
         table.add_row(*row)
     if print_:
         Console().print(table)
-    return ppd
+    if dump_to_file:
+        json.dump(ppd, dump_to_file.open("w"))
 
 
 @app.command(short_help="add a db-path to some metadatabase")
