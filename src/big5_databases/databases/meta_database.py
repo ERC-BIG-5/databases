@@ -74,7 +74,8 @@ class MetaDatabase:
         dbm = db.get_mgmt(db)
         return dbm
 
-    def get_platform_db(self, id_: int | str | PlatformDatabaseModel, table_type: Literal["posts", "process"] = "posts") -> "PlatformDB":
+    def get_platform_db(self, id_: int | str | PlatformDatabaseModel,
+                        table_type: Literal["posts", "process"] = "posts") -> "PlatformDB":
         """Get proper PlatformDB instance with platform context"""
         db = self.get(id_)
         return db.get_platform_db(table_type=table_type)
@@ -128,6 +129,7 @@ class MetaDatabase:
             if func is None:
                 def func_(session_, obj_):
                     return None
+
                 func = func_
             func(session, db_obj)
             return db_obj.model()
@@ -164,7 +166,7 @@ class MetaDatabase:
                     content=validated_content.model_dump()
                 ))
             # todo, eventually bring this back...
-            #self.update_db_base_stats(db.name)
+            # self.update_db_base_stats(db.name)
         except IntegrityError as e:
             logger.error(f"Could not add database {db.name} to meta-database: {e.orig}")
             session.rollback()
@@ -391,7 +393,8 @@ def get_db_mgmt(config: Optional[DBConfig], metadatabase_path: Optional[Path],
         return MetaDatabase(metadatabase_path).get(database_name).get_mgmt()
 
 
-def get_platform_db(metadatabase_path: Path, database_name: str, table_type: Literal["posts", "process"] = "posts") -> "PlatformDB":
+def get_platform_db(metadatabase_path: Path, database_name: str,
+                    table_type: Literal["posts", "process"] = "posts") -> "PlatformDB":
     """
     Get proper PlatformDB instance with platform context from meta database
 
@@ -405,3 +408,12 @@ def get_platform_db(metadatabase_path: Path, database_name: str, table_type: Lit
     """
     meta_db = MetaDatabase(metadatabase_path)
     return meta_db.get_platform_db(database_name, table_type=table_type)
+
+
+def get_post_process_db(database_path: Path):
+    """
+    todo temporary, just accessible by a path
+    """
+    return DatabaseManager(DBConfig(create=False,
+                                    tables=["ppitem"],
+                                    db_connection=SQliteConnection(db_path=database_path)))

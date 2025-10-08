@@ -176,7 +176,7 @@ class DBPostProcessItem(DBModelBase[PostProcessModel]):
     input: Mapped[dict] = Column(JSON, nullable=False)
     output: Mapped[dict] = Column(JSON)
 
-    _pydantic_model = PlatformDatabaseModel
+    _pydantic_model = PostProcessModel
 
 
 M_DBPlatformDatabase = TypedDict("M_DBPlatformDatabase",
