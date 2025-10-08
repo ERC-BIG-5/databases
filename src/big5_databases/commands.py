@@ -1,4 +1,5 @@
 import calendar
+import json
 from datetime import date, datetime, timedelta
 from pathlib import Path
 from typing import Annotated, Optional, Any
@@ -43,7 +44,8 @@ def status(task_status: bool = True,
 
 @app.command(short_help="collected_posts_per_day")
 def collected_per_day(db_name: Annotated[str, typer.Argument(autocompletion=get_db_names)],
-                      period: Annotated[str, typer.Argument(help="day,month,year")] = "day"):
+                      period: Annotated[str, typer.Argument(help="day,month,year")] = "day",
+                      dump_to_file: Annotated[Optional[Path], typer.Argument(help="dump to file")] = None):
     assert period in ["day", "month", "year"]
     db = MetaDatabase().get_db_mgmt(db_name)
     col_per_day = get_collected_posts_by_period(db, TimeWindow(period))
@@ -54,6 +56,8 @@ def collected_per_day(db_name: Annotated[str, typer.Argument(autocompletion=get_
     for date, posts in col_per_day.items():
         table.add_row(str(date), *[str(_) for _ in posts.values()])
     Console().print(table)
+    if dump_to_file:
+        json.dump(col_per_day, dump_to_file.open("w"))
 
 
 @app.command(short_help="posts by period")
