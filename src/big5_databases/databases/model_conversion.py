@@ -284,7 +284,7 @@ class CollectionTaskModel(BaseDBModel):
 class PostProcessModel(BaseDBModel):
     platform_id: str
     input: dict
-    output: Optional[dict] = Field(None)
+    output: Optional[dict | PostMetadataModel] = Field(None)
     platform: Optional[str] = Field(None, description="Platform extracted from input data")
 
     @property
