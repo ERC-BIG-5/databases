@@ -163,10 +163,10 @@ class DBPlatformDatabase(DBModelBase[PlatformDatabaseModel]):
         return MetaDatabaseContentModel.model_validate(self.content)
 
     @property
-    def full_path(self):
+    def full_path(self) -> Path:
         if not Path(self.db_path).is_absolute():
             return SqliteSettings().default_sqlite_dbs_base_path / self.db_path
-        return self.db_path
+        return Path(self.db_path)
 
 
 class DBPostProcessItem(DBModelBase[PostProcessModel]):

@@ -153,16 +153,18 @@ class MetaDatabase:
         """
         delete a database
         """
-        print("dell")
         # this is more robust cuz it also removes broken dbs that dont validate to the model
         full_path = None
         with self.db.get_session() as session:
             db = self.get_obj(session, id_)
+            if not db:
+                print(f"database not found: {id_}")
+                return
             alt_paths = db.content["alternative_paths"]
             full_path = db.full_path
             session.delete(db)
 
-        delete_file = input("Delete the file: [y] or mark?")
+        delete_file = input("Delete the file {full_path}: [y] or mark?")
 
         if not full_path.exists():
             print("Database file not exist: '{str(p)}', so there is nothing more todo")
