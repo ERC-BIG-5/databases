@@ -170,7 +170,6 @@ class ClientTaskConfig(BaseModel):
     platform_collection_config: Optional[dict] = None
     # client_config: Optional[ClientConfig] = Field(default_factory=ClientConfig, deprecated=True)
     transient: bool = Field(False, description="if the task should be deleted afterwards")
-    source_file: Optional[Path] = None
 
     #
     test: bool = False

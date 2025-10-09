@@ -44,6 +44,11 @@ class PlatformDB:
         self.logger = get_logger(__file__)
         self.initialized = True
 
+    @property
+    @deprecated(reason="was added in the platform_manager constructor. but not needed I suppose")
+    def manager(self):
+        return None
+
     def check_task_name_exists(self, task_name: str) -> bool:
         with self.db_mgmt.get_session() as session:
             return session.query(exists().where(DBCollectionTask.task_name == task_name)).scalar()
