@@ -133,6 +133,7 @@ class ClientConfig(BaseModel):
     request_delay: Optional[float] = Field(0, description="Wait-time after each task")
     delay_randomize: Optional[int] = Field(0, description="Additional random delay (0-`value`")
     progress: bool = Field(True, description="If platform should process tasks or not")
+    max_tasks: Optional[int] = None
 
 class ClientSetup(BaseModel):
 
