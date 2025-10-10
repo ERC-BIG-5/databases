@@ -1,27 +1,19 @@
 import logging
-from collections import defaultdict
 from contextlib import contextmanager
 from pathlib import Path
 from typing import Optional
 
-from sqlalchemy import create_engine, Engine, event, exists, select
-from sqlalchemy.dialects.sqlite.dml import insert
-from sqlalchemy.exc import IntegrityError
+from sqlalchemy import create_engine, Engine, event
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sessionmaker
 from sqlalchemy.orm import sessionmaker
-from sqlalchemy.sql.expression import delete, update
 from sqlalchemy.sql.schema import Table
 from sqlalchemy_utils import database_exists, create_database, drop_database
 from tools.project_logging import get_logger
 
-from big5_databases.databases import db_operations, db_analytics
-from .db_models import Base, DBPost, DBCollectionTask, CollectionResult
-from .db_settings import SqliteSettings
-from .db_stats import generate_db_stats
-from .external import DBConfig, SQliteConnection, CollectionStatus, MetaDatabaseContentModel, ClientTaskConfig, \
-    DatabaseBasestats
+from .db_models import Base, DBPost
+from .external import DBConfig, SQliteConnection
 from .external import PostgresConnection
-from .model_conversion import PlatformDatabaseModel, PostModel
+from .model_conversion import PlatformDatabaseModel
 
 
 class DatabaseManager:

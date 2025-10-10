@@ -9,20 +9,14 @@ from sqlalchemy.orm.session import Session
 from tools.env_root import root
 from tools.project_logging import get_logger
 
-from big5_databases.databases import db_utils
 from big5_databases.databases.model_conversion import PlatformDatabaseModel
 from .db_mgmt import DatabaseManager
 from .db_models import DBPlatformDatabase
 from .db_settings import SETTINGS
-from .external import DBConfig, SQliteConnection, MetaDatabaseContentModel, DatabaseRunState
-from .db_settings import SETTINGS, SqliteSettings
-from .db_stats import generate_db_stats
-from .db_mgmt import DatabaseManager
-from .external import MetaDatabaseStatsModel, MetaDatabaseConfigModel
-from .external import DBConfig, SQliteConnection, MetaDatabaseContentModel
-from tools.env_root import root
-from tools.project_logging import get_logger
+from .external import DBConfig, SQliteConnection, MetaDatabaseContentModel, PlatformDBConfig
+from .external import DatabaseRunState
 
+from .platform_db_mgmt import PlatformDB
 if TYPE_CHECKING:
     from .platform_db_mgmt import PlatformDB
 
@@ -147,7 +141,7 @@ class MetaDatabase:
         This method is deprecated. Use get_platform_db() for platform-specific operations.
         """
         db = self.get(id_)
-        dbm = db.get_mgmt(db)
+        dbm = db.get_mgmt(self)
         return dbm
 
     def get_platform_db(self, id_: int | str | PlatformDatabaseModel,
@@ -168,7 +162,22 @@ class MetaDatabase:
             Platform-specific database manager instance.
         """
         db = self.get(id_)
-        return db.get_platform_db(table_type=table_type)
+
+        # todo: bring back
+        # if not self.exists():
+        #     raise ValueError(f"Could not load database {self.db_path} from meta-database. Database does not exist")
+
+        config = PlatformDBConfig(
+            platform=db.platform,
+            db_connection=SQliteConnection(db_path=db.db_path),
+            table_type=table_type,
+            create=False,
+            require_existing_parent_dir=True
+        )
+
+        platform_db = PlatformDB(config)
+        platform_db.metadata = db  # Set metadata reference
+        return platform_db
 
     def __getitem__(self, id_: int | str | PlatformDatabaseModel) -> Optional[PlatformDatabaseModel]:
         """
@@ -205,6 +214,8 @@ class MetaDatabase:
         ValueError
             If the database does not exist.
         """
+        if isinstance(id_, PlatformDatabaseModel):
+            return id_
         db = self[id_]
         if not db:
             raise ValueError(f"Database : {id_} does not exist")
@@ -483,12 +494,18 @@ class MetaDatabase:
                    "platform": db.platform,
                    "path": str(db.db_path)}
             if db.exists():
-                # print(db.name, db.content.file_size, int(db_utils.file_size(db)))
-                running = db_utils.currently_open(db)
-                size_changed = db.content.file_size != int(db_utils.file_size(db))
+                # Use PlatformDB directly (inherits from DatabaseManager)
+                platform_db = self.get_platform_db(db)
+                #running = platform_db._currently_open()
+                running = False
+
+                size_changed = db.content.file_size != int(platform_db._file_size())
                 if size_changed or running or force_refresh or not db.content.last_modified:
                     print(f"updating db stats for {db.name}")
-                    self.update_db_base_stats(db)
+                    # FIX: Use existing platform_db to avoid recursive call cycle
+                    base_stats = platform_db.calc_db_content()
+                    db.content.add_basestats(base_stats)
+                    self.update_content(db)
                     if running:
                         row["name"] = f"[yellow]{row["name"]}[/yellow]"
                     else:  # updated
@@ -532,6 +549,8 @@ class MetaDatabase:
                         "platform": db.platform,
                         "path": f"[red]ERROR: {str(e)}[/red]"
                     }
+                    import traceback
+                    print(traceback.format_exc())
                     results.append(error_result)
 
         results = sorted(results, key=lambda x: (x["platform"], x.get("last mod")))

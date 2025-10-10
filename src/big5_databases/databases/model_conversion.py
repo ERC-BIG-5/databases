@@ -11,9 +11,11 @@ from .db_settings import SqliteSettings
 from .external import CollectionStatus, PostType, CollectConfig, MetaDatabaseContentModel, AbsSerializablePath, \
     DatabaseRunState
 
+
 if TYPE_CHECKING:
     from .db_mgmt import DatabaseManager
     from .platform_db_mgmt import PlatformDB
+    from .meta_database import get_platform_db, MetaDatabase
 
 logger = get_logger(__file__)
 
@@ -57,13 +59,14 @@ class PlatformDatabaseModel(BaseDBModel):
     def exists(self):
         return self.full_path.exists()
 
-    def get_mgmt(self, meta_db: Optional["PlatformDatabaseModel"] = None) -> "DatabaseManager":
+    def get_mgmt(self, meta_db: "MetaDatabase") -> "DatabaseManager":
         """Get DatabaseManager for generic database operations (deprecated)"""
         logger.warning("get_mgmt() is deprecated. Use get_platform_db() for platform-specific operations.")
         if not self.exists():
             raise ValueError(f"Could not load database {self.db_path} from meta-database. Database does not exist")
         from .db_mgmt import DatabaseManager
-        mgmt = DatabaseManager.sqlite_db_from_path(self.db_path)
+        mgmt = get_platform_db(meta_db.db_path, self.name)
+        # mgmt = DatabaseManager.sqlite_db_from_path(self.db_path)
         mgmt.metadata = meta_db
         return mgmt
 

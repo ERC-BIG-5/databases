@@ -1,68 +1,13 @@
-import json
+from collections import Counter
 from collections import Counter
 from typing import TYPE_CHECKING
 
-from deprecated.classic import deprecated
-
-from big5_databases.databases import db_utils
-
-from big5_databases.databases.external import SQliteConnection, DBStats, TimeWindow, TimeColumn
-from tools.env_root import root
-
-from .db_analytics import get_posts_by_period
+from big5_databases.databases.external import DBStats
 
 RAISE_DB_ERROR = True
 
 if TYPE_CHECKING:
-    from .db_mgmt import DatabaseManager
-
-@deprecated(reason="reuse some parts")
-def generate_db_stats(
-        db: "DatabaseManager",
-        time_column=TimeColumn.CREATED
-) -> DBStats:
-    """
-    Generate statistics for a database using the specified period.
-
-    Args:
-        db: Database manager instance
-        time_column: created or collected
-    Returns:
-        DBStats object containing the statistics
-    """
-    try:
-        # Ensure we're working with a SQLite database
-        assert isinstance(db.config.db_connection, SQliteConnection)
-
-        # Create the stats object
-        stats = DBStats(
-            db_path=db.config.db_connection.db_path,
-            period=TimeWindow.DAY,
-            file_size=db_utils.file_size(db)
-        )
-
-        # Populate with data from the database
-        created = get_posts_by_period(db, TimeWindow.DAY)
-        for period_str, count in created:
-            stats.created_counts.set(period_str, count)
-        # todo, integrate again, a bit broken. these are not base stats
-        # collected = get_collected_posts_by_period(db, TimeWindow.DAY)
-        # for period_str, count in collected.items():
-        #     stats.collected_counts.set(period_str, count)
-        return stats
-
-    except Exception as e:
-        # Create an error stats object
-        if RAISE_DB_ERROR:
-            raise e
-        error_stats = DBStats(
-            db_path=db.config.db_connection.db_path,
-            period=TimeWindow.DAY,
-            error=str(e),
-            file_size=db_utils.file_size(db) if hasattr(db, 'config') else 0,
-            time_column=time_column
-        )
-        return error_stats
+    pass
 
 
 def validate_period_stats(day_stats: DBStats, month_stats: DBStats, year_stats: DBStats) -> None:
@@ -105,5 +50,3 @@ def validate_period_stats(day_stats: DBStats, month_stats: DBStats, year_stats: 
             print(f"  {month}: {days_count} (from days) vs {month_count} (from month query)")
     else:
         print("All month totals match between aggregated days and direct month query.")
-
-

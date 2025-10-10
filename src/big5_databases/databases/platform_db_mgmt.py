@@ -1,22 +1,23 @@
 import logging
 from collections import defaultdict
 from pathlib import Path
-from typing import Optional, Sequence, Union, Literal
+from typing import Sequence, Union, Literal
 
 from deprecated.classic import deprecated
 from sqlalchemy import exists
 from sqlalchemy import select
-from sqlalchemy.sql.expression import delete, update
 from sqlalchemy.exc import IntegrityError
+from sqlalchemy.sql.expression import delete, update
 from tools.project_logging import get_logger
 
+from . import db_analytics, db_operations
+from .db_analytics import get_posts_by_period
 from .db_mgmt import DatabaseManager
 from .db_models import DBCollectionTask, DBPost, CollectionResult
 from .db_settings import SqliteSettings
-from .external import CollectionStatus, DatabaseBasestats
-from .external import DBConfig, PlatformDBConfig, SQliteConnection, ClientTaskConfig
+from .external import CollectionStatus, DatabaseBasestats, TimeWindow, TimeColumn, DBStats
+from .external import PlatformDBConfig, SQliteConnection, ClientTaskConfig
 from .model_conversion import PostModel
-from . import db_analytics, db_operations
 
 
 class PlatformDB(DatabaseManager):
@@ -42,7 +43,8 @@ class PlatformDB(DatabaseManager):
     """
 
     @classmethod
-    def create_default_config(cls, platform: str, table_type: Literal["posts", "process"] = "posts") -> PlatformDBConfig:
+    def create_default_config(cls, platform: str,
+                              table_type: Literal["posts", "process"] = "posts") -> PlatformDBConfig:
         """
         Create a default configuration for a platform.
 
@@ -273,8 +275,8 @@ class PlatformDB(DatabaseManager):
             for task in collection_tasks:
                 if task.platform_collection_config:
                     serialized_config = (task.platform_collection_config.model_dump()
-                                        if hasattr(task.platform_collection_config, 'model_dump')
-                                        else task.platform_collection_config)
+                                         if hasattr(task.platform_collection_config, 'model_dump')
+                                         else task.platform_collection_config)
                 else:
                     serialized_config = None
                 task = DBCollectionTask(
@@ -424,7 +426,7 @@ class PlatformDB(DatabaseManager):
 
     def reset_running_tasks(self,
                             states: Sequence[CollectionStatus] = (CollectionStatus.RUNNING,
-                                                               CollectionStatus.ABORTED)) -> int:
+                                                                  CollectionStatus.ABORTED)) -> int:
         """
         Reset tasks in specified states back to INIT status.
 
@@ -484,7 +486,8 @@ class PlatformDB(DatabaseManager):
                     post_url=post.post_url,
                     date_created=post.date_created,
                     post_type=post.post_type,
-                    metadata_content=post.metadata_content.model_dump() if hasattr(post.metadata_content, 'model_dump') else post.metadata_content or {},
+                    metadata_content=post.metadata_content.model_dump() if hasattr(post.metadata_content,
+                                                                                   'model_dump') else post.metadata_content or {},
                     collection_task_id=post.collection_task_id,
                 )
                 db_posts.append(db_post)
@@ -601,6 +604,50 @@ class PlatformDB(DatabaseManager):
             file_size=self._file_size(),
             last_modified=self._file_modified())
 
+    def _generate_db_stats(self,
+                           time_column=TimeColumn.CREATED
+                           ) -> DBStats:
+        """
+        Generate statistics for a database using the specified period.
+
+        Args:
+            db: Database manager instance
+            time_column: created or collected
+        Returns:
+            DBStats object containing the statistics
+        """
+        try:
+            # Ensure we're working with a SQLite database
+            assert isinstance(self.config.db_connection, SQliteConnection)
+
+            # Create the stats object
+            stats = DBStats(
+                db_path=self.config.db_connection.db_path,
+                period=TimeWindow.DAY,
+                file_size=self._file_size()
+            )
+
+            # Populate with data from the database
+            created = get_posts_by_period(self, TimeWindow.DAY)
+            for period_str, count in created:
+                stats.created_counts.set(period_str, count)
+            # todo, integrate again, a bit broken. these are not base stats
+            # collected = get_collected_posts_by_period(db, TimeWindow.DAY)
+            # for period_str, count in collected.items():
+            #     stats.collected_counts.set(period_str, count)
+            return stats
+
+        except Exception as e:
+            # Create an error stats object
+            error_stats = DBStats(
+                db_path=self.config.db_connection.db_path,
+                period=TimeWindow.DAY,
+                error=str(e),
+                file_size=self._file_size() if hasattr(self, 'config') else 0,
+                time_column=time_column
+            )
+            return error_stats
+
     def calc_db_stats(self) -> "MetaDatabaseStatsModel":
         """
         Calculate comprehensive database statistics.
@@ -613,14 +660,13 @@ class PlatformDB(DatabaseManager):
             and detailed statistical analysis.
         """
         from .external import MetaDatabaseStatsModel
-        from .db_stats import generate_db_stats
 
         return MetaDatabaseStatsModel(
             tasks_states=db_operations.count_states(self),
             post_count=db_analytics.count_posts(db=self),
             file_size=self._file_size(),
             last_modified=self._file_modified(),
-            stats=generate_db_stats(self))
+            stats=self._generate_db_stats())
 
     @deprecated(reason="PlatformDB now inherits from DatabaseManager. Use methods directly on PlatformDB instance.")
     def get_db_manager(self) -> DatabaseManager:
