@@ -86,7 +86,6 @@ class PostgresConnection(BaseModel):
                 f"{self.host}:{self.port}/{self.name}")
 
 
-
 class DBConfig(BaseModel):
     model_config = {'extra': "allow", "from_attributes": True}
     name: Optional[str] = None
@@ -109,6 +108,7 @@ class DBConfig(BaseModel):
         else:
             return "postgres"
 
+
 class DBSetupConfig(DBConfig):
     name: str
 
@@ -116,7 +116,8 @@ class DBSetupConfig(DBConfig):
 class PlatformDBConfig(DBConfig):
     """Configuration for platform-specific databases with table type specification"""
     platform: str = Field(description="Platform name (e.g., 'tiktok', 'twitter', 'youtube')")
-    table_type: Literal["posts", "process"] = Field(default="posts", description="Type of database: posts (content storage) or process (task processing)")
+    table_type: Literal["posts", "process"] = Field(default="posts",
+                                                    description="Type of database: posts (content storage) or process (task processing)")
 
     @property
     def platform_tables(self) -> list[str]:
@@ -132,13 +133,14 @@ class ClientConfig(BaseModel):
     ignore_initial_quota_halt: Optional[bool] = Field(False, description="Ignore initial quota halt")
     request_delay: Optional[float] = Field(0, description="Wait-time after each task")
     delay_randomize: Optional[int] = Field(0, description="Additional random delay (0-`value`")
+    max_tasks: Optional[int] = Field(None, description="Maximum number of tasks to run")
     progress: bool = Field(True, description="If platform should process tasks or not")
     max_tasks: Optional[int] = None
 
-class ClientSetup(BaseModel):
 
+class ClientSetup(BaseModel):
     class Config:
-        extra= "allow"
+        extra = "allow"
         from_attributes = True
 
     platform: str = Field(description="Platform name (e.g., 'tiktok', 'twitter', 'youtube')")
@@ -165,7 +167,8 @@ class ClientTaskConfig(BaseModel):
     task_name: str = Field(description="unique name of the task")
     platform: str = Field(description="which social media platform")
     database_name: Optional[str] = Field(None, description="required when platform more is registered more than once")
-    database: Optional[str] = Field(None, description="database name", deprecated=True)  # default the same as the platform
+    database: Optional[str] = Field(None, description="database name",
+                                    deprecated=True)  # default the same as the platform
     collection_config: CollectConfig = Field(description="the actual collection configuration")
     platform_collection_config: Optional[dict] = None
     # client_config: Optional[ClientConfig] = Field(default_factory=ClientConfig, deprecated=True)
@@ -179,11 +182,11 @@ class ClientTaskConfig(BaseModel):
     timestamp_submitted: Optional[
         SerializableDatetime] = None  # used already? when the config was commited/added to the db.
     #
-    group_prefix: Optional[str] = None # keep the group_prefix, in case we have 'force_new_index'  in the group
+    group_prefix: Optional[str] = None  # keep the group_prefix, in case we have 'force_new_index'  in the group
     force_new_index: Optional[bool] = False
     #
     status: CollectionStatus = Field(CollectionStatus.INIT)  # status of the task
-    time_added: Optional[datetime] = Field(None) # same as timestamp_submitted?
+    time_added: Optional[datetime] = Field(None)  # same as timestamp_submitted?
 
     @field_serializer("status")
     def serialize_status(self, status: CollectionStatus) -> int:
@@ -383,7 +386,7 @@ class MetaDatabaseConfigModel(BaseModel):
 
     annotation: Optional[str] = None
     config: Optional[ClientConfig] = None
-    alternative_paths: Optional[dict[str,AbsSerializablePath]] = Field(default_factory=dict)
+    alternative_paths: Optional[dict[str, AbsSerializablePath]] = Field(default_factory=dict)
 
 
 class MetaDatabaseContentModel(BaseModel):
@@ -401,13 +404,14 @@ class MetaDatabaseContentModel(BaseModel):
     annotation: Optional[str] = None
     config: Optional[ClientConfig] = None
     client_setup: Optional["ClientSetup"] = None
-    alternative_paths: Optional[dict[str,AbsSerializablePath]] = Field(default_factory=dict)
+    alternative_paths: Optional[dict[str, AbsSerializablePath]] = Field(default_factory=dict)
     run_states: Optional[list["DatabaseRunState"]] = Field(default_factory=list)
 
     def add_basestats(self, stats: "DatabaseBasestats") -> "MetaDatabaseContentModel":
-        for k,v in stats.model_dump().items():
-            setattr(self,k,v)
+        for k, v in stats.model_dump().items():
+            setattr(self, k, v)
         return self
+
 
 class DatabaseBasestats(BaseModel):
     model_config = {'extra': "forbid"}
@@ -424,7 +428,8 @@ class DatabaseRunState(BaseModel):
     alt_db: Optional[str] = Field(None, description="Alternative database name. None, if its on the main db")
 
     @classmethod
-    def from_stats_and_config(cls, stats: MetaDatabaseStatsModel, config: MetaDatabaseConfigModel) -> "MetaDatabaseContentModel":
+    def from_stats_and_config(cls, stats: MetaDatabaseStatsModel,
+                              config: MetaDatabaseConfigModel) -> "MetaDatabaseContentModel":
         """Create combined model from separate stats and config"""
         return cls(
             **stats.model_dump(),

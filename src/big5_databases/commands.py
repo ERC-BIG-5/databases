@@ -13,7 +13,7 @@ from big5_databases.databases.db_settings import SqliteSettings, DatabaseSetting
 from big5_databases.databases.external import TimeWindow, DatabaseRunState
 from big5_databases.databases.meta_database import MetaDatabase
 from big5_databases.databases.model_conversion import PlatformDatabaseModel
-from big5_databases.databases.post_analysis_db import create_packaged_databases, proc_pacakge_method
+from big5_databases.databases.post_analysis_db import create_packaged_databases, proc_package_method
 
 try:
     import typer
@@ -194,7 +194,7 @@ def create_proc_db(db_name: Annotated[str, typer.Argument(autocompletion=get_db_
                    data_type: Annotated[str, typer.Argument(autocompletion=lambda: ["text", "media"])],
                    proc_db_path: Annotated[Optional[Path], typer.Argument()] = None):
     create_packaged_databases([db_name], proc_db_path,
-                              proc_pacakge_method(data_type), delete_destination=False, exists_ok=True)
+                              proc_package_method(data_type), delete_destination=False, exists_ok=True)
 
 
 @app.command(short_help="Manually add a running state")

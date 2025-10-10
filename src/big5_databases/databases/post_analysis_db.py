@@ -31,7 +31,6 @@ try:
 except ImportError:
     has_datasets = False
 
-TEMP_MAIN_DB = "/home/rsoleyma/projects/big5/platform_clients/data/dbs/main.sqlite"
 BATCH_SIZE = 200
 
 logger = get_logger(__file__)
@@ -256,7 +255,7 @@ def create_packaged_databases(source_db_names: str | list[str],
         _create_from_db(db, destination_folder / dest_file, input_data_method)
 
 
-def proc_pacakge_method(method: Literal["text", "media"]) -> Callable[[str, dict, dict], dict | list]:
+def proc_package_method(method: Literal["text", "media"]) -> Callable[[str, dict, dict], dict | list]:
     if method == "text":
         return post_text
     elif method == "media":
