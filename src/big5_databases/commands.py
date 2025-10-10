@@ -1,7 +1,8 @@
 import calendar
+import json
 from datetime import date, datetime, timedelta
 from pathlib import Path
-from typing import Annotated, Optional, Any, Literal
+from typing import Annotated, Optional, Any
 
 from rich.console import Console
 from rich.table import Table, Column
@@ -12,7 +13,7 @@ from big5_databases.databases.db_settings import SqliteSettings, DatabaseSetting
 from big5_databases.databases.external import TimeWindow, DatabaseRunState
 from big5_databases.databases.meta_database import MetaDatabase
 from big5_databases.databases.model_conversion import PlatformDatabaseModel
-from big5_databases.databases.post_analysis_db import create_packaged_databases, proc_pacakge_method
+from big5_databases.databases.post_analysis_db import create_packaged_databases, proc_package_method
 
 try:
     import typer
@@ -43,7 +44,8 @@ def status(task_status: bool = True,
 
 @app.command(short_help="collected_posts_per_day")
 def collected_per_day(db_name: Annotated[str, typer.Argument(autocompletion=get_db_names)],
-                      period: Annotated[str, typer.Argument(help="day,month,year")] = "day"):
+                      period: Annotated[str, typer.Argument(help="day,month,year")] = "day",
+                      dump_to_file: Annotated[Optional[Path], typer.Argument(help="dump to file")] = None):
     assert period in ["day", "month", "year"]
     db = MetaDatabase().get_db_mgmt(db_name)
     col_per_day = get_collected_posts_by_period(db, TimeWindow(period))
@@ -54,12 +56,15 @@ def collected_per_day(db_name: Annotated[str, typer.Argument(autocompletion=get_
     for date, posts in col_per_day.items():
         table.add_row(str(date), *[str(_) for _ in posts.values()])
     Console().print(table)
+    if dump_to_file:
+        json.dump(col_per_day, dump_to_file.open("w"))
 
 
 @app.command(short_help="posts by period")
 def posts_per_period(db_name: Annotated[str, typer.Argument(autocompletion=get_db_names)],
                      period: Annotated[str, typer.Argument(help="day,month,year")] = "day",
-                     print_: Annotated[bool, typer.Argument()] = True):
+                     print_: Annotated[bool, typer.Argument()] = True,
+                     dump_to_file: Annotated[Optional[Path], typer.Argument(help="dump to file")] = None):
     db = MetaDatabase().get_db_mgmt(db_name)
     assert period in ["day", "month", "year"]
     ppd = get_posts_by_period(db, TimeWindow(period))
@@ -75,7 +80,8 @@ def posts_per_period(db_name: Annotated[str, typer.Argument(autocompletion=get_d
         table.add_row(*row)
     if print_:
         Console().print(table)
-    return ppd
+    if dump_to_file:
+        json.dump(ppd, dump_to_file.open("w"))
 
 
 @app.command(short_help="add a db-path to some metadatabase")
@@ -185,17 +191,10 @@ def copy_posts_metadata_content(db_name: Annotated[str, typer.Argument(autocompl
 
 @app.command()
 def create_proc_db(db_name: Annotated[str, typer.Argument(autocompletion=get_db_names)],
-                   data_type: Annotated[
-                       Literal["text", "media"], typer.Argument(autocompletion=lambda: ["text", "media"])],
-                   filter_finished: Annotated[
-                       bool, typer.Argument(help="For media: filter out when we have the media or it failed")] = True,
+                   data_type: Annotated[str, typer.Argument(autocompletion=lambda: ["text", "media"])],
                    proc_db_path: Annotated[Optional[Path], typer.Argument()] = None):
-    create_packaged_databases([db_name],
-                              proc_db_path,
-                              proc_pacakge_method(data_type),
-                              filter_method(data_type) if filter_finished else None,
-                              delete_destination=False,
-                              exists_ok=True)
+    create_packaged_databases([db_name], proc_db_path,
+                              proc_package_method(data_type), delete_destination=False, exists_ok=True)
 
 
 @app.command(short_help="Manually add a running state")
