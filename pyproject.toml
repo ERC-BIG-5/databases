@@ -37,11 +37,19 @@ commands = [
 dev = [
     "pytest>=8.4.1",
     "commitizen>=4.9.1",
+    # Documentation
+    "sphinx>=5.0.0",
+    "furo>=2023.3.27",
+    "sphinx-autoapi>=2.0.0",
+    "sphinx-autodoc-typehints>=1.19.0",
+    # Optional but recommended
+    "sphinx-autobuild>=2021.3.14",
+    "myst-parser>=0.18.0",
+    "mypy>=1.18.2",
 ]
-
-datasets = [
-    "torch>=2.8.0",
-]
+#datasets = [
+#    "torch>=2.8.0",
+#]
 
 [tool.uv.sources]
 python-project-tools = { git = "https://github.com/transfluxus/python-project-tools" }

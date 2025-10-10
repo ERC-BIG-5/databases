@@ -14,7 +14,7 @@ from sqlalchemy.sql.schema import Table
 from sqlalchemy_utils import database_exists, create_database, drop_database
 from tools.project_logging import get_logger
 
-from . import db_analytics, db_operations
+from big5_databases.databases import db_operations, db_analytics
 from .db_models import Base, DBPost, DBCollectionTask, CollectionResult
 from .db_settings import SqliteSettings
 from .db_stats import generate_db_stats
@@ -76,7 +76,7 @@ class DatabaseManager:
         if self.config.db_type == "sqlite":
             event.listen(self.engine, 'connect', self._sqlite_on_connect)
         # todo, store here if its a regular: task, post; post-process-item, or meta-db
-        #self.db_type = self.config.type
+        # self.db_type = self.config.type
 
     def __repr__(self) -> str:
         """
@@ -280,7 +280,7 @@ class DatabaseManager:
                     Base.metadata.create_all(self.engine, tables=tables)
                 else:
                     # no "platform_databases" for normal tables
-                    tables_:dict[str,Table] = dict(Base.metadata.tables)
+                    tables_: dict[str, Table] = dict(Base.metadata.tables)
                     for table in ["platform_databases", "ppitem"]:
                         if table in tables_:
                             del tables_[table]
@@ -323,7 +323,6 @@ class DatabaseManager:
         finally:
             session.close()
 
-
     @staticmethod
     def platform_tables() -> list[str]:
         """
@@ -344,8 +343,6 @@ class DatabaseManager:
         tables.remove("platform_databases")
         tables.remove("ppitem")
         return tables
-
-
 
     # File system utilities (private methods)
     def _file_size(self) -> int:
@@ -430,14 +427,6 @@ class AsyncDatabaseManager(DatabaseManager):
     -----
     This class inherits all attributes and methods from DatabaseManager,
     providing both synchronous and asynchronous database access patterns.
-
-    Examples
-    --------
-    >>> config = DBConfig(db_connection=SQliteConnection(db_path="test.db"))
-    >>> async_db_manager = AsyncDatabaseManager(config)
-    >>> async with async_db_manager.get_async_session() as session:
-    ...     # perform async database operations
-    ...     result = await session.execute(select(DBPost))
     """
 
     def __init__(self, config: DBConfig):
@@ -474,14 +463,5 @@ class AsyncDatabaseManager(DatabaseManager):
         Unlike the synchronous get_session() context manager, this method
         returns a session that must be manually managed. Consider using
         it within an async context manager for proper resource cleanup.
-
-        Examples
-        --------
-        >>> async_session = await async_db_manager.get_async_session()
-        >>> try:
-        ...     result = await async_session.execute(select(DBPost))
-        ...     await async_session.commit()
-        ... finally:
-        ...     await async_session.close()
         """
         return self.async_session()
