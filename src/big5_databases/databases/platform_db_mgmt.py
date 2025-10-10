@@ -21,12 +21,43 @@ from . import db_analytics, db_operations
 
 class PlatformDB(DatabaseManager):
     """
-    Platform-specific database manager that inherits from DatabaseManager
+    Platform-specific database manager that inherits from DatabaseManager.
+
+    This class extends DatabaseManager to provide platform-specific functionality
+    for managing social media platform databases, including task management,
+    post handling, and database operations specific to data collection workflows.
+
+    Parameters
+    ----------
+    config : PlatformDBConfig
+        Platform-specific database configuration containing platform name,
+        connection details, and table type specifications.
+
+    Attributes
+    ----------
+    platform : str
+        Name of the social media platform this database manages.
+    logger : logging.Logger
+        Logger instance for platform database operations.
     """
 
     @classmethod
     def create_default_config(cls, platform: str, table_type: Literal["posts", "process"] = "posts") -> PlatformDBConfig:
-        """Create a default configuration for a platform"""
+        """
+        Create a default configuration for a platform.
+
+        Parameters
+        ----------
+        platform : str
+            Name of the social media platform.
+        table_type : Literal["posts", "process"], optional
+            Type of tables to create, by default "posts".
+
+        Returns
+        -------
+        PlatformDBConfig
+            Default configuration object for the specified platform.
+        """
         return PlatformDBConfig(
             platform=platform,
             db_connection=SQliteConnection(
@@ -40,6 +71,25 @@ class PlatformDB(DatabaseManager):
                             path: str | Path,
                             create: bool = False,
                             table_type: Literal["posts", "process"] = "posts") -> "PlatformDB":
+        """
+        Create a PlatformDB instance from a SQLite database path.
+
+        Parameters
+        ----------
+        platform : str
+            Name of the social media platform.
+        path : str or Path
+            Path to the SQLite database file.
+        create : bool, optional
+            Whether to create the database if it doesn't exist, by default False.
+        table_type : Literal["posts", "process"], optional
+            Type of tables to create, by default "posts".
+
+        Returns
+        -------
+        PlatformDB
+            New PlatformDB instance configured for the SQLite database.
+        """
         config = PlatformDBConfig(
             platform=platform,
             db_connection=SQliteConnection(db_path=path),
@@ -50,6 +100,15 @@ class PlatformDB(DatabaseManager):
         return PlatformDB(config)
 
     def __init__(self, config: PlatformDBConfig):
+        """
+        Initialize the PlatformDB with platform-specific configuration.
+
+        Parameters
+        ----------
+        config : PlatformDBConfig
+            Platform-specific database configuration containing platform name,
+            connection details, table specifications, and other settings.
+        """
         self.platform = config.platform
 
         # Set platform-specific tables based on table_type
@@ -61,13 +120,51 @@ class PlatformDB(DatabaseManager):
     @property
     @deprecated(reason="was added in the platform_manager constructor. but not needed I suppose")
     def manager(self):
+        """
+        Get the manager property (deprecated).
+
+        Returns
+        -------
+        None
+            Always returns None as this property is deprecated.
+
+        Notes
+        -----
+        This property is deprecated and scheduled for removal.
+        """
         return None
 
     def check_task_name_exists(self, task_name: str) -> bool:
+        """
+        Check if a task name already exists in the database.
+
+        Parameters
+        ----------
+        task_name : str
+            Name of the task to check.
+
+        Returns
+        -------
+        bool
+            True if the task name exists, False otherwise.
+        """
         with self.get_session() as session:
             return session.query(exists().where(DBCollectionTask.task_name == task_name)).scalar()
 
     def check_task_names_exists(self, task_names: list[str]) -> list[str]:
+        """
+        Check which task names from a list already exist in the database.
+
+        Parameters
+        ----------
+        task_names : list[str]
+            List of task names to check.
+
+        Returns
+        -------
+        list[str]
+            List of task names that already exist in the database.
+        """
         with self.get_session() as session:
             existing_tasks = session.scalars(
                 select(DBCollectionTask.task_name).where(DBCollectionTask.task_name.in_(task_names))).all()
@@ -75,7 +172,19 @@ class PlatformDB(DatabaseManager):
 
     def delete_tasks(self, task_names_keep_info: list[tuple[str, bool]]) -> None:
         """
-        get a list of tuples: str,bool: task-name, keep-posts
+        Delete tasks from the database with option to keep associated posts.
+
+        Parameters
+        ----------
+        task_names_keep_info : list[tuple[str, bool]]
+            List of tuples containing (task_name, keep_posts) where:
+            - task_name: Name of the task to delete
+            - keep_posts: Whether to keep posts associated with the task
+
+        Notes
+        -----
+        If keep_posts is True, posts associated with the task will have their
+        collection_task_id set to None instead of being deleted.
         """
 
         with self.get_session() as session:
@@ -97,10 +206,24 @@ class PlatformDB(DatabaseManager):
 
     def add_db_collection_tasks(self, collection_tasks: list["ClientTaskConfig"]) -> list[str]:
         """
-        If the task-name is not in the database, a task goes straight in
-        For those existing; there are multiple options, based on how the task is configured:
-        - overwrite the existing task (with a suboption of keeping the old posts nevertheless)
-        - force_new_index, checks for an alternative index, in case the task comes from a group. (this has to be used wisely)
+        Add collection tasks to the database with conflict resolution.
+
+        Parameters
+        ----------
+        collection_tasks : list[ClientTaskConfig]
+            List of collection task configurations to add.
+
+        Returns
+        -------
+        list[str]
+            List of task names that were successfully added to the database.
+
+        Notes
+        -----
+        For existing tasks, behavior depends on task configuration:
+        - If overwrite=True: Existing task is deleted and replaced
+        - If force_new_index=True: Task gets a new indexed name within its group
+        - Otherwise: Existing task is skipped
         """
         task_names = [t.task_name for t in collection_tasks]
         existing_names = self.check_task_names_exists(task_names)
@@ -170,7 +293,19 @@ class PlatformDB(DatabaseManager):
             return new_tasks_names
 
     def get_pending_tasks(self, include_paused_tasks: bool = False) -> list[ClientTaskConfig]:
-        """Get all tasks that need to be executed"""
+        """
+        Get all tasks that need to be executed.
+
+        Parameters
+        ----------
+        include_paused_tasks : bool, optional
+            Whether to include paused tasks in the result, by default False.
+
+        Returns
+        -------
+        list[ClientTaskConfig]
+            List of tasks that are pending execution.
+        """
         return self.get_tasks_of_states([
                                             CollectionStatus.INIT
                                         ] + ([CollectionStatus.PAUSED] if include_paused_tasks else []))
@@ -178,6 +313,21 @@ class PlatformDB(DatabaseManager):
     def get_tasks_of_states(self,
                             states: list[CollectionStatus],
                             negate: bool = False) -> list[ClientTaskConfig]:
+        """
+        Get tasks filtered by their status states.
+
+        Parameters
+        ----------
+        states : list[CollectionStatus]
+            List of collection statuses to filter by.
+        negate : bool, optional
+            If True, return tasks NOT in the specified states, by default False.
+
+        Returns
+        -------
+        list[ClientTaskConfig]
+            List of tasks matching the status criteria.
+        """
         with self.get_session() as session:
             state_filter = DBCollectionTask.status.in_(states)
             if negate:
@@ -193,7 +343,21 @@ class PlatformDB(DatabaseManager):
     @deprecated(reason="replaced using db_mgmt.safe_submit_posts")
     def insert_posts(self, posts: list[DBPost]) -> list[PostModel]:
         """
-        guarantees that no duplicate posts exist
+        Insert posts ensuring no duplicates exist (deprecated).
+
+        Parameters
+        ----------
+        posts : list[DBPost]
+            List of database post objects to insert.
+
+        Returns
+        -------
+        list[PostModel]
+            List of successfully inserted posts as PostModel objects.
+
+        Notes
+        -----
+        This method is deprecated. Use safe_submit_posts instead.
         """
         # Store posts
         with self.get_session() as session:
@@ -216,6 +380,19 @@ class PlatformDB(DatabaseManager):
             return [p.model() for p in posts]
 
     def update_task_results(self, col_result: CollectionResult):
+        """
+        Update task with collection results.
+
+        Parameters
+        ----------
+        col_result : CollectionResult
+            Collection result object containing task execution details.
+
+        Notes
+        -----
+        If the task is transient, it will be deleted from the database.
+        Otherwise, task status and metrics are updated.
+        """
         # update task status
         with self.get_session() as session:
             task_record = session.query(DBCollectionTask).get(col_result.task.id)
@@ -230,7 +407,16 @@ class PlatformDB(DatabaseManager):
             session.commit()
 
     def update_task_status(self, task_id: int, status: CollectionStatus):
-        """Update task status in database"""
+        """
+        Update task status in database.
+
+        Parameters
+        ----------
+        task_id : int
+            ID of the task to update.
+        status : CollectionStatus
+            New status for the task.
+        """
         with self.get_session() as session:
             task = session.query(DBCollectionTask).get(task_id)
             task.status = status
@@ -239,6 +425,19 @@ class PlatformDB(DatabaseManager):
     def reset_running_tasks(self,
                             states: Sequence[CollectionStatus] = (CollectionStatus.RUNNING,
                                                                CollectionStatus.ABORTED)) -> int:
+        """
+        Reset tasks in specified states back to INIT status.
+
+        Parameters
+        ----------
+        states : Sequence[CollectionStatus], optional
+            Task states to reset, by default (RUNNING, ABORTED).
+
+        Returns
+        -------
+        int
+            Number of tasks that were reset.
+        """
 
         with self.get_session() as session:
             tasks = session.query(DBCollectionTask).filter(
@@ -256,7 +455,22 @@ class PlatformDB(DatabaseManager):
     def safe_submit_posts(self, posts: list[Union[DBPost, PostModel]]) -> list[PostModel]:
         """
         Safely submit posts, handling both DBPost and PostModel objects.
-        Returns PostModel objects for the successfully submitted posts.
+
+        Parameters
+        ----------
+        posts : list[Union[DBPost, PostModel]]
+            List of posts to submit, can be DBPost or PostModel objects.
+
+        Returns
+        -------
+        list[PostModel]
+            List of successfully submitted posts as PostModel objects.
+
+        Notes
+        -----
+        This method handles integrity errors by filtering out existing posts
+        and retrying submission. PostModel objects are converted to DBPost
+        objects before submission.
         """
         # Convert PostModel objects to DBPost if needed
         db_posts = []
@@ -291,7 +505,19 @@ class PlatformDB(DatabaseManager):
                 return []
 
     def _submit_posts(self, posts: list[DBPost]) -> list[PostModel]:
-        """Internal method to submit posts to database"""
+        """
+        Internal method to submit posts to database.
+
+        Parameters
+        ----------
+        posts : list[DBPost]
+            List of database post objects to submit.
+
+        Returns
+        -------
+        list[PostModel]
+            List of submitted posts as PostModel objects.
+        """
         with self.get_session() as session:
             session.add_all(posts)
             session.commit()
@@ -300,6 +526,21 @@ class PlatformDB(DatabaseManager):
     def insert_posts_with_deduplication(self, posts: list[DBPost]) -> list[PostModel]:
         """
         Insert posts while guaranteeing no duplicates exist.
+
+        Parameters
+        ----------
+        posts : list[DBPost]
+            List of database post objects to insert.
+
+        Returns
+        -------
+        list[PostModel]
+            List of successfully inserted posts as PostModel objects.
+
+        Notes
+        -----
+        This method removes duplicates both within the input list and
+        against existing database records before insertion.
         """
         with self.get_session() as session:
             # Remove duplicates within the provided posts
@@ -320,7 +561,22 @@ class PlatformDB(DatabaseManager):
             return [p.model() for p in filtered_posts]
 
     def update_task(self, task_id: int, status: str, found_items: int, added_items: int, duration: int):
-        """Update task with execution results"""
+        """
+        Update task with execution results.
+
+        Parameters
+        ----------
+        task_id : int
+            ID of the task to update.
+        status : str
+            New status for the task.
+        found_items : int
+            Number of items found during collection.
+        added_items : int
+            Number of items successfully added to database.
+        duration : int
+            Collection duration in seconds.
+        """
         with self.get_session() as session:
             task = session.query(DBCollectionTask).get(task_id)
             task.status = status
@@ -330,7 +586,15 @@ class PlatformDB(DatabaseManager):
             session.commit()
 
     def calc_db_content(self) -> DatabaseBasestats:
-        """Calculate basic database statistics"""
+        """
+        Calculate basic database statistics.
+
+        Returns
+        -------
+        DatabaseBasestats
+            Object containing basic database statistics including task states,
+            post count, file size, and last modified timestamp.
+        """
         return DatabaseBasestats(
             tasks_states=db_operations.count_states(self),
             post_count=db_analytics.count_posts(db=self),
@@ -338,7 +602,16 @@ class PlatformDB(DatabaseManager):
             last_modified=self._file_modified())
 
     def calc_db_stats(self) -> "MetaDatabaseStatsModel":
-        """Calculate comprehensive database statistics"""
+        """
+        Calculate comprehensive database statistics.
+
+        Returns
+        -------
+        MetaDatabaseStatsModel
+            Object containing comprehensive database statistics including
+            task states, post count, file size, last modified timestamp,
+            and detailed statistical analysis.
+        """
         from .external import MetaDatabaseStatsModel
         from .db_stats import generate_db_stats
 
@@ -351,10 +624,34 @@ class PlatformDB(DatabaseManager):
 
     @deprecated(reason="PlatformDB now inherits from DatabaseManager. Use methods directly on PlatformDB instance.")
     def get_db_manager(self) -> DatabaseManager:
-        """Get the underlying database manager (deprecated)"""
+        """
+        Get the underlying database manager (deprecated).
+
+        Returns
+        -------
+        DatabaseManager
+            Returns self since PlatformDB inherits from DatabaseManager.
+
+        Notes
+        -----
+        This method is deprecated. PlatformDB now inherits from DatabaseManager,
+        so all DatabaseManager methods are available directly on the PlatformDB instance.
+        """
         self.logger.warning("get_db_manager() is deprecated. PlatformDB now inherits from DatabaseManager.")
         return self
 
     @staticmethod
     def platform_tables() -> list[str]:
+        """
+        Get list of platform-specific table names.
+
+        Returns
+        -------
+        list[str]
+            List of platform table names.
+
+        Notes
+        -----
+        This method delegates to DatabaseManager.platform_tables().
+        """
         return DatabaseManager.platform_tables()
