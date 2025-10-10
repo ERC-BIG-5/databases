@@ -1,5 +1,9 @@
 """
-not sure if we want to do that... maybe just use alt-paths... and merge...
+Post analysis database utilities for data processing and result integration.
+
+This module provides tools for creating analysis databases, processing social media
+post data, and merging analysis results back into source databases. It supports
+batch processing of large datasets and validation of analysis outputs.
 """
 import math
 import shutil
@@ -37,6 +41,37 @@ logger = get_logger(__file__)
 
 
 def post_text(platform: str, content: dict, metadata_content: dict = None) -> dict[str, str]:
+    """
+    Extract text content from platform-specific post data.
+
+    Parameters
+    ----------
+    platform : str
+        Name of the social media platform ("youtube", "twitter", "tiktok", "instagram").
+    content : dict
+        Platform-specific content data structure.
+    metadata_content : dict, optional
+        Additional metadata content, by default None.
+
+    Returns
+    -------
+    dict[str, str]
+        Dictionary containing extracted text fields. Structure varies by platform:
+        - YouTube: {"title": str, "description": str}
+        - Twitter: {"text": str}
+        - TikTok: {"text": str}
+        - Instagram: {"text": str}
+
+    Raises
+    ------
+    ValueError
+        If the platform is not supported.
+
+    Notes
+    -----
+    This function handles platform-specific data structures to extract
+    meaningful text content for analysis workflows.
+    """
     match platform:
         case "youtube":
             return {"title": content["snippet"]["title"], "description": content["snippet"]["description"]}
@@ -51,6 +86,38 @@ def post_text(platform: str, content: dict, metadata_content: dict = None) -> di
 
 
 def media_files(platform: str, content: dict, metadata_content: dict = None) -> dict[str, str | list[str]]:
+    """
+    Extract media file URLs from platform-specific post data.
+
+    Parameters
+    ----------
+    platform : str
+        Name of the social media platform ("youtube", "twitter", "tiktok", "instagram").
+    content : dict
+        Platform-specific content data structure.
+    metadata_content : dict, optional
+        Additional metadata content, by default None.
+
+    Returns
+    -------
+    dict[str, str | list[str]]
+        Dictionary containing extracted media URLs. Structure varies by platform:
+        - YouTube: {"thumbnail": str} (high quality thumbnail URL)
+        - Twitter: {"photos": list[str]} (list of photo URLs)
+        - TikTok: {"video": str} (TikTok video URL)
+        - Instagram: {} (empty dict, no media extraction implemented)
+
+    Raises
+    ------
+    ValueError
+        If the platform is not supported.
+
+    Notes
+    -----
+    This function extracts media file references for download or analysis.
+    Some platforms may return empty dictionaries if no media is available
+    or extraction is not implemented.
+    """
     match platform:
         case "youtube":
             tn = content.get("snippet", {}).get("thumbnails", {}).get("high")
@@ -179,6 +246,29 @@ def merge_back_analysis_results(
 
 def _create_from_db(db: PlatformDatabaseModel, target_db: Path,
                     input_data_method: Callable[[str, dict, dict], dict | list]):
+    """
+    Create an analysis database from a source platform database.
+
+    Parameters
+    ----------
+    db : PlatformDatabaseModel
+        Source platform database model.
+    target_db : Path
+        Path where the analysis database will be created.
+    input_data_method : Callable[[str, dict, dict], dict | list]
+        Function to process post data into analysis input format.
+
+    Notes
+    -----
+    This internal function handles the core logic for creating analysis databases:
+    1. Creates target database with 'ppitem' table structure
+    2. Processes source posts in batches for memory efficiency
+    3. Applies input_data_method to extract relevant data
+    4. Inserts processed data into target database
+    5. Avoids duplicate processing by checking existing platform_ids
+
+    The function uses batch processing with progress tracking for large datasets.
+    """
     mgmt = db.get_mgmt()
 
     target_db_mgmt = DatabaseManager(DBConfig(name=db.name,
@@ -229,6 +319,42 @@ def create_packaged_databases(source_db_names: str | list[str],
                               delete_destination: bool = False,
                               exists_ok: bool = False
                               ):
+    """
+    Create analysis databases from source databases for batch processing.
+
+    Parameters
+    ----------
+    source_db_names : str or list[str]
+        Name(s) of source databases to process. Can be a single string or list.
+    destination_folder : Path
+        Path to folder where analysis databases will be created.
+    input_data_method : Callable[[str, dict, dict], dict | list]
+        Function to extract input data from posts. Takes (platform, content, metadata)
+        and returns processed data for analysis.
+    source_meta_db : Optional[Path], optional
+        Path to meta database, by default None (uses default).
+    delete_destination : bool, optional
+        Whether to delete existing destination folder, by default False.
+    exists_ok : bool, optional
+        Whether to allow existing destination folder, by default False.
+
+    Raises
+    ------
+    ValueError
+        If destination exists and exists_ok=False and delete_destination=False,
+        or if any required source databases are missing.
+
+    Notes
+    -----
+    This function creates specialized databases for analysis workflows:
+    1. Validates all source databases exist
+    2. Creates destination folder structure
+    3. Processes each source database with the provided input_data_method
+    4. Creates analysis databases with 'ppitem' tables for processing
+
+    The resulting databases contain processed input data ready for analysis
+    algorithms like sentiment analysis, content classification, etc.
+    """
     if not destination_folder.is_absolute():
         destination_folder = SqliteSettings().default_sqlite_dbs_base_path / destination_folder
         logger.info(f"Setting destination dir to {destination_folder}")
@@ -256,6 +382,31 @@ def create_packaged_databases(source_db_names: str | list[str],
 
 
 def proc_package_method(method: Literal["text", "media"]) -> Callable[[str, dict, dict], dict | list]:
+    """
+    Get the appropriate processing method function for data extraction.
+
+    Parameters
+    ----------
+    method : Literal["text", "media"]
+        Type of processing method to retrieve.
+
+    Returns
+    -------
+    Callable[[str, dict, dict], dict | list]
+        Function that extracts the specified type of data from posts:
+        - "text": Returns post_text function for text extraction
+        - "media": Returns media_files function for media URL extraction
+
+    Raises
+    ------
+    ValueError
+        If the method is not "text" or "media".
+
+    Notes
+    -----
+    This factory function provides a clean interface for selecting
+    data extraction methods in processing pipelines.
+    """
     if method == "text":
         return post_text
     elif method == "media":
@@ -269,6 +420,33 @@ def add_db_to_package(db_name: str,
                       input_data_method: Callable[[str, dict, dict], dict | list],
                       source_meta_db: Optional[Path] = None,
                       exists_ok: bool = True):
+    """
+    Add a single database to an existing analysis package.
+
+    Parameters
+    ----------
+    db_name : str
+        Name of the source database to add to the package.
+    destination_folder : Path
+        Path to existing analysis package folder.
+    input_data_method : Callable[[str, dict, dict], dict | list]
+        Function to extract input data from posts.
+    source_meta_db : Optional[Path], optional
+        Path to meta database, by default None.
+    exists_ok : bool, optional
+        Whether to create destination folder if it doesn't exist, by default True.
+
+    Raises
+    ------
+    ValueError
+        If destination folder is missing and exists_ok=False,
+        or if the source database is missing.
+
+    Notes
+    -----
+    This function extends existing analysis packages by adding new databases.
+    Useful for incremental processing or adding databases to existing workflows.
+    """
     if not destination_folder.is_absolute():
         destination_folder = SqliteSettings().default_sqlite_dbs_base_path / destination_folder
         logger.info(f"Setting destination dir to {destination_folder}")
