@@ -144,7 +144,7 @@ class ClientSetup(BaseModel):
         from_attributes = True
 
     platform: str = Field(description="Platform name (e.g., 'tiktok', 'twitter', 'youtube')")
-    config: Optional[ClientConfig] = None
+    client: Optional[ClientConfig] = None
     db: Optional[DBSetupConfig] = Field(None, description="Configuration of the database")
 
 
