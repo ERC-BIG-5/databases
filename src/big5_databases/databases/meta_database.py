@@ -608,6 +608,96 @@ class MetaDatabase:
         """
         return [db.name for db in self.get_dbs()]
 
+    def _get_similar_db_names(self, target_name: str, threshold: float = 0.6) -> list[str]:
+        """
+        Find database names similar to the target name using Levenshtein distance.
+
+        Parameters
+        ----------
+        target_name : str
+            The database name to find similarities for
+        threshold : float, default 0.6
+            Similarity threshold (0.0 to 1.0). Higher values require closer matches.
+
+        Returns
+        -------
+        list[str]
+            List of similar database names, sorted by similarity (most similar first)
+        """
+        try:
+            from tools.fast_levenhstein import levenhstein_get_closest_matches
+            return levenhstein_get_closest_matches(target_name, self.get_db_names(), threshold=threshold)
+        except ImportError:
+            # Fallback if levenhstein module not available
+            return self.get_db_names()[:3]  # Return first 3 as suggestions
+
+    def validate_database_access(self, db_config: "DBConfig") -> bool:
+        """
+        Validate that a database can be accessed or created based on configuration.
+
+        Performs early validation to ensure database operations will succeed before
+        attempting processor initialization. Checks database existence in MetaDatabase
+        registry and validates creation prerequisites when create=True.
+
+        Parameters
+        ----------
+        db_config : DBConfig
+            Database configuration to validate, containing name, connection details,
+            and creation settings
+
+        Returns
+        -------
+        bool
+            True if database is accessible or can be created successfully
+
+        Raises
+        ------
+        ValueError
+            If database doesn't exist and create=False, or if database creation
+            prerequisites are not met (e.g., missing parent directory)
+
+        Notes
+        -----
+        This method provides early feedback to users about database accessibility
+        issues before expensive processor initialization occurs. It also suggests
+        similar database names when a database is not found.
+
+        """
+        if not db_config.name:
+            raise ValueError("Database configuration must specify a name")
+
+        # Check if database already exists in MetaDatabase
+        if self.exists(db_config.name):
+            logger.debug(f"Database '{db_config.name}' found in MetaDatabase registry")
+            return True
+
+        # Database not found - check creation settings
+        if not db_config.create:
+            similar_names = self._get_similar_db_names(db_config.name)
+            similar_msg = f" Similar databases: {similar_names}" if similar_names else ""
+            raise ValueError(
+                f"Database '{db_config.name}' not found in MetaDatabase and create=False.{similar_msg} "
+                f"Set create=True in database config to allow creation."
+            )
+
+        # Validate creation prerequisites for SQLite databases
+        if hasattr(db_config.db_connection, 'db_path'):
+            db_path = db_config.db_connection.db_path
+
+            # Check parent directory requirements
+            if db_config.require_existing_parent_dir and not db_path.parent.exists():
+                raise ValueError(
+                    f"Cannot create database: parent directory '{db_path.parent}' does not exist. "
+                    f"Create the directory first or set require_existing_parent_dir=False."
+                )
+
+            # Check if database file already exists (potential conflict)
+            if db_path.exists():
+                logger.warning(f"Database file '{db_path}' exists but not registered in MetaDatabase")
+
+        logger.info(f"Database '{db_config.name}' validated for creation")
+        return True
+
     def set_alternative_path(self, db_name: str, alternative_path_name: str, alternative_path: Path):
         """
         Set an alternative path for a database.
