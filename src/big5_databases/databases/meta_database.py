@@ -17,6 +17,7 @@ from .external import DBConfig, SQliteConnection, MetaDatabaseContentModel, Plat
 from .external import DatabaseRunState
 
 from .platform_db_mgmt import PlatformDB
+
 if TYPE_CHECKING:
     from .platform_db_mgmt import PlatformDB
 
@@ -425,15 +426,15 @@ class MetaDatabase:
             full_path = db.full_path
             session.delete(db)
 
-        delete_file = input("Delete the file {full_path}: [y] or mark?")
-
-        if not full_path.exists():
-            print("Database file not exist: '{str(p)}', so there is nothing more todo")
-
-        if delete_file == "y":
-            full_path.unlink()
+        if full_path.exists():
+            delete_file = input(f"Delete the file {full_path}: [y] or mark?")
+            if delete_file == "y":
+                full_path.unlink()
+            else:
+                full_path.rename(full_path.parent / f"DEL_{full_path.db_path.name}")
         else:
-            full_path.rename(full_path.parent / f"DEL_{full_path.db_path.name}")
+            print(f"Database file not exist: '{str(full_path)}', so there is nothing more todo")
+
         if alt_paths:
             print(
                 f"Consider also the alternative database paths:\n{json.dumps({k: str(v) for k, v in alt_paths.items()}, indent=2)}")
@@ -496,7 +497,7 @@ class MetaDatabase:
             if db.exists():
                 # Use PlatformDB directly (inherits from DatabaseManager)
                 platform_db = self.get_platform_db(db)
-                #running = platform_db._currently_open()
+                # running = platform_db._currently_open()
                 running = False
 
                 size_changed = db.content.file_size != int(platform_db._file_size())
@@ -553,7 +554,7 @@ class MetaDatabase:
                     print(traceback.format_exc())
                     results.append(error_result)
 
-        results = sorted(results, key=lambda x: (x["platform"], x.get("last mod")))
+        results = sorted(results, key=lambda x: (x["platform"], x.get("last mod", "0")))
         return results
 
     def update_db_base_stats(self, id_: int | str | PlatformDatabaseModel) -> PlatformDatabaseModel:
@@ -759,6 +760,7 @@ class MetaDatabase:
         db_model : PlatformDatabaseModel
             Database model with updated content to save.
         """
+
         def _update(session, db):
             # Validate content dict against MetaDatabaseContentModel before updating
             content_dict = db_model.content.model_dump()
