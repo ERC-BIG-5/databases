@@ -38,7 +38,7 @@ def get_db(db_path_or_name: Path | str) -> DatabaseManager:
     if isinstance(db_path_or_name, Path):
         return DatabaseManager.sqlite_db_from_path(db_path_or_name)
     else:  # if SETTINGS.main_db_path:
-        return MetaDatabase().get_db_mgmt(db_path_or_name)
+        return MetaDatabase().get_platform_db(db_path_or_name)
 
 
 def merge_database(source_db_path: Path, target_db_path: Path) -> MergeStats:

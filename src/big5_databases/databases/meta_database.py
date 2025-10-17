@@ -123,7 +123,7 @@ class MetaDatabase:
         """
         return self[id_] is not None
 
-    def get_db_mgmt(self, id_: int | str | PlatformDatabaseModel) -> Optional[DatabaseManager]:
+    def get_db_mgmt(self, id_: int | str | PlatformDatabaseModel) -> Optional[PlatformDB]:
         """
         Get DatabaseManager for generic database operations (deprecated).
 
@@ -141,8 +141,9 @@ class MetaDatabase:
         -----
         This method is deprecated. Use get_platform_db() for platform-specific operations.
         """
+        logger.warning("Use get_platform_db() instead")
         db = self.get(id_)
-        dbm = db.get_mgmt(self)
+        dbm = db.get_platform_db()
         return dbm
 
     def get_platform_db(self, id_: int | str | PlatformDatabaseModel,
@@ -401,7 +402,7 @@ class MetaDatabase:
             return False
         return True
 
-    def delete(self, id_: int | str):
+    def delete(self, id_: int | str, delete_file: Optional[bool] = None) -> None:
         """
         Delete a database from the registry and optionally from filesystem.
 
@@ -426,12 +427,15 @@ class MetaDatabase:
             full_path = db.full_path
             session.delete(db)
 
-        if full_path.exists():
-            delete_file = input(f"Delete the file {full_path}: [y] or mark?")
-            if delete_file == "y":
+        if (full_path.exists() and delete_file is None) or delete_file:
+            if delete_file is None:
+                delete_file_i = input(f"Delete the file {full_path}: [y] or mark?")
+            else:
+                delete_file_i = "y"
+            if delete_file_i == "y":
                 full_path.unlink()
             else:
-                full_path.rename(full_path.parent / f"DEL_{full_path.db_path.name}")
+                full_path.rename(full_path.parent / f"DEL_{full_path.name}")
         else:
             print(f"Database file not exist: '{str(full_path)}', so there is nothing more todo")
 
@@ -852,46 +856,6 @@ class MetaDatabase:
         )
 
         return client_setup
-
-
-def get_db_mgmt(config: Optional[DBConfig], metadatabase_path: Optional[Path],
-                database_name: Optional[str]) -> DatabaseManager:
-    """
-    Get DatabaseManager - deprecated, use get_platform_db for platform-specific operations.
-
-    Parameters
-    ----------
-    config : Optional[DBConfig]
-        Database configuration object. If provided, creates DatabaseManager directly.
-    metadatabase_path : Optional[Path]
-        Path to the meta database file.
-    database_name : Optional[str]
-        Name of the database in the meta database.
-
-    Returns
-    -------
-    DatabaseManager
-        Database manager instance.
-
-    Notes
-    -----
-    This function is deprecated. Use get_platform_db() for platform-specific operations.
-    Either config must be provided, or both metadatabase_path and database_name.
-
-    Raises
-    ------
-    AssertionError
-        If neither config nor both metadatabase_path and database_name are provided.
-    """
-    logger.warning("get_db_mgmt() is deprecated. Use get_platform_db() for platform-specific operations.")
-    assert config or metadatabase_path and database_name, "Either database-config or metadatabase and database-name must be passed"
-    if config:
-        return DatabaseManager(DBConfig(
-            db_connection=config,
-            create=False
-        ))
-    else:
-        return MetaDatabase(metadatabase_path).get(database_name).get_mgmt()
 
 
 def get_platform_db(metadatabase_path: Path, database_name: str,

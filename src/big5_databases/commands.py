@@ -47,7 +47,7 @@ def collected_per_day(db_name: Annotated[str, typer.Argument(autocompletion=get_
                       period: Annotated[str, typer.Argument(help="day,month,year")] = "day",
                       dump_to_file: Annotated[Optional[Path], typer.Argument(help="dump to file")] = None):
     assert period in ["day", "month", "year"]
-    db = MetaDatabase().get_db_mgmt(db_name)
+    db = MetaDatabase().get_platform_db(db_name)
     col_per_day = get_collected_posts_by_period(db, TimeWindow(period))
     header = ["date", "# tasks", "found", "added"]
     theader = [Column(h, justify="right") for h in header]
@@ -65,7 +65,7 @@ def posts_per_period(db_name: Annotated[str, typer.Argument(autocompletion=get_d
                      period: Annotated[str, typer.Argument(help="day,month,year")] = "day",
                      print_: Annotated[bool, typer.Argument()] = True,
                      dump_to_file: Annotated[Optional[Path], typer.Argument(help="dump to file")] = None):
-    db = MetaDatabase().get_db_mgmt(db_name)
+    db = MetaDatabase().get_platform_db(db_name)
     assert period in ["day", "month", "year"]
     ppd = get_posts_by_period(db, TimeWindow(period))
     table = Table("date", "time", "posts", title=f"{db.metadata.name} posts per {period}")

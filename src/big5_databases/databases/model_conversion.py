@@ -59,7 +59,7 @@ class PlatformDatabaseModel(BaseDBModel):
     def exists(self):
         return self.full_path.exists()
 
-    def get_mgmt(self, meta_db: "MetaDatabase") -> "DatabaseManager":
+    def get_mgmt(self, meta_db: "MetaDatabase") -> "PlatformDB":
         """Get DatabaseManager for generic database operations (deprecated)"""
         logger.warning("get_mgmt() is deprecated. Use get_platform_db() for platform-specific operations.")
         if not self.exists():
@@ -67,7 +67,7 @@ class PlatformDatabaseModel(BaseDBModel):
         from .db_mgmt import DatabaseManager
         mgmt = get_platform_db(meta_db.db_path, self.name)
         # mgmt = DatabaseManager.sqlite_db_from_path(self.db_path)
-        mgmt.metadata = meta_db
+        mgmt.metadata = self
         return mgmt
 
     def get_platform_db(self, table_type: Literal["posts", "process"] = "posts") -> "PlatformDB":
