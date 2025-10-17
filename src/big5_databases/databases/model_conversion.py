@@ -200,11 +200,20 @@ class PostMetadataModel(BaseModel):
         media_ps = self.media_paths or []
         if not media_ps:
             return []
+        result:list[Path] = []
+        base: Optional[Path] = None
         if self.media_base_path:
             base = Path(self.media_base_path)
-            return [base / p for p in media_ps]
-        else:
-            return [Path(p) for p in media_ps]
+
+        for p in media_ps:
+            p_ = Path(p)
+            if Path(p).is_absolute():
+                result.append(p_)
+            elif base:
+                result.append(base / p_)
+            else:
+                logger.warning(f"post has a non-absolute path: {p} without basepath")
+        return result
 
 # Post Models
 class PostModel(BaseDBModel):
