@@ -13,11 +13,13 @@ from tools.project_logging import get_logger
 from . import db_analytics, db_operations
 from .db_analytics import get_posts_by_period
 from .db_mgmt import DatabaseManager
-from .db_models import DBCollectionTask, DBPost, CollectionResult
+from .db_models import DBCollectionTask, DBPost, CollectionResult, DBPostProcessItem
 from .db_settings import SqliteSettings
 from .external import CollectionStatus, DatabaseBasestats, TimeWindow, TimeColumn, DBStats
 from .external import PlatformDBConfig, SQliteConnection, ClientTaskConfig
-from .model_conversion import PostModel
+from .model_conversion import PostModel, PostProcessModel
+
+logger = get_logger(__file__)
 
 
 class PlatformDB(DatabaseManager):
@@ -361,25 +363,8 @@ class PlatformDB(DatabaseManager):
         -----
         This method is deprecated. Use safe_submit_posts instead.
         """
-        # Store posts
-        with self.get_session() as session:
-            # try:
-            unique_posts = []
-            posts_ids = set()
-            for post in posts:
-                if post.platform_id not in posts_ids:
-                    unique_posts.append(post)
-                    posts_ids.add(post.platform_id)
-
-            # todo, there must be helper for this?!
-            existing_ids = session.execute(
-                select(DBPost.platform_id).filter(DBPost.platform_id.in_(list(posts_ids)))).scalars().all()
-            posts = list(filter(lambda post_: post_.platform_id not in existing_ids, unique_posts))
-
-            session.add_all(posts)
-            session.commit()
-            # todo ADD USERS
-            return [p.model() for p in posts]
+        logger.warning("Use 'insert_posts' directly!")
+        return self.safe_submit_posts(posts)
 
     def update_task_results(self, col_result: CollectionResult):
         """
@@ -507,7 +492,59 @@ class PlatformDB(DatabaseManager):
                 self.logger.error(f"Error submitting posts: {str(e)}")
                 return []
 
-    def _submit_posts(self, posts: list[DBPost]) -> list[PostModel]:
+    def safe_submit_ppitems(self, posts: list[Union[DBPostProcessItem, PostProcessModel]]) -> list[PostProcessModel]:
+        """
+        Safely submit ppitems, handling both DBPostProcessItem and PostProcessModel objects.
+
+        Parameters
+        ----------
+        posts : list[Union[DBPostProcessItem, PostProcessModel]]
+            List of posts to submit, can be DBPost or PostModel objects.
+
+        Returns
+        -------
+        list[PostProcessModel]
+            List of successfully submitted posts as PostModel objects.
+
+        Notes
+        -----
+        This method handles integrity errors by filtering out existing posts
+        and retrying submission. PostProcessModel objects are converted to DBPostProcessItem
+        objects before submission.
+        """
+        # Convert DBPostProcessItem objects to DBPostProcessItem if needed
+        db_posts = []
+        for post in posts:
+            if isinstance(post, DBPostProcessItem):
+                # Convert PostModel to DBPost
+                db_post = DBPostProcessItem(
+                    platform_id=post.platform_id,
+                    input=post.input,
+                    output=post.output
+                )
+                db_posts.append(db_post)
+            else:
+                db_posts.append(post)
+
+        submit_posts = db_posts
+        while True:
+            try:
+                submitted_posts = self._submit_posts(submit_posts)
+                return submitted_posts
+            except IntegrityError:
+                with self.get_session() as session:
+
+                    # TODO:! !!! filter ppitems
+                    # query = select(DBPost.platform_id).where(DBPost.platform_id.in_(post_ids))
+                    # found_post_ids = session_.execute(query).scalars().all()
+
+                    filtered_posts = db_operations.filter_posts_with_existing_post_ids(submit_posts, session)
+                    return [p.model() for p in filtered_posts]
+            except Exception as e:
+                self.logger.error(f"Error submitting posts: {str(e)}")
+                return []
+
+    def _submit_posts(self, posts: list[DBPost | DBPostProcessItem]) -> list[PostModel | PostProcessModel]:
         """
         Internal method to submit posts to database.
 

@@ -125,6 +125,7 @@ class PlatformDBConfig(DBConfig):
         if self.table_type == "posts":
             return ["posts", "users", "collection_tasks"]
         else:  # process
+            # todo wtf is process_status
             return ["collection_tasks", "process_status"]
 
 
