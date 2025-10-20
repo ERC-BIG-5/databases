@@ -11,7 +11,6 @@ from .db_settings import SqliteSettings
 from .external import CollectionStatus, PostType, CollectConfig, MetaDatabaseContentModel, AbsSerializablePath, \
     DatabaseRunState
 
-
 if TYPE_CHECKING:
     from .db_mgmt import DatabaseManager
     from .platform_db_mgmt import PlatformDB
@@ -200,7 +199,7 @@ class PostMetadataModel(BaseModel):
         media_ps = self.media_paths or []
         if not media_ps:
             return []
-        result:list[Path] = []
+        result: list[Path] = []
         base: Optional[Path] = None
         if self.media_base_path:
             base = Path(self.media_base_path)
@@ -214,6 +213,7 @@ class PostMetadataModel(BaseModel):
             else:
                 logger.warning(f"post has a non-absolute path: {p} without basepath")
         return result
+
 
 # Post Models
 class PostModel(BaseDBModel):
@@ -274,8 +274,10 @@ class PostModel(BaseDBModel):
             return {
                 f"thumbnail": thumbnails[config]["url"],
             }
+        elif self.platform == "weibo":
+            return {"images": self.content.get("images", [])}
         else:
-            raise NotImplemented(
+            raise NotImplementedError(
                 f"please implement a function that gets the media paths of data of platform {self.platform}")
 
 
