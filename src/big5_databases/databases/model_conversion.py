@@ -172,13 +172,21 @@ class PostTextReplacement(BaseModel):
 
 
 #####
+class PostMediaMetadataModel(BaseModel):
+    media_paths: Optional[list[str]] = None
+    media_base_path: Optional[str] = None
+    media_dl_failed: Optional[bool] = None
+
 
 class PostMetadataModel(BaseModel):
     model_config = ConfigDict(validate_assignment=True)
 
+    # todo deprecated: upgrade dbs to use
     media_paths: Optional[list[str]] = None
     media_base_path: Optional[str] = None
     media_dl_failed: Optional[bool] = None
+
+    media: dict[str, PostMediaMetadataModel] = Field(default_factory=dict)
 
     post_exists: Optional[bool] = None
     labels: Optional[list[str]] = None
