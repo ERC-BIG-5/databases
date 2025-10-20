@@ -67,7 +67,8 @@ class PlatformDB(DatabaseManager):
             db_connection=SQliteConnection(
                 db_path=(SqliteSettings().default_sqlite_dbs_base_path / f"{platform}.sqlite").as_posix()
             ),
-            table_type=table_type
+            table_type=table_type,
+            require_existing_parent_dir=True
         )
 
     @staticmethod
@@ -112,11 +113,19 @@ class PlatformDB(DatabaseManager):
         config : PlatformDBConfig
             Platform-specific database configuration containing platform name,
             connection details, table specifications, and other settings.
+
+        # todo, should get metadb based into. first just optional, which makes it use system default.
+
         """
         self.platform = config.platform
 
         # Set platform-specific tables based on table_type
+        # todo db_type: posts, process
+        # todo. based on db_type, we take the correct tables. they should be stored in lists, for the 2 types
+        # todo: there should also be task-tables for ppitem tables.
         config.tables = config.tables
+
+        # todo also based on the table_type save the according models. Use generics on the class for the DBModel and pydantic model
 
         super().__init__(config)
         self.logger = get_logger(__file__)
@@ -393,6 +402,7 @@ class PlatformDB(DatabaseManager):
                 task_record.execution_ts = col_result.execution_ts
             session.commit()
 
+    # todo check, the platform_clients package, which of the 2 functions are used. unify it....
     def update_task_status(self, task_id: int, status: CollectionStatus):
         """
         Update task status in database.
@@ -407,6 +417,31 @@ class PlatformDB(DatabaseManager):
         with self.get_session() as session:
             task = session.query(DBCollectionTask).get(task_id)
             task.status = status
+            session.commit()
+
+    def update_task(self, task_id: int, status: str, found_items: int, added_items: int, duration: int):
+        """
+        Update task with execution results.
+
+        Parameters
+        ----------
+        task_id : int
+            ID of the task to update.
+        status : str
+            New status for the task.
+        found_items : int
+            Number of items found during collection.
+        added_items : int
+            Number of items successfully added to database.
+        duration : int
+            Collection duration in seconds.
+        """
+        with self.get_session() as session:
+            task = session.query(DBCollectionTask).get(task_id)
+            task.status = status
+            task.found_items = found_items
+            task.added_items = added_items
+            task.collection_duration = int(duration * 1000)
             session.commit()
 
     def reset_running_tasks(self,
@@ -480,17 +515,17 @@ class PlatformDB(DatabaseManager):
                 db_posts.append(post)
 
         submit_posts = db_posts
-        while True:
-            try:
-                submitted_posts = self._submit_posts(submit_posts)
-                return submitted_posts
-            except IntegrityError:
-                with self.get_session() as session:
-                    filtered_posts = db_operations.filter_posts_with_existing_post_ids(submit_posts, session)
-                    return [p.model() for p in filtered_posts]
-            except Exception as e:
-                self.logger.error(f"Error submitting posts: {str(e)}")
-                return []
+        try:
+            submitted_posts = self._submit_posts(submit_posts)
+            return submitted_posts
+        except IntegrityError:
+            logger.debug(f"could not submit all posts (IntegrityError). filtering out existing posts")
+            with self.get_session() as session:
+                filtered_posts = db_operations.filter_posts_with_existing_post_ids(submit_posts, session)
+                return [p.model() for p in filtered_posts]
+        except Exception as e:
+            self.logger.error(f"Error submitting posts: {str(e)}")
+            return []
 
     def safe_submit_ppitems(self, posts: list[Union[DBPostProcessItem, PostProcessModel]]) -> list[PostProcessModel]:
         """
@@ -527,22 +562,16 @@ class PlatformDB(DatabaseManager):
                 db_posts.append(post)
 
         submit_posts = db_posts
-        while True:
-            try:
-                submitted_posts = self._submit_posts(submit_posts)
-                return submitted_posts
-            except IntegrityError:
-                with self.get_session() as session:
-
-                    # TODO:! !!! filter ppitems
-                    # query = select(DBPost.platform_id).where(DBPost.platform_id.in_(post_ids))
-                    # found_post_ids = session_.execute(query).scalars().all()
-
-                    filtered_posts = db_operations.filter_posts_with_existing_post_ids(submit_posts, session)
-                    return [p.model() for p in filtered_posts]
-            except Exception as e:
-                self.logger.error(f"Error submitting posts: {str(e)}")
-                return []
+        try:
+            submitted_posts = self._submit_posts(submit_posts)
+            return submitted_posts
+        except IntegrityError:
+            with self.get_session() as session:
+                filtered_posts = db_operations.filter_ppitems_with_existing_post_ids(submit_posts, session)
+                return [p.model() for p in filtered_posts]
+        except Exception as e:
+            self.logger.error(f"Error submitting posts: {str(e)}")
+            return []
 
     def _submit_posts(self, posts: list[DBPost | DBPostProcessItem]) -> list[PostModel | PostProcessModel]:
         """
@@ -600,30 +629,6 @@ class PlatformDB(DatabaseManager):
             session.commit()
             return [p.model() for p in filtered_posts]
 
-    def update_task(self, task_id: int, status: str, found_items: int, added_items: int, duration: int):
-        """
-        Update task with execution results.
-
-        Parameters
-        ----------
-        task_id : int
-            ID of the task to update.
-        status : str
-            New status for the task.
-        found_items : int
-            Number of items found during collection.
-        added_items : int
-            Number of items successfully added to database.
-        duration : int
-            Collection duration in seconds.
-        """
-        with self.get_session() as session:
-            task = session.query(DBCollectionTask).get(task_id)
-            task.status = status
-            task.found_items = found_items
-            task.added_items = added_items
-            task.collection_duration = int(duration * 1000)
-            session.commit()
 
     def calc_db_content(self) -> DatabaseBasestats:
         """

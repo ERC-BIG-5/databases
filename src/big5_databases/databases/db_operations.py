@@ -8,11 +8,11 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from .external import CollectionStatus
-from .model_conversion import PostModel, CollectionTaskModel
+from .model_conversion import PostModel, CollectionTaskModel, PostProcessModel
 
 if TYPE_CHECKING:
     from .db_mgmt import DatabaseManager
-from .db_models import DBPost, DBCollectionTask
+from .db_models import DBPost, DBCollectionTask, DBPostProcessItem
 
 
 def filter_posts_with_existing_post_ids(posts: list[DBPost | PostModel],
@@ -48,6 +48,49 @@ def filter_posts_with_existing_post_ids(posts: list[DBPost | PostModel],
         query = select(DBPost.platform_id).where(DBPost.platform_id.in_(post_ids))
         found_post_ids = session_.execute(query).scalars().all()
         # db.logger.debug(f"filter out posts with ids: {found_post_ids}")
+
+        return [p for p in posts if p.platform_id not in found_post_ids]
+
+    if session is not None:
+        return _filter_with_session(session)
+
+    # If only a db is provided, create a new session with context management
+    with db.get_session() as new_session:
+        return _filter_with_session(new_session)
+
+
+def filter_ppitems_with_existing_post_ids(posts: list[DBPostProcessItem | PostProcessModel],
+                                         session: Optional[Session] = None,
+                                         db: Optional["DatabaseManager"] = None) -> list[
+    DBPostProcessItem | PostProcessModel]:
+    """
+    Filter out post process items that already exist in the database by platform_id.
+
+    Parameters
+    ----------
+    posts : list[DBPostProcessItem | PostProcessModel]
+        List of post process items to filter.
+    session : Optional[Session], optional
+        Database session to use for the query, by default None.
+    db : Optional[DatabaseManager], optional
+        Database manager to create a session from, by default None.
+
+    Returns
+    -------
+    list[DBPostProcessItem | PostProcessModel]
+        List of post process items that do not exist in the database.
+
+    Notes
+    -----
+    Either session or db must be provided. If session is provided,
+    it will be used directly. If only db is provided, a new session
+    will be created using the database manager's context manager.
+    """
+    post_ids = [p.platform_id for p in posts]
+
+    def _filter_with_session(session_: Session) -> list[DBPostProcessItem | PostProcessModel]:
+        query = select(DBPostProcessItem.platform_id).where(DBPostProcessItem.platform_id.in_(post_ids))
+        found_post_ids = session_.execute(query).scalars().all()
 
         return [p for p in posts if p.platform_id not in found_post_ids]
 
