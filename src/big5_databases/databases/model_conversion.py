@@ -178,6 +178,27 @@ class PostMediaMetadataModel(BaseModel):
     media_dl_failed: Optional[bool] = None
 
 
+    @property
+    def mediafile_paths(self) -> list[Path]:
+        media_ps = self.media_paths or []
+        if not media_ps:
+            return []
+        result: list[Path] = []
+        base: Optional[Path] = None
+        if self.media_base_path:
+            base = Path(self.media_base_path)
+
+        for p in media_ps:
+            p_ = Path(p)
+            if Path(p).is_absolute():
+                result.append(p_)
+            elif base:
+                result.append(base / p_)
+            else:
+                logger.warning(f"post has a non-absolute path: {p} without basepath")
+        return result
+
+
 class PostMetadataModel(BaseModel):
     model_config = ConfigDict(validate_assignment=True)
 
@@ -187,7 +208,7 @@ class PostMetadataModel(BaseModel):
     media_dl_failed: Optional[bool] = None
 
     media: dict[str, PostMediaMetadataModel] = Field(default_factory=dict)
-
+    # not sure where this is used
     post_exists: Optional[bool] = None
     labels: Optional[list[str]] = None
     resolved_urls: Optional[PostTextReplacement] = None  # url_resolve_method
@@ -202,8 +223,10 @@ class PostMetadataModel(BaseModel):
 
     # hash_id: Optional[str] # WEIBO
 
+    # deprecated
     @property
     def mediafile_paths(self) -> list[Path]:
+        logger.warning("deprecated: PostMetadataModel.mediafile_paths")
         media_ps = self.media_paths or []
         if not media_ps:
             return []
