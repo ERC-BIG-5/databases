@@ -522,7 +522,7 @@ class PlatformDB(DatabaseManager):
             logger.debug(f"could not submit all posts (IntegrityError). filtering out existing posts")
             with self.get_session() as session:
                 filtered_posts = db_operations.filter_posts_with_existing_post_ids(submit_posts, session)
-                submitted_posts = self._submit_posts(submit_posts)
+                submitted_posts = self._submit_posts(filtered_posts)
                 return submitted_posts
         except Exception as e:
             self.logger.error(f"Error submitting posts: {str(e)}")
