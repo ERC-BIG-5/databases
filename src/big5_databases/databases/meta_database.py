@@ -171,6 +171,7 @@ class MetaDatabase:
 
         config = PlatformDBConfig(
             platform=db.platform,
+            name=db.name,
             db_connection=SQliteConnection(db_path=db.db_path),
             table_type=table_type,
             create=False,

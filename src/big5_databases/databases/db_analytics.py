@@ -6,8 +6,6 @@ from sqlalchemy import select
 
 from .external import TimeWindow
 
-
-
 if TYPE_CHECKING:
     from .db_mgmt import DatabaseManager
     from .platform_db_mgmt import PlatformDB
@@ -50,7 +48,8 @@ def get_posts_by_period(db: "DatabaseManager",
 
 def get_collected_posts_by_period(db: "PlatformDB",
                                   period: TimeWindow = TimeWindow.DAY,
-                                  select_time: Optional[date] = None) -> dict[str, col_per_day]:
+                                  select_time: Optional[date] = None,
+                                  include_last_tasks: Optional[int] = 0) -> dict[str, col_per_day]:
     """
     Get collection totals grouped by time period.
 
@@ -59,7 +58,7 @@ def get_collected_posts_by_period(db: "PlatformDB",
     :param select_time: Optional filter for tasks after this date
     :returns: Dictionary mapping periods to collection statistics
     """
-
+    #print(db.config.name)
     time_str = period.time_str
 
     period_expr = func.strftime(time_str, DBCollectionTask.execution_ts).label('period')
@@ -80,8 +79,20 @@ def get_collected_posts_by_period(db: "PlatformDB",
             query = query.where(DBCollectionTask.execution_ts >= select_time)
         result = session.execute(query).all()
 
-        return {str(period): col_per_day(tasks=num_tasks, found=found_total, added=added_total)
-                for period, num_tasks, found_total, added_total in result}
+        results_dict = {str(period): col_per_day(tasks=num_tasks, found=found_total, added=added_total)
+                        for period, num_tasks, found_total, added_total in result}
+
+        # print(results_dict)
+        if include_last_tasks:
+            result2: list[DBCollectionTask] = session.scalars(
+                select(DBCollectionTask).order_by(DBCollectionTask.execution_ts.desc()).limit(include_last_tasks)
+            ).all()
+
+            for t in result2:
+                #print(t.task_name, t.execution_ts)
+                results_dict[t.task_name]= col_per_day(tasks=1, found=t.found_items, added=t.added_items)
+
+        return results_dict
 
 
 def count_posts(db: "DatabaseManager") -> int:
