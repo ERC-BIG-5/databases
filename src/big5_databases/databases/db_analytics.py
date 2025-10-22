@@ -6,8 +6,11 @@ from sqlalchemy import select
 
 from .external import TimeWindow
 
+
+
 if TYPE_CHECKING:
     from .db_mgmt import DatabaseManager
+    from .platform_db_mgmt import PlatformDB
 from .db_models import DBPost, DBCollectionTask
 
 col_per_day = TypedDict("col_per_day", {
@@ -45,7 +48,7 @@ def get_posts_by_period(db: "DatabaseManager",
         return [(period, count) for period, count in result]
 
 
-def get_collected_posts_by_period(db: "DatabaseManager",
+def get_collected_posts_by_period(db: "PlatformDB",
                                   period: TimeWindow = TimeWindow.DAY,
                                   select_time: Optional[date] = None) -> dict[str, col_per_day]:
     """

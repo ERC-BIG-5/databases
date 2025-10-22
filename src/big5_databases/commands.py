@@ -120,8 +120,9 @@ def recent_collection(days: Annotated[int, typer.Argument()] = 3):
     header = ["platform", "date", "# tasks", "found", "added"]
     theader = [Column(h, justify="right") for h in header]
     table = Table(*theader, title="recent downloads")
+    meta_db = MetaDatabase()
     for db in MetaDatabase().get_dbs():
-        col_per_day = get_collected_posts_by_period(db.get_mgmt(), TimeWindow.DAY, t)
+        col_per_day = get_collected_posts_by_period(meta_db.get_platform_db(db.name), TimeWindow.DAY, t)
         for idx, (date, posts) in enumerate(col_per_day.items()):
             table.add_row(db.name, str(date), *[str(_) for _ in posts.values()],
                           end_section=idx == len(col_per_day) - 1)
