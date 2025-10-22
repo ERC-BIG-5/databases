@@ -468,6 +468,7 @@ class MetaDatabase:
     def general_databases_status(self,
                                  databases: Optional[list[str]] = None,
                                  task_status: bool = True,
+                                 no_refresh: bool = False,
                                  force_refresh: bool = False) -> list[dict]:
         """
         Get comprehensive status information for databases.
@@ -479,6 +480,8 @@ class MetaDatabase:
             by default None.
         task_status : bool, optional
             Whether to include task status counts, by default True.
+        no_refresh : bool, optional
+            Do not refresh statistics but just get the latest
         force_refresh : bool, optional
             Whether to force refresh of database statistics, by default False.
 
@@ -505,7 +508,7 @@ class MetaDatabase:
                 running = False
 
                 size_changed = db.content.file_size != int(platform_db._file_size())
-                if size_changed or running or force_refresh or not db.content.last_modified:
+                if (size_changed or running or force_refresh or not db.content.last_modified) and not no_refresh:
                     print(f"updating db stats for {db.name}")
                     # FIX: Use existing platform_db to avoid recursive call cycle
                     base_stats = platform_db.calc_db_content()
