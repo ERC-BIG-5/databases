@@ -89,8 +89,7 @@ def get_collected_posts_by_period(db: "PlatformDB",
             ).all()
 
             for t in result2:
-                #print(t.task_name, t.execution_ts)
-                results_dict[t.task_name]= col_per_day(tasks=1, found=t.found_items, added=t.added_items)
+                results_dict[f"* {t.task_name}"]= col_per_day(tasks=1, found=t.found_items, added=t.added_items)
 
         return results_dict
 

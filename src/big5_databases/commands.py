@@ -36,7 +36,8 @@ def status(task_status: bool = True,
            no_refresh: bool = False,
            force_refresh: bool = False,
            databases: Annotated[Optional[list[str]], typer.Argument()] = None):
-    results: list[dict[str, Any]] = MetaDatabase().general_databases_status(databases, task_status, no_refresh, force_refresh)
+    results: list[dict[str, Any]] = MetaDatabase().general_databases_status(databases, task_status, no_refresh,
+                                                                            force_refresh)
     table = Table(*[Column(c, justify="right") for c in results[0].keys()])
     for r in results:
         table.add_row(*r.values())
@@ -115,15 +116,23 @@ def compare_dbs(db_path1: Annotated[str, typer.Argument()],
 
 @app.command("recent-collection",
              short_help="get recent collection stats")
-def recent_collection(days: Annotated[int, typer.Argument()] = 3, include_last_tasks: int = 3):
+def recent_collection(
+        db_name: Annotated[str, typer.Option(autocompletion=get_db_names)] = None,
+        days: Annotated[int, typer.Option()] = 3,
+        include_last_tasks: Annotated[int, typer.Option()] = 3):
     t = datetime.today() - timedelta(days=days)
     header = ["platform", "date", "# tasks", "found", "added"]
     theader = [Column(h, justify="right") for h in header]
     table = Table(*theader, title="recent downloads")
     meta_db = MetaDatabase()
-    for db in MetaDatabase().get_dbs():
+    if db_name:
+        dbs = [meta_db.get(db_name)]
+    else:
+        dbs = meta_db.get_dbs()
+    for db in dbs:
         # print(db.name)
-        col_per_day = get_collected_posts_by_period(meta_db.get_platform_db(db.name), TimeWindow.DAY, t, include_last_tasks)
+        col_per_day = get_collected_posts_by_period(meta_db.get_platform_db(db.name), TimeWindow.DAY, t,
+                                                    include_last_tasks)
         for idx, (date, posts) in enumerate(col_per_day.items()):
             table.add_row(db.name, str(date), *[str(_) for _ in posts.values()],
                           end_section=idx == len(col_per_day) - 1)
@@ -199,11 +208,13 @@ def create_proc_db(db_name: Annotated[str, typer.Argument(autocompletion=get_db_
     create_packaged_databases([db_name], proc_db_path,
                               proc_package_method(data_type), delete_destination=False, exists_ok=True)
 
+
 @app.command()
 def get_full_path(db_name: str) -> Path:
     fp = MetaDatabase().get(db_name).full_path
     print(fp)
     return fp
+
 
 @app.command(short_help="Manually add a running state")
 def add_run_state(
