@@ -176,7 +176,8 @@ class PostMediaMetadataModel(BaseModel):
     media_paths: Optional[list[str]] = None
     media_base_path: Optional[str] = None
     media_dl_failed: Optional[bool] = None
-
+    download_ts: int = Field(description="timestamp")
+    file_size: int = Field(description="in bytes")
 
     @property
     def mediafile_paths(self) -> list[Path]:
