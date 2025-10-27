@@ -1,0 +1,10 @@
+# Core dependencies for Two-Layer Anonymization System
+cryptography>=41.0.0  # For RSA, AES-GCM, key serialization
+sqlalchemy>=2.0.0     # For database operations (if using)
+
+# Optional dependencies for specific use cases
+# Uncomment as needed for your project:
+
+# psycopg2-binary>=2.9.0  # PostgreSQL adapter
+# pymysql>=1.1.0          # MySQL adapter
+# python-dotenv>=1.0.0    # For loading .env files
