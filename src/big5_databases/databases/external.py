@@ -13,6 +13,7 @@ from tools.env_root import root
 from tools.pydantic_annotated_types import SerializablePath, SerializableDatetime
 
 from .db_settings import SqliteSettings
+from pydantic import model_validator
 
 # todo kick this out
 BASE_DATA_PATH = root() / "data"
@@ -95,7 +96,7 @@ class DBConfig(BaseModel):
     test_mode: bool = False
     require_existing_parent_dir: Optional[bool] = Field(True,
                                                         description="SQLITE: When the db is created, it requires an existing parent directory.")
-    tables: Optional[list[str]] = Field(default_factory=list)
+    tables: list[str]
 
     @property
     def connection_str(self) -> str:
@@ -119,14 +120,21 @@ class PlatformDBConfig(DBConfig):
     table_type: Literal["posts", "process"] = Field(default="posts",
                                                     description="Type of database: posts (content storage) or process (task processing)")
 
-    @property
-    def platform_tables(self) -> list[str]:
+    @model_validator(mode="before")
+    def platform_tables(cls, values, info) -> list[str]:
+        if not "table_type" in values:
+            values["table_type"] = "posts"
+
+        if values.get("table_type") not in ["posts", "process"]:
+            raise ValueError(f"'table_type' invalid, is '{values.get("table_type")}'")
+
         """Get constant tables based on table_type"""
-        if self.table_type == "posts":
-            return ["posts", "users", "collection_tasks"]
+        if values["table_type"] == "posts":
+            values["tables"] = ["post", "user", "comment", "collection_task"]
         else:  # process
             # todo wtf is process_status
-            return ["collection_tasks", "process_status"]
+            values["tables"] = ["collection_task", "process_status"]
+        return values
 
 
 class ClientConfig(BaseModel):

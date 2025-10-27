@@ -6,13 +6,16 @@ from typing import Annotated, Optional, Any
 
 from rich.console import Console
 from rich.table import Table, Column
+from sqlalchemy.sql.functions import func
 
 from big5_databases.databases.c_db_merge import check_for_conflicts
 from big5_databases.databases.db_analytics import get_collected_posts_by_period, get_posts_by_period
+from big5_databases.databases.db_models import DBPost
 from big5_databases.databases.db_settings import SqliteSettings, DatabaseSettings
-from big5_databases.databases.external import TimeWindow, DatabaseRunState
+from big5_databases.databases.external import TimeWindow, DatabaseRunState, PlatformDBConfig, SQliteConnection
 from big5_databases.databases.meta_database import MetaDatabase
 from big5_databases.databases.model_conversion import PlatformDatabaseModel
+from big5_databases.databases.platform_db_mgmt import PlatformDB
 from big5_databases.databases.post_analysis_db import create_packaged_databases, proc_package_method
 
 try:
@@ -47,7 +50,7 @@ def status(task_status: bool = True,
 @app.command(short_help="collected_posts_per_day")
 def collected_per_day(db_name: Annotated[str, typer.Argument(autocompletion=get_db_names)],
                       period: Annotated[str, typer.Argument(help="day,month,year")] = "day",
-                      dump_to_file: Annotated[Optional[Path], typer.Argument(help="dump to file")] = None):
+                      dump_to_file: Annotated[Optional[Path], typer.Argument(help="path of file")] = None):
     assert period in ["day", "month", "year"]
     db = MetaDatabase().get_platform_db(db_name)
     col_per_day = get_collected_posts_by_period(db, TimeWindow(period))
@@ -65,8 +68,8 @@ def collected_per_day(db_name: Annotated[str, typer.Argument(autocompletion=get_
 @app.command(short_help="posts by period")
 def posts_per_period(db_name: Annotated[str, typer.Argument(autocompletion=get_db_names)],
                      period: Annotated[str, typer.Argument(help="day,month,year")] = "day",
-                     print_: Annotated[bool, typer.Argument()] = True,
-                     dump_to_file: Annotated[Optional[Path], typer.Argument(help="dump to file")] = None):
+                     print_: Annotated[bool, typer.Option()] = True,
+                     dump_to_file: Annotated[Optional[Path], typer.Option(help="dump to file")] = None):
     db = MetaDatabase().get_platform_db(db_name)
     assert period in ["day", "month", "year"]
     ppd = get_posts_by_period(db, TimeWindow(period))
@@ -232,3 +235,45 @@ def add_run_state(
                                      location=location,
                                      alt_db=alt_db_name,
                                  ))
+
+
+@app.command(short_help="Sample a small portion")
+def sample(
+        db_name: Annotated[str, typer.Argument(autocompletion=get_db_names)],
+        destination: Annotated[Path, typer.Argument()],
+        add_to_meta_db: Annotated[bool, typer.Option()] = False,
+        overwrite: Annotated[bool, typer.Option()] = False,
+        sample_size: Annotated[int, typer.Argument(max=5000)] = 100
+):
+    meta_db = MetaDatabase()
+    if not meta_db.exists(db_name):
+        print(f"error, db : {db_name} does not exist")
+        return
+
+    # this will also set the absolute correct path
+    db_connection = SQliteConnection(db_path=destination)
+    final_destination = Path(db_connection.db_path)
+    if final_destination != destination:
+        print(f"Destination set to: {final_destination}")
+
+    if final_destination.exists():
+        if not overwrite:
+            print(f"error, db : {db_name} already exists (you can set ---overwrite)")
+            return
+        else:
+            final_destination.unlink()
+
+    db = meta_db.get_platform_db(db_name)
+    sample_db = PlatformDB(PlatformDBConfig(platform=db.platform, create=True, db_connection=db_connection,
+                                            require_existing_parent_dir=True))
+    with db.get_session() as session:
+        posts: list[DBPost] = session.query(DBPost).order_by(func.random()).limit(sample_size).all()
+        mod_posts = [p.model() for p in posts]
+        for p in mod_posts:
+            p.collection_task_id = None
+        submitted = sample_db.safe_submit_posts(mod_posts)
+        print(f"done! DB at {str(final_destination)}, {len(submitted)} posts")
+
+    if add_to_meta_db:
+        name_ts_postfix = datetime.now().strftime("%Y%m%d_%H%M")
+        meta_db.add_db(sample_db.get_model(db_name=f"{db_name}_{name_ts_postfix}.sqlite"))

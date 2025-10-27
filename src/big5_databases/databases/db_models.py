@@ -14,7 +14,7 @@ from tools.pydantic_annotated_types import SerializableDatetimeAlways
 from .db_settings import SqliteSettings
 from .external import CollectionStatus, ClientTaskConfig, MetaDatabaseContentModel, DatabaseRunState
 from .external import PostType
-from .model_conversion import CollectionTaskModel, PostModel, PlatformDatabaseModel, PostProcessModel
+from .model_conversion import CollectionTaskModel, PostModel, PlatformDatabaseModel, PostProcessModel, AnonymizeModel, DatabaseStatsModel
 
 Base = declarative_base()
 
@@ -173,10 +173,32 @@ class DBPostProcessItem(DBModelBase[PostProcessModel]):
     __tablename__ = "ppitem"
     id: Mapped[int] = mapped_column(primary_key=True)
     platform_id: Mapped[str] = mapped_column(String(50), nullable=False, unique=True)
-    input: Mapped[dict] = Column(JSON, nullable=False)
-    output: Mapped[dict] = Column(JSON)
+    input: Mapped[dict] = mapped_column(JSON, nullable=False)
+    output: Mapped[dict] = mapped_column(JSON)
 
     _pydantic_model = PostProcessModel
+
+
+class DBAnonymize(DBModelBase[AnonymizeModel]):
+    __tablename__ = "anonymize"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    user_id_hash: Mapped[str] = mapped_column(String, nullable=False, unique=True)
+    encrypted_user_id: Mapped[str] = mapped_column(String, nullable=False)
+    public_id: Mapped[str] = mapped_column(String, nullable=False, unique=True)
+    encrypted_data: Mapped[str] = mapped_column(String, nullable=True, default={})
+
+    _pydantic_model = AnonymizeModel
+
+
+class DBDatabaseStats(DBModelBase[DatabaseStatsModel]):
+    __tablename__ = "database_stats"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    task_counts: Mapped[dict] = mapped_column(JSON, nullable=False)
+    post_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    last_task_change: Mapped[datetime] = mapped_column(DateTime, nullable=True)
+    last_calculated: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=func.now())
+
+    _pydantic_model = DatabaseStatsModel
 
 
 M_DBPlatformDatabase = TypedDict("M_DBPlatformDatabase",
@@ -204,4 +226,3 @@ class CollectionResult:
     duration: int
     collected_items: int
     execution_ts: SerializableDatetimeAlways
-

@@ -17,7 +17,7 @@ from .db_models import DBCollectionTask, DBPost, CollectionResult, DBPostProcess
 from .db_settings import SqliteSettings
 from .external import CollectionStatus, DatabaseBasestats, TimeWindow, TimeColumn, DBStats
 from .external import PlatformDBConfig, SQliteConnection, ClientTaskConfig
-from .model_conversion import PostModel, PostProcessModel
+from .model_conversion import PostModel, PostProcessModel, PlatformDatabaseModel
 
 logger = get_logger(__file__)
 
@@ -744,3 +744,10 @@ class PlatformDB(DatabaseManager):
         This method delegates to DatabaseManager.platform_tables().
         """
         return DatabaseManager.platform_tables()
+
+    def get_model(self, db_name: str) -> PlatformDatabaseModel:
+        return PlatformDatabaseModel(
+            platform=self.platform,
+            db_path=self.path,
+            name=db_name
+        )

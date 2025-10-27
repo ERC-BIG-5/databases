@@ -1,9 +1,10 @@
+import uuid
 from datetime import datetime
 from pathlib import Path
 from typing import Optional, Annotated, Any, TYPE_CHECKING, Literal
 
 from deprecated.classic import deprecated
-from pydantic import BaseModel, Field, field_validator, ConfigDict, PlainSerializer
+from pydantic import BaseModel, Field, field_validator, ConfigDict, PlainSerializer, SecretStr
 from tools.project_logging import get_logger
 from tools.pydantic_annotated_types import SerializableDatetimeAlways
 
@@ -12,7 +13,6 @@ from .external import CollectionStatus, PostType, CollectConfig, MetaDatabaseCon
     DatabaseRunState
 
 if TYPE_CHECKING:
-    from .db_mgmt import DatabaseManager
     from .platform_db_mgmt import PlatformDB
     from .meta_database import get_platform_db, MetaDatabase
 
@@ -23,7 +23,6 @@ logger = get_logger(__file__)
 class BaseDBModel(BaseModel):
     """Base model with common fields"""
     id: int
-
     model_config = ConfigDict(from_attributes=True, validate_assignment=True)
 
 
@@ -63,7 +62,6 @@ class PlatformDatabaseModel(BaseDBModel):
         logger.warning("get_mgmt() is deprecated. Use get_platform_db() for platform-specific operations.")
         if not self.exists():
             raise ValueError(f"Could not load database {self.db_path} from meta-database. Database does not exist")
-        from .db_mgmt import DatabaseManager
         mgmt = get_platform_db(meta_db.db_path, self.name)
         # mgmt = DatabaseManager.sqlite_db_from_path(self.db_path)
         mgmt.metadata = self
@@ -339,3 +337,17 @@ class PostProcessModel(BaseDBModel):
         """Compatibility method for media downloader"""
         # Extract media URLs from input data if available
         return self.input.get('content', {}).get('media', {})
+
+
+class AnonymizeModel(BaseModel):
+    user_id_hash: SecretStr
+    encrypted_user_id: SecretStr
+    public_id: uuid.UUID
+    encrypted_data: Optional[SecretStr] = None
+
+
+class DatabaseStatsModel(BaseDBModel):
+    task_counts: dict[str, int]
+    post_count: int
+    last_task_change: Optional[SerializableDatetimeAlways] = None
+    last_calculated: SerializableDatetimeAlways

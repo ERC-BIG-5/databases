@@ -263,6 +263,7 @@ class DatabaseManager:
                 db_path.parent.mkdir(parents=True, exist_ok=True)
                 # create an empty db file
                 create_database(self.engine.url)
+                # todo: should always have it. remove condition
                 if self.config.tables:
                     # Base.metadata.create_all(self.engine)
                     md = Base.metadata.tables
@@ -335,6 +336,10 @@ class DatabaseManager:
         tables.remove("platform_databases")
         tables.remove("ppitem")
         return tables
+
+    @property
+    def path(self) ->Path:
+        return self.config.db_connection.db_path
 
     # File system utilities (private methods)
     def _file_size(self) -> int:
@@ -457,3 +462,10 @@ class AsyncDatabaseManager(DatabaseManager):
         it within an async context manager for proper resource cleanup.
         """
         return self.async_session()
+
+
+def get_anon_db(db_path: Path, create=False) -> DatabaseManager:
+    return DatabaseManager(
+        DBConfig(db_connection=SQliteConnection(db_path=db_path),
+                 create=create,
+                 require_existing_parent_dir=True))

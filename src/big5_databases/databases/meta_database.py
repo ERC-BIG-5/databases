@@ -512,7 +512,7 @@ class MetaDatabase:
                 if (size_changed or running or force_refresh or not db.content.last_modified) and not no_refresh:
                     print(f"updating db stats for {db.name}")
                     # FIX: Use existing platform_db to avoid recursive call cycle
-                    base_stats = platform_db.calc_db_content()
+                    base_stats = platform_db.calc_db_content(force_refresh=force_refresh)
                     db.content.add_basestats(base_stats)
                     self.update_content(db)
                     if running:
