@@ -186,6 +186,7 @@ class DBAnonymize(DBModelBase[AnonymizeModel]):
     encrypted_user_id: Mapped[str] = mapped_column(String, nullable=False)
     public_id: Mapped[str] = mapped_column(String, nullable=False, unique=True)
     encrypted_data: Mapped[str] = mapped_column(String, nullable=True, default={})
+    key_version: Mapped[str] = mapped_column(String, nullable=False)
 
     _pydantic_model = AnonymizeModel
 

@@ -117,23 +117,25 @@ class DBSetupConfig(DBConfig):
 class PlatformDBConfig(DBConfig):
     """Configuration for platform-specific databases with table type specification"""
     platform: str = Field(description="Platform name (e.g., 'tiktok', 'twitter', 'youtube')")
-    table_type: Literal["posts", "process"] = Field(default="posts",
-                                                    description="Type of database: posts (content storage) or process (task processing)")
+    table_type: Literal["posts", "process", "anon"] = Field(default="posts",
+                                                    description="Type of database: posts (content storage), process (task processing), or anon (anonymization)")
 
     @model_validator(mode="before")
     def platform_tables(cls, values, info) -> list[str]:
         if not "table_type" in values:
             values["table_type"] = "posts"
 
-        if values.get("table_type") not in ["posts", "process"]:
+        if values.get("table_type") not in ["posts", "process", "anon"]:
             raise ValueError(f"'table_type' invalid, is '{values.get("table_type")}'")
 
         """Get constant tables based on table_type"""
         if values["table_type"] == "posts":
             values["tables"] = ["post", "user", "comment", "collection_task"]
-        else:  # process
+        elif values["table_type"] == "process":
             # todo wtf is process_status
             values["tables"] = ["collection_task", "process_status"]
+        else:  # anon
+            values["tables"] = ["anonymize", "database_stats"]
         return values
 
 

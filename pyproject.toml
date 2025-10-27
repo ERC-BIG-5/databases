@@ -19,6 +19,9 @@ dependencies = [
     "sqlalchemy-utils>=0.41.2",
     "tqdm>=4.67.1",
     "deepdiff>=8.6.0",
+    "cryptography>=46.0.3",
+    "jsonpath-ng>=1.7.0",
+    "python-dotenv>=1.1.1",
 ]
 
 

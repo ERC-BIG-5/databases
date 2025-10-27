@@ -1,7 +1,8 @@
 import logging
 from collections import defaultdict
+from datetime import datetime
 from pathlib import Path
-from typing import Sequence, Union, Literal
+from typing import Sequence, Union, Literal, Optional
 
 from deprecated.classic import deprecated
 from sqlalchemy import exists
@@ -13,7 +14,7 @@ from tools.project_logging import get_logger
 from . import db_analytics, db_operations
 from .db_analytics import get_posts_by_period
 from .db_mgmt import DatabaseManager
-from .db_models import DBCollectionTask, DBPost, CollectionResult, DBPostProcessItem
+from .db_models import DBCollectionTask, DBPost, CollectionResult, DBPostProcessItem, DBDatabaseStats
 from .db_settings import SqliteSettings
 from .external import CollectionStatus, DatabaseBasestats, TimeWindow, TimeColumn, DBStats
 from .external import PlatformDBConfig, SQliteConnection, ClientTaskConfig
@@ -54,7 +55,7 @@ class PlatformDB(DatabaseManager):
         ----------
         platform : str
             Name of the social media platform.
-        table_type : Literal["posts", "process"], optional
+        table_type : Literal["posts", "process", "anon"], optional
             Type of tables to create, by default "posts".
 
         Returns
@@ -75,7 +76,7 @@ class PlatformDB(DatabaseManager):
     def sqlite_db_from_path(platform: str,
                             path: str | Path,
                             create: bool = False,
-                            table_type: Literal["posts", "process"] = "posts") -> "PlatformDB":
+                            table_type: Literal["posts", "process", "anon"] = "posts") -> "PlatformDB":
         """
         Create a PlatformDB instance from a SQLite database path.
 
@@ -87,7 +88,7 @@ class PlatformDB(DatabaseManager):
             Path to the SQLite database file.
         create : bool, optional
             Whether to create the database if it doesn't exist, by default False.
-        table_type : Literal["posts", "process"], optional
+        table_type : Literal["posts", "process", "anon"], optional
             Type of tables to create, by default "posts".
 
         Returns
@@ -631,9 +632,44 @@ class PlatformDB(DatabaseManager):
             return [p.model() for p in filtered_posts]
 
 
-    def calc_db_content(self) -> DatabaseBasestats:
+    def _get_cached_stats(self) -> Optional[DBDatabaseStats]:
+        """Get cached database statistics if available."""
+        with self.get_session() as session:
+            return session.query(DBDatabaseStats).first()
+
+    def _update_cached_stats(self, task_counts: dict[str, int], post_count: int) -> None:
+        """Update or create cached database statistics."""
+        with self.get_session() as session:
+            stats = session.query(DBDatabaseStats).first()
+            if stats:
+                stats.task_counts = task_counts
+                stats.post_count = post_count
+                stats.last_calculated = datetime.now()
+            else:
+                stats = DBDatabaseStats(
+                    task_counts=task_counts,
+                    post_count=post_count,
+                    last_calculated=datetime.now()
+                )
+                session.add(stats)
+            session.commit()
+
+    def invalidate_cache_on_task_change(self) -> None:
+        """Mark cache as needing refresh when task status changes."""
+        with self.get_session() as session:
+            stats = session.query(DBDatabaseStats).first()
+            if stats:
+                stats.last_task_change = datetime.now()
+                session.commit()
+
+    def calc_db_content(self, force_refresh: bool = False) -> DatabaseBasestats:
         """
-        Calculate basic database statistics.
+        Calculate basic database statistics using cached values when possible.
+
+        Parameters
+        ----------
+        force_refresh : bool
+            If True, recalculate stats even if cached values are available
 
         Returns
         -------
@@ -641,9 +677,20 @@ class PlatformDB(DatabaseManager):
             Object containing basic database statistics including task states,
             post count, file size, and last modified timestamp.
         """
+        cached_stats = self._get_cached_stats() if not force_refresh else None
+
+        if cached_stats and (not cached_stats.last_task_change or
+                           cached_stats.last_calculated >= cached_stats.last_task_change):
+            task_counts = cached_stats.task_counts
+            post_count = cached_stats.post_count
+        else:
+            task_counts = db_operations.count_states(self)
+            post_count = db_analytics.count_posts(db=self)
+            self._update_cached_stats(task_counts, post_count)
+
         return DatabaseBasestats(
-            tasks_states=db_operations.count_states(self),
-            post_count=db_analytics.count_posts(db=self),
+            tasks_states=task_counts,
+            post_count=post_count,
             file_size=self._file_size(),
             last_modified=self._file_modified())
 

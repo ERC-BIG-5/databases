@@ -17,7 +17,7 @@ from big5_databases.databases.meta_database import MetaDatabase
 from big5_databases.databases.model_conversion import PlatformDatabaseModel
 from big5_databases.databases.platform_db_mgmt import PlatformDB
 from big5_databases.databases.post_analysis_db import create_packaged_databases, proc_package_method
-
+from rich import print
 try:
     import typer
 except ModuleNotFoundError:
@@ -254,11 +254,11 @@ def sample(
     db_connection = SQliteConnection(db_path=destination)
     final_destination = Path(db_connection.db_path)
     if final_destination != destination:
-        print(f"Destination set to: {final_destination}")
+        print(f"! Destination set to: {final_destination}")
 
     if final_destination.exists():
         if not overwrite:
-            print(f"error, db : {db_name} already exists (you can set ---overwrite)")
+            print(f"❌ error, db at '{final_destination}' exists already (set ---overwrite)")
             return
         else:
             final_destination.unlink()
@@ -272,7 +272,7 @@ def sample(
         for p in mod_posts:
             p.collection_task_id = None
         submitted = sample_db.safe_submit_posts(mod_posts)
-        print(f"done! DB at {str(final_destination)}, {len(submitted)} posts")
+        print(f"✓ done! DB at {str(final_destination)}, {len(submitted)} posts")
 
     if add_to_meta_db:
         name_ts_postfix = datetime.now().strftime("%Y%m%d_%H%M")
