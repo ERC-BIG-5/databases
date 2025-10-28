@@ -11,7 +11,7 @@ def platform_user_data_jsonpath(platform: platform_name) -> tuple[str, list[str]
         case "youtube":
             return "snippet.channelId", ["snippet.channelTitle"]
         case "twitter":
-            return "user.id_str", ["user"]
+            return "user.id_str", ["user.id", "user.url", "user.username", "user.displayname"]
         case "tiktok":
             return "username", []
         case "instagram":
@@ -26,7 +26,8 @@ class AnonFixDBConfig(BaseModel):
     platform: platform_name
 
     @field_validator("path", mode="after")
-    def db_exists(self, v: Path) -> Path:
+    @classmethod
+    def db_exists(cls, v: Path) -> Path:
         if not v.exists():
             raise ValidationError(f"Database {v} does not exist")
         return v

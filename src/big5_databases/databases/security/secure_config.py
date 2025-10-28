@@ -57,7 +57,7 @@ class SecurityConfig:
     
     # RSA keys for encrypting original IDs
     public_key_pem: SecretStr
-    private_key_pem: SecretStr
+    private_key_pem: Optional[SecretStr] = None
     
     # Key version for rotation support
     key_version: str = "v1"
@@ -87,15 +87,13 @@ class SecurityConfig:
         public_key_pem = os.getenv("PUBLIC_KEY_PEM")
         private_key_pem = os.getenv("PRIVATE_KEY_PEM")
         
-        # Validate required variables
+        # Validate required variables (private key is optional)
         missing = []
         if not hmac_key:
             missing.append("HMAC_KEY")
         if not public_key_pem:
             missing.append("PUBLIC_KEY_PEM")
-        if not private_key_pem:
-            missing.append("PRIVATE_KEY_PEM")
-        
+
         if missing:
             raise ValueError(
                 f"Missing required environment variables: {', '.join(missing)}\n"
@@ -109,7 +107,7 @@ class SecurityConfig:
         return cls(
             hmac_key=SecretStr(hmac_key),
             public_key_pem=SecretStr(public_key_pem),
-            private_key_pem=SecretStr(private_key_pem),
+            private_key_pem=SecretStr(private_key_pem) if private_key_pem else None,
             key_version=key_version,
             database_url=SecretStr(database_url)
         )

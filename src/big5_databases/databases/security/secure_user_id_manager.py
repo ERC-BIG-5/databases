@@ -72,7 +72,7 @@ class SecureUserIDManager:
         # Load private key ONLY if requested
         self.private_key = None
         if load_private_key:
-            if not config.private_key_pem.get_secret_value():
+            if not config.private_key_pem or not config.private_key_pem.get_secret_value():
                 raise ValueError(
                     "Private key requested but not available in config"
                 )
