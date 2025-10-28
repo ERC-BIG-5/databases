@@ -1,17 +1,63 @@
-# Security module for user anonymization
-from .db_operations import init_anon_db, process_db, DatabaseOperations
-from .jsonpath_extractor import JsonPathFieldExtractor, JsonPathContentProtector
-from .protection_marker import ProtectionMarker
-from .secure_user_id_manager import SecureUserIDManager
-from .decryption_manager import DecryptionManager
+# Security module for user anonymization with organized subpackages
+
+# Core functionality - main anonymization features
+from .core import (
+    SecurityConfig,
+    EnvelopeEncryption,
+    EnvelopeData,
+    SecureUserIDManager,
+    UserMapping,
+    DatabaseOperations,
+    init_anon_db,
+    process_db,
+    ProtectionMarker,
+    process_database
+)
+
+# Audit functionality - verification and decryption
+from .audit import (
+    DecryptionManager,
+    AnonymizationAuditor,
+    AuditConfig,
+    AuditResult,
+    quick_audit,
+    DecryptAuditor,
+    DecryptAuditResult,
+    decrypt_and_verify_uuids
+)
+
+# Utilities - platform support and extraction tools
+from .utils import (
+    JsonPathFieldExtractor,
+    JsonPathContentProtector,
+    platform_user_data_jsonpath
+)
 
 __all__ = [
+    # Core functionality
+    'SecurityConfig',
+    'EnvelopeEncryption',
+    'EnvelopeData',
+    'SecureUserIDManager',
+    'UserMapping',
+    'DatabaseOperations',
     'init_anon_db',
     'process_db',
-    'DatabaseOperations',
+    'ProtectionMarker',
+    'process_database',
+
+    # Audit functionality
+    'DecryptionManager',
+    'AnonymizationAuditor',
+    'AuditConfig',
+    'AuditResult',
+    'quick_audit',
+    'DecryptAuditor',
+    'DecryptAuditResult',
+    'decrypt_and_verify_uuids',
+
+    # Utilities
     'JsonPathFieldExtractor',
     'JsonPathContentProtector',
-    'ProtectionMarker',
-    'SecureUserIDManager',
-    'DecryptionManager'
+    'platform_user_data_jsonpath'
 ]
