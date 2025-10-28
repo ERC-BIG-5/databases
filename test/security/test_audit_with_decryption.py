@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """
 Advanced audit test that attempts to decrypt anonymized data.
 

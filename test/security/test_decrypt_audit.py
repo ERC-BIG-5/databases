@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """
 Test the decrypt and audit functionality.
 
@@ -9,20 +8,16 @@ This script demonstrates how to use the DecryptAuditor to:
 """
 
 import sys
-from pathlib import Path
+from tools.env_root import root
 
 # Add project root to path
-project_root = Path(__file__).parent
-sys.path.insert(0, str(project_root))
+sys.path.insert(0, str(root()))
 
-# Import the decrypt auditor directly
-import importlib.util
-spec = importlib.util.spec_from_file_location("decrypt_audit", "src/big5_databases/databases/security/decrypt_audit.py")
-decrypt_audit = importlib.util.module_from_spec(spec)
-spec.loader.exec_module(decrypt_audit)
-
-DecryptAuditor = decrypt_audit.DecryptAuditor
-decrypt_and_verify_uuids = decrypt_audit.decrypt_and_verify_uuids
+# Import using the new package structure
+from src.big5_databases.databases.security.audit import (
+    DecryptAuditor,
+    decrypt_and_verify_uuids
+)
 
 
 def get_sample_uuids(anon_db_path: str, count: int = 5):

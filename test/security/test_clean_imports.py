@@ -1,23 +1,20 @@
-#!/usr/bin/env python3
 """
 Test clean imports for protection marker.
 Run this from the project root directory.
 """
 
 import sys
-from pathlib import Path
+from tools.env_root import root
 
-# Ensure we're in project root
-if Path.cwd().name != "big5_databases":
-    print("❌ Run this from the project root (big5_databases directory)")
-    sys.exit(1)
+# Add project root to Python path
+sys.path.insert(0, str(root()))
 
 print("🧪 Testing clean imports from project root...")
-print(f"   Current directory: {Path.cwd()}")
+print(f"   Project root: {root()}")
 
 try:
-    # Test direct import of protection marker (bypassing security __init__.py)
-    from src.big5_databases.databases.security.protection_marker import ProtectionMarker
+    # Test direct import of protection marker from new core subpackage
+    from src.big5_databases.databases.security.core.protection_marker import ProtectionMarker
     print("✅ ProtectionMarker import successful")
 
     # Test database model import

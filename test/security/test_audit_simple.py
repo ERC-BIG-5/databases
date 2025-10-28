@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """
 Simple test for audit functionality to verify anonymization process.
 

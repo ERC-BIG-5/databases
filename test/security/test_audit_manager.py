@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """
 Test the abstract audit manager functionality.
 
@@ -7,22 +6,18 @@ to audit anonymized databases.
 """
 
 import sys
-from pathlib import Path
+from tools.env_root import root
 
 # Add project root to path
-project_root = Path(__file__).parent
-sys.path.insert(0, str(project_root))
+sys.path.insert(0, str(root()))
 
-# Import the audit manager directly without going through security __init__.py
-import importlib.util
-spec = importlib.util.spec_from_file_location("audit_manager", "src/big5_databases/databases/security/audit_manager.py")
-audit_manager = importlib.util.module_from_spec(spec)
-spec.loader.exec_module(audit_manager)
-
-AnonymizationAuditor = audit_manager.AnonymizationAuditor
-AuditConfig = audit_manager.AuditConfig
-quick_audit = audit_manager.quick_audit
-full_audit_with_decryption = audit_manager.full_audit_with_decryption
+# Import using the new package structure
+from src.big5_databases.databases.security.audit import (
+    AnonymizationAuditor,
+    AuditConfig,
+    quick_audit,
+    full_audit_with_decryption
+)
 
 
 def main():

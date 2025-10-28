@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """
 Demonstration of Decrypt and Audit functionality.
 

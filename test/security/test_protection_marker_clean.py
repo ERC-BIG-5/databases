@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """
 Clean test for protection marker functionality.
 Run this from the project root directory.
@@ -6,11 +5,10 @@ Run this from the project root directory.
 
 import sys
 from pathlib import Path
+from tools.env_root import root
 
-# Ensure we're in project root
-if Path.cwd().name != "big5_databases":
-    print("❌ Run this from the project root (big5_databases directory)")
-    sys.exit(1)
+# Add project root to Python path
+sys.path.insert(0, str(root()))
 
 def test_protection_marker():
     """Test the protection marker with clean imports."""
@@ -26,9 +24,9 @@ def test_protection_marker():
         return
 
     try:
-        # Clean imports
+        # Clean imports using new package structure
         from src.big5_databases.databases.platform_db_mgmt import PlatformDB
-        from src.big5_databases.databases.security.protection_marker import ProtectionMarker
+        from src.big5_databases.databases.security.core.protection_marker import ProtectionMarker
 
         # Create database manager with absolute path
         db_path = Path(test_db).absolute()

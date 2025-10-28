@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """
 Test script for the protection marker functionality.
 
@@ -7,20 +6,16 @@ to track which posts have been processed for anonymization, avoiding re-processi
 """
 
 import sys
-from pathlib import Path
+from tools.env_root import root
 
 # Add project root to path
-project_root = Path(__file__).parent
-sys.path.insert(0, str(project_root))
+sys.path.insert(0, str(root()))
 
-# Import the protection marker directly
-import importlib.util
-spec = importlib.util.spec_from_file_location("protection_marker", "src/big5_databases/databases/security/protection_marker.py")
-protection_marker_module = importlib.util.module_from_spec(spec)
-spec.loader.exec_module(protection_marker_module)
-
-ProtectionMarker = protection_marker_module.ProtectionMarker
-process_database_protection_marking = protection_marker_module.process_database_protection_marking
+# Import using the new package structure
+from src.big5_databases.databases.security.core import (
+    ProtectionMarker,
+    process_database_protection_marking
+)
 
 
 def test_protection_marker():
