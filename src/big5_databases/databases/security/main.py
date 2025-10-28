@@ -12,6 +12,8 @@ import sys
 from pathlib import Path
 from typing import Union
 
+from dotenv import load_dotenv
+
 # Add the project root to Python path for imports
 project_root = Path(__file__).parent.parent.parent.parent.parent
 sys.path.insert(0, str(project_root))
@@ -69,9 +71,9 @@ def process_database(
             raise ValueError(f"Required environment variable {key} not found")
 
     # Import required modules (after environment is set)
-    from big5_databases.databases.meta_database import MetaDatabase
-    from big5_databases.databases.platform_db_mgmt import PlatformDB
-    from big5_databases.databases.security.db_operations import init_anon_db, process_db
+    from ..meta_database import MetaDatabase
+    from ..platform_db_mgmt import PlatformDB
+    from .db_operations import init_anon_db, process_db
 
     # Load source database
     source_db_input = str(source_db_path_or_name)

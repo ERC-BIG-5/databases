@@ -21,8 +21,8 @@ from dataclasses import dataclass
 
 from cryptography.hazmat.primitives import serialization
 
-from secure_config import SecurityConfig
-from envelope_encryption import EnvelopeEncryption, EnvelopeData
+from .secure_config import SecurityConfig
+from .envelope_encryption import EnvelopeEncryption, EnvelopeData
 
 
 @dataclass

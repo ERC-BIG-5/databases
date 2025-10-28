@@ -59,6 +59,12 @@ result = auditor.decrypt_and_verify(
 - **UUID verification**: Decrypt and verify specific anonymized users
 - **Content protection**: `<PROTECTED>` markers in anonymized data
 
+## Usage Notes
+
+- **Run from project root**: All modules use clean relative imports and should be run from the `big5_databases` project root directory
+- **Import directly**: For standalone usage, import modules directly (e.g., `from src.big5_databases.databases.security.protection_marker import ProtectionMarker`)
+- **Environment required**: Anonymization requires environment variables for crypto keys
+
 ## Required Environment Variables
 
 ```bash

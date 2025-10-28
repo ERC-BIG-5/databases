@@ -198,6 +198,14 @@ class PostMediaMetadataModel(BaseModel):
         return result
 
 
+class PostProtectionModel(BaseModel):
+    """
+    for the security package
+    """
+    protected_user: bool = Field(False,
+                                 description="marks that we ran the security anonymization method to protect users")
+
+
 class PostMetadataModel(BaseModel):
     model_config = ConfigDict(validate_assignment=True)
 
@@ -216,11 +224,10 @@ class PostMetadataModel(BaseModel):
     orig_db_conf: Optional[tuple[str, Optional[int]]] = Field(None,
                                                               description="original database_name, collection_task_id) for merges")
     annotations: Optional[dict[str, dict]] = Field(None, description="annotations from labelstudio")
+    protection: Optional[dict[str, str]] = Field(None, description="protection and compliance. ")
 
     # platform specific info
     extra: Optional[dict[str, Any]] = Field(None, description="platform specific")
-
-    # hash_id: Optional[str] # WEIBO
 
     # deprecated
     @property

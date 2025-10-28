@@ -16,8 +16,8 @@ BENEFITS:
 import os
 import base64
 import logging
-from cryptography.hazmat.primitives.asymmetric import rsa
-from cryptography.hazmat.primitives import serialization
+from cryptography.hazmat.primitives.asymmetric import rsa # type: ignore
+from cryptography.hazmat.primitives import serialization # type: ignore
 
 # Import our separated modules
 from secure_config import SecurityConfig

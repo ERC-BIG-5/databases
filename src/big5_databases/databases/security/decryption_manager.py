@@ -14,9 +14,9 @@ SECURITY:
 from typing import Optional
 import logging
 
-from secure_config import SecurityConfig
-from secure_user_id_manager import SecureUserIDManager
-from db_operations import DatabaseOperations
+from .secure_config import SecurityConfig
+from .secure_user_id_manager import SecureUserIDManager
+from .db_operations import DatabaseOperations
 
 
 # Configure audit logging

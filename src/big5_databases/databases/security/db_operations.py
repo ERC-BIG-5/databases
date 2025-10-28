@@ -6,11 +6,20 @@ Handles all database interactions for user ID mappings.
 """
 
 import json
-from typing import Optional
+from pathlib import Path
+from typing import Optional, Dict, Any, List
 
-
-# Import the real models instead of mocks
 from sqlalchemy.exc import IntegrityError
+from sqlalchemy.orm.attributes import flag_modified
+
+from ..db_models import DBAnonymize, DBPost
+from ..platform_db_mgmt import PlatformDB
+
+from .jsonpath_extractor import JsonPathFieldExtractor, JsonPathContentProtector
+from .exec_db_fixes import platform_user_data_jsonpath
+from .secure_user_id_manager import SecureUserIDManager
+
+from tools.project_logging import get_logger
 
 
 class DatabaseOperations:
@@ -31,8 +40,6 @@ class DatabaseOperations:
             db_manager: Your DatabaseManager instance
         """
         self.db = db_manager
-        # Import the real model once at initialization
-        from ..db_models import DBAnonymize
         self.DBAnonymize = DBAnonymize
     
     def add_mappings(
@@ -274,9 +281,6 @@ def init_anon_db(source_platform_db, anon_db_path):
         >>> anon_db = init_anon_db(source_db, Path("twitter_anon.sqlite"))
         >>> print(f"Created anon database for {anon_db.platform}")
     """
-    from pathlib import Path
-    from ..platform_db_mgmt import PlatformDB
-
     # Validate inputs
     if not hasattr(source_platform_db, 'platform'):
         raise ValueError("source_platform_db must be a PlatformDB instance")
@@ -332,15 +336,6 @@ def process_db(source_db, anon_db, batch_size=1000, protect_content=True):
         >>> stats = process_db(source_db, anon_db)
         >>> print(f"Anonymized {stats['anonymized']} users from {stats['processed']} posts")
     """
-    import json
-    from typing import Dict, Any, List
-    from sqlalchemy.orm.attributes import flag_modified
-    from ..db_models import DBPost
-    from .jsonpath_extractor import JsonPathFieldExtractor, JsonPathContentProtector
-    from .exec_db_fixes import platform_user_data_jsonpath
-    from .secure_user_id_manager import SecureUserIDManager
-    from tools.project_logging import get_logger
-
     logger = get_logger(__file__)
 
     # Validate inputs
@@ -381,11 +376,15 @@ def process_db(source_db, anon_db, batch_size=1000, protect_content=True):
     try:
         manager = SecureUserIDManager.from_env(load_private_key=False)
         db_ops = DatabaseOperations(anon_db)
+
+        # Initialize protection marker for tracking which posts have been processed
+        from .protection_marker import ProtectionMarker
+        protection_marker = ProtectionMarker(source_db)
     except Exception as e:
         raise ValueError(f"Failed to initialize anonymization components: {e}")
 
     # 5. Process posts in batches
-    stats = {"processed": 0, "anonymized": 0, "errors": 0, "protected": 0}
+    stats = {"processed": 0, "anonymized": 0, "errors": 0, "protected": 0, "skipped": 0, "marked": 0}
 
     print(f"   Processing posts in batches of {batch_size}...")
 
@@ -405,7 +404,23 @@ def process_db(source_db, anon_db, batch_size=1000, protect_content=True):
             if not batch_posts:
                 break
 
+            # Filter out posts that are already protected
+            unprotected_posts = []
+            for post in batch_posts:
+                if protection_marker.is_post_protected(post):
+                    stats["skipped"] += 1
+                else:
+                    unprotected_posts.append(post)
+
             print(f"   Processing batch {offset//batch_size + 1} ({offset+1}-{offset+len(batch_posts)} of {total_posts})")
+            print(f"     Skipped {len(batch_posts) - len(unprotected_posts)} already protected posts")
+
+            # Use unprotected posts for processing
+            batch_posts = unprotected_posts
+
+            if not batch_posts:
+                offset += batch_size
+                continue
 
             # Extract user data from this batch
             batch_user_ids = []
@@ -484,9 +499,15 @@ def process_db(source_db, anon_db, batch_size=1000, protect_content=True):
                         else:
                             logger.warning(f"No UUID found for user {original_user_id} in post {post.id}")
 
-                    # Commit the content protection changes
+                    # Mark posts as protected in metadata
+                    posts_to_mark = [post for post, _ in post_user_mapping]
+                    marked_count = protection_marker.mark_posts_as_protected(posts_to_mark, source_session)
+                    stats["marked"] += marked_count
+
+                    # Commit the content protection changes and protection marking
                     source_session.commit()
                     logger.info(f"Protected content in {len(post_user_mapping)} posts with UUIDs")
+                    logger.info(f"Marked {marked_count} posts as protected")
 
                 except Exception as e:
                     logger.error(f"Failed to protect content in batch: {e}")
@@ -499,9 +520,14 @@ def process_db(source_db, anon_db, batch_size=1000, protect_content=True):
     print(f"   📊 Posts processed: {stats['processed']}")
     print(f"   👥 Users anonymized: {stats['anonymized']}")
     print(f"   🛡️  Posts protected: {stats['protected']}")
+    print(f"   ✅ Posts marked as protected: {stats['marked']}")
+    print(f"   ⏭️  Posts skipped (already protected): {stats['skipped']}")
     print(f"   ❌ Errors encountered: {stats['errors']}")
 
     if stats['errors'] > 0:
         print(f"\n⚠️  {stats['errors']} posts had extraction errors - check logs for details")
+
+    if stats['skipped'] > 0:
+        print(f"\n🔄 {stats['skipped']} posts were already protected and skipped - efficient re-run!")
 
     return stats
