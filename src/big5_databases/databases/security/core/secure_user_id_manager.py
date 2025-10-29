@@ -23,6 +23,7 @@ from cryptography.hazmat.primitives import serialization
 
 from .secure_config import SecurityConfig
 from .envelope_encryption import EnvelopeEncryption, EnvelopeData
+from ..utils.named_uuids import generate
 
 
 @dataclass
@@ -32,6 +33,7 @@ class UserMapping:
     encrypted_original_id: str
     public_uuid: str
     key_version: str
+    pseudo_name: str
 
 
 class SecureUserIDManager:
@@ -98,13 +100,6 @@ class SecureUserIDManager:
             
         Returns:
             Initialized SecureUserIDManager
-            
-        Example:
-            # Regular batch job (no private key)
-            manager = SecureUserIDManager.from_env()
-            
-            # Audit operation (with private key)
-            manager = SecureUserIDManager.from_env(load_private_key=True)
         """
         config = SecurityConfig.from_env()
         return cls(config, load_private_key=load_private_key)
@@ -129,7 +124,7 @@ class SecureUserIDManager:
             digestmod=hashlib.sha256
         ).hexdigest()
     
-    def generate_public_uuid(self) -> str:
+    def generate_public_uuid(self) -> uuid.UUID:
         """
         Generate a random UUID for external use.
         
@@ -138,7 +133,7 @@ class SecureUserIDManager:
         Returns:
             Random UUID as string
         """
-        return str(uuid.uuid4())
+        return uuid.uuid4()
     
     def encrypt(self, plaintext: str) -> str:
         """
@@ -204,15 +199,16 @@ class SecureUserIDManager:
         return UserMapping(
             hashed_id=hashed_id,
             encrypted_original_id=encrypted_id,
-            public_uuid=public_uuid,
-            key_version=self.key_version
+            public_uuid=str(public_uuid),
+            key_version=self.key_version,
+            pseudo_name=generate(public_uuid)
         )
     
     def prepare_mappings_for_db(
         self,
         user_ids: list[str],
         user_data: list[Optional[dict]]
-    ) -> list[tuple[str, str, str, Optional[str], str]]:
+    ) -> list[tuple[str, str, str, Optional[str], str, str]]:
         """
         Prepare user mappings for database insertion.
         
@@ -240,6 +236,7 @@ class SecureUserIDManager:
             hashed_id = self.create_hmac_hash(user_id)
             encrypted_user_id = self.encrypt(user_id)
             public_uuid = self.generate_public_uuid()
+            pseudo_name = generate(public_uuid)
             
             # Encrypt user data if present
             encrypted_data = None
@@ -249,69 +246,10 @@ class SecureUserIDManager:
             mappings.append((
                 hashed_id,
                 encrypted_user_id,
-                public_uuid,
+                str(public_uuid),
                 encrypted_data,
-                self.key_version
+                self.key_version,
+                pseudo_name
             ))
         
         return mappings
-
-
-# Example usage
-# if __name__ == "__main__":
-#     import os
-#     import base64
-#     from cryptography.hazmat.primitives.asymmetric import rsa
-#     from cryptography.hazmat.primitives import serialization
-#
-#     print("=" * 70)
-#     print("SECURE USER ID MANAGER - CRYPTO ONLY")
-#     print("=" * 70)
-#
-#     # Generate test keys
-#     private_key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
-#     private_pem = private_key.private_bytes(
-#         encoding=serialization.Encoding.PEM,
-#         format=serialization.PrivateFormat.PKCS8,
-#         encryption_algorithm=serialization.NoEncryption()
-#     ).decode()
-#     public_pem = private_key.public_key().public_bytes(
-#         encoding=serialization.Encoding.PEM,
-#         format=serialization.PublicFormat.SubjectPublicKeyInfo
-#     ).decode()
-#
-#     # Set up environment
-#     os.environ["HMAC_KEY"] = base64.b64encode(os.urandom(32)).decode()
-#     os.environ["PUBLIC_KEY_PEM"] = public_pem
-#     os.environ["PRIVATE_KEY_PEM"] = private_pem
-#     os.environ["KEY_VERSION"] = "v2"
-#
-#     print("\n🔒 SECURITY FEATURE: Optional Private Key\n")
-#
-#     # Regular operation - NO private key
-#     print("1. Regular batch job (NO private key loaded):")
-#     manager = SecureUserIDManager.from_env(load_private_key=False)
-#     print(f"   ✅ Manager initialized")
-#     print(f"   ✅ Can hash: {manager.create_hmac_hash('@alice')[:20]}...")
-#     print(f"   ✅ Can encrypt: {len(manager.encrypt('@alice'))} bytes")
-#     print(f"   ❌ Cannot decrypt (private key not loaded)")
-#
-#     try:
-#         manager.decrypt("some_encrypted_data")
-#     except ValueError as e:
-#         print(f"   Expected error: {e}")
-#
-#     # Audit operation - WITH private key
-#     print("\n2. Audit operation (WITH private key loaded):")
-#     audit_manager = SecureUserIDManager.from_env(load_private_key=True)
-#     encrypted = audit_manager.encrypt("@bob")
-#     decrypted = audit_manager.decrypt(encrypted)
-#     print(f"   ✅ Can decrypt: {decrypted}")
-#
-#     print("\n" + "=" * 70)
-#     print("BENEFITS:")
-#     print("=" * 70)
-#     print("✅ Daily batch job doesn't need private key")
-#     print("✅ Reduced attack surface (private key not in memory)")
-#     print("✅ Separate credentials for regular vs. audit operations")
-#     print("✅ Clear separation: crypto logic here, DB logic elsewhere")

@@ -1,214 +1,161 @@
 # User Anonymization Security Module
 
-## Overview
+Production-ready two-layer user anonymization system for social media data with HMAC hashing + RSA envelope encryption.
 
-Production-ready two-layer user anonymization system for social media data with audit capabilities. The module implements HMAC hashing combined with RSA envelope encryption to protect user identities while maintaining data utility for analysis. The package is organized into focused subpackages for maintainability and clear separation of concerns.
-
-## Package Structure
+```mermaid
+graph LR
+    post --> identify(Identify user-id field and sensitive fields)
+    identify --> user_id & user-data
+    user_id --> hash & encrypt
+    user-data --> encrypt
+    subgraph keys [keys]
+    hmac_key{{ROTATABLE KEY}}
+    public_key{{PUBLIC KEY}}
+    private_key{{PRIVATE KEY}}
+    end
+    hmac_key -.-> hash
+    public_key -.-> encrypt
+    hash --> in_db{In the db?}
+    in_db -- no --> new_uuid
+    in_db -- yes --> RETURN_UUID((END\nReturn UUID))
+    hash ==> insert[(insert into db)]
+    encrypt ==> insert
+    new_uuid ==> insert
+    hmac_key ==version==> insert
+    insert --> RETURN_UUID
+    private_key -.-> audit
+    insert --> audit
 
 ```
-security/
-├── __init__.py                 # Main package exports
-│
-├── core/                       # Core anonymization functionality
-│   ├── __init__.py
-│   ├── secure_config.py        # Configuration & environment management
-│   ├── envelope_encryption.py  # Hybrid RSA+AES encryption system
-│   ├── secure_user_id_manager.py # User ID anonymization & mapping
-│   ├── db_operations.py        # Database anonymization operations
-│   ├── protection_marker.py    # Post protection status tracking
-│   └── main.py                 # High-level processing workflows
-│
-├── audit/                      # Audit & verification tools
-│   ├── __init__.py
-│   ├── decryption_manager.py   # Investigation/audit decryption
-│   ├── audit_manager.py        # Anonymization verification & analysis
-│   └── decrypt_audit.py        # UUID-based audit & verification
-│
-├── utils/                      # Utilities & platform support
-│   ├── __init__.py
-│   ├── jsonpath_extractor.py   # JSONPath field extraction & protection
-│   └── exec_db_fixes.py        # Platform-specific data patterns
-│
-└── examples/                   # Examples & documentation
-    ├── __init__.py
-    ├── demo_usage.py           # Usage demonstration scripts
-    ├── example.py              # Example implementations
-    ├── TODO.md                 # Development notes & roadmap
-    └── enhancements.md         # Enhancement plans & ideas
-```
+
+**Data Flow:** Posts are processed to extract user IDs and metadata. User IDs are hashed (HMAC) and checked against the anonymization database. If not found, a new UUID is generated and all data (hash, encrypted user ID, encrypted metadata, UUID, key version) is stored. The UUID is returned to replace the original user ID in the dataset.
 
 ## Quick Usage
 
-### 1. Database Anonymization
+### Database Anonymization
 ```python
-# Complete anonymization workflow - recommended approach
 from big5_databases.databases.security import process_database
 
-# Process entire database with anonymization
 stats = process_database(
     source_db_path_or_name="twitter_posts.sqlite",
     anon_db_path="twitter_anonymized.anon.sqlite",
     env_file_path="anonymization_keys.env"
 )
-
-print(f"Processed: {stats['processed']}, Protected: {stats['protected']}")
 ```
 
-### 2. Core Components (Advanced Usage)
+### Batch Processing New Posts
 ```python
-# Using individual components for custom workflows
-from big5_databases.databases.security.core import (
-    DatabaseOperations,
-    SecureUserIDManager,
-    ProtectionMarker,
-    init_anon_db,
-    process_db
-)
+# Workflow: sourcedb → new_posts → ANONYMIZE → safe_submit → end
+from big5_databases.databases.platform_db_mgmt import PlatformDB
+from big5_databases.databases.security import init_anon_db
+from big5_databases.databases.security.core.secure_user_id_manager import SecureUserIDManager
 
-# Initialize anonymization database
-anon_db = init_anon_db("output.anon.sqlite", "source.sqlite")
+source_db = PlatformDB.sqlite_db_from_path("twitter", "posts.sqlite", table_type="posts")
+new_posts = [...]  # List of DBPost and/or PostModel objects
 
-# Process posts with custom configuration
-stats = process_db(
-    source_db_name="posts.sqlite",
-    anon_db_path="output.anon.sqlite",
-    env_file_path="keys.env",
-    batch_size=500
-)
+# 1. Setup anonymization
+anon_db = init_anon_db(source_db, "anonymization.anon.sqlite")
+user_id_manager = SecureUserIDManager.from_env(load_private_key=False)
+
+# 2. ANONYMIZE posts FIRST
+for post in new_posts:
+    user_id = post.content.get('user', {}).get('id_str')
+    if user_id:
+        result = user_id_manager.anonymize_user_id(user_id, {"platform": "twitter"})
+        post.content['user']['id_str'] = result.public_uuid
+        # Mark other sensitive fields as <PROTECTED>
+
+# 3. Submit already-anonymized posts
+submitted_posts = source_db.safe_submit_posts(new_posts)
 ```
-
-### 3. Audit & Verification
-```python
-# Quick audit - compare anonymized vs original
-from big5_databases.databases.security.audit import quick_audit
-
-audit_result = quick_audit(
-    anonymized_db="ANON_TEST_twitter_phase1.sqlite",
-    original_db="twitter_phase1.sqlite"
-)
-
-print(f"Audit passed: {audit_result.passed}")
-print(f"Issues found: {len(audit_result.issues)}")
-
-# Detailed audit with custom configuration
-from big5_databases.databases.security.audit import AnonymizationAuditor, AuditConfig
-
-config = AuditConfig(check_user_anonymization=True, check_content_protection=True)
-auditor = AnonymizationAuditor(config)
-detailed_result = auditor.audit_database(
-    anonymized_db="anonymized.sqlite",
-    original_db="original.sqlite"
-)
-```
-
-### 4. UUID-based Investigation (Authorized Personnel Only)
-```python
-# Decrypt specific users for investigation/audit purposes
-from big5_databases.databases.security.audit import DecryptAuditor
-
-# Initialize with private key environment file
-auditor = DecryptAuditor("investigation_private_key.env")
-
-# Decrypt and verify specific UUIDs
-result = auditor.decrypt_and_verify(
-    protected_db="anonymized_posts.sqlite",      # Database with <PROTECTED> markers
-    anon_db="mappings.anon.sqlite",              # Encrypted UUID mappings
-    original_db="original_posts.sqlite",        # Original data for verification
-    uuids=["uuid-1234-5678", "uuid-abcd-efgh"]  # Specific UUIDs to investigate
-)
-
-# Review investigation results
-for uuid, data in result.decrypted_data.items():
-    print(f"UUID {uuid}: Original user_id = {data['original_user_id']}")
-    if result.verification_results[uuid]['matches']:
-        print(f"  ✅ Verification passed")
-    else:
-        print(f"  ❌ Verification failed")
-```
-
-## Key Features
-
-### Security & Privacy
-- **Two-layer anonymization**: HMAC hashing + RSA envelope encryption for robust user protection
-- **Envelope encryption**: AES-GCM for data + RSA for key wrapping ensures maximum security
-- **Content protection**: `<PROTECTED>` markers replace sensitive user data in anonymized datasets
-- **Audit trail**: Comprehensive logging of all decryption and anonymization operations
-- **Key versioning**: Support for cryptographic key rotation and version management
-
-### Performance & Scalability
-- **Batch processing**: Memory-efficient processing of large datasets with configurable batch sizes
-- **Protection markers**: Skip already-processed posts to avoid duplicate work
-- **Database optimization**: Efficient SQLite operations with transaction management
-- **Progress tracking**: Real-time statistics on processing status and completion
 
 ### Audit & Verification
-- **UUID-based investigation**: Decrypt and verify specific anonymized users for authorized investigations
-- **Comprehensive auditing**: Compare anonymized vs original data to verify anonymization quality
-- **Pattern analysis**: Detect anonymization patterns and ensure consistent protection across platforms
-- **Verification workflows**: Automated verification of decryption results against original data
+```python
+from big5_databases.databases.security.audit import quick_audit, DecryptAuditor
 
-### Developer Experience
-- **Clean package structure**: Organized subpackages for core, audit, utils, and examples
-- **Type safety**: Full mypy validation with comprehensive type hints
-- **Simple imports**: Clean relative imports throughout the package
-- **Comprehensive documentation**: Examples and usage patterns for all functionality
+# Quick audit
+result = quick_audit(anonymized_db="anon.sqlite", original_db="original.sqlite")
 
-## Technical Architecture
+# UUID-based investigation (requires private key)
+auditor = DecryptAuditor("investigation_keys.env")
+decrypt_result = auditor.decrypt_and_verify(
+    protected_db="protected.sqlite",
+    anon_db="mappings.anon.sqlite",
+    original_db="original.sqlite",
+    uuids=["uuid-list"]
+)
+```
 
-### Anonymization Process
-1. **User ID Hashing**: HMAC-SHA256 with secret key creates consistent anonymous IDs
-2. **Envelope Encryption**: User IDs encrypted with RSA public key, wrapped with AES-GCM
-3. **Content Protection**: User-identifiable content replaced with `<PROTECTED>` markers
-4. **Database Storage**: Encrypted mappings stored in `.anon.sqlite` databases
-5. **Protection Tracking**: Post metadata tracks which posts have been processed
-
-### Security Model
-- **Public Key Operations**: Anonymization uses only public key (safe for production)
-- **Private Key Operations**: Decryption requires private key (investigation/audit only)
-- **Key Separation**: Anonymization and investigation keys can be managed separately
-- **Audit Logging**: All private key operations logged for security compliance
-
-## Usage Notes
-
-### Environment & Setup
-- **Project root execution**: Run all commands from `big5_databases` project root directory
-- **Clean imports**: Use standard package imports (e.g., `from big5_databases.databases.security import ...`)
-- **Environment files**: Crypto keys loaded from `.env` files for security
-- **Database paths**: Support both absolute paths and database names from registry
-
-### Best Practices
-- **Batch processing**: Use appropriate batch sizes (100-1000) for memory efficiency
-- **Protection checking**: Always check protection status to avoid duplicate processing
-- **Audit verification**: Regularly audit anonymized data to ensure quality
-- **Key management**: Rotate keys periodically and maintain version tracking
-
-## Required Environment Variables
-
-Create environment files (e.g., `anonymization_keys.env`) with:
+## Test & Demo
 
 ```bash
-# Required for all operations
-HMAC_KEY="base64_encoded_secret_key_for_hashing"
+# Run complete test with batch processing coverage (main entry point)
+python -m big5_databases.databases.security.core.main
+# ✅ Processes 321 posts with full anonymization
+# ✅ Tests mixed DBPost/PostModel batch processing
+# ✅ Generates pseudo names for UUIDs
+# ✅ Covers all security components
+
+# Individual demonstrations (no main block - use functions directly)
+# See examples/demo_usage.py for function examples
+```
+
+## JSONPath Patterns (Platform-Specific)
+
+| Platform | Primary User ID | Additional Metadata |
+|----------|----------------|-------------------|
+| **Twitter** | `user.id_str` | `user.id`, `user.url`, `user.username`, `user.displayname` |
+| **Instagram** | `post_owner.id` | `post_owner.type`, `post_owner.name`, `post_owner.username` |
+| **YouTube** | `snippet.channelId` | `snippet.channelTitle` |
+| **TikTok** | `username` | *(none)* |
+
+*Update paths in: `src/big5_databases/databases/security/utils/exec_db_fixes.py`*
+
+## Environment Setup
+
+Create `keys.env` file:
+```bash
+# Required for anonymization
+HMAC_KEY="base64_encoded_secret_key"
 PUBLIC_KEY_PEM="-----BEGIN PUBLIC KEY-----
 MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA...
 -----END PUBLIC KEY-----"
 
-# Required for investigation/audit operations only
+# Required for audit/investigation only
 PRIVATE_KEY_PEM="-----BEGIN PRIVATE KEY-----
 MIIEvQIBADANBgkqhkiG9w0BAQEFAASCBKcwggSjAgEAAoIBAQC...
 -----END PRIVATE KEY-----"
 
-# Optional - defaults to "v1"
-KEY_VERSION="v1"
+KEY_VERSION="v1"  # Optional
 ```
 
 ### Key Generation
 ```bash
-# Generate RSA key pair for envelope encryption
+# RSA keys
 openssl genpkey -algorithm RSA -out private_key.pem -pkcs8 -aes256
 openssl rsa -pubout -in private_key.pem -out public_key.pem
 
-# Generate base64-encoded HMAC key
+# HMAC key
 python -c "import secrets, base64; print(base64.b64encode(secrets.token_bytes(32)).decode())"
 ```
+
+## Architecture
+
+**Two-Layer Security:**
+1. **HMAC Layer**: Fast, deterministic hashing for user ID mapping
+2. **RSA Layer**: Envelope encryption (AES-GCM + RSA key wrapping) for metadata
+
+**Package Structure:**
+- `core/` - Anonymization, encryption, database operations
+- `audit/` - Verification, decryption, investigation tools
+- `utils/` - JSONPath extraction, platform patterns
+- `examples/` - Demonstrations and usage examples
+
+**Key Features:**
+- Mixed data type support (DBPost + PostModel)
+- Protection marker system (avoids duplicate processing)
+- Fresh data testing with backup/restore
+- UUID-based audit trail with human-readable pseudo names
+- Platform-specific JSONPath patterns
+- Comprehensive coverage testing
+- Single main entry point (`core/main.py`) for full system testing

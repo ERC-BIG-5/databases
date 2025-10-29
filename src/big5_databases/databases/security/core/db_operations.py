@@ -44,14 +44,14 @@ class DatabaseOperations:
     
     def add_mappings(
         self,
-        mappings: list[tuple[str, str, str, Optional[str], str]]
+        mappings: list[tuple[str, str, str, Optional[str], str, str]]
     ) -> dict[str, str]:
         """
         Add user mappings to database with transaction safety.
-        
+
         Args:
-            mappings: List of (hashed_id, encrypted_user_id, public_uuid, 
-                               encrypted_data, key_version) tuples
+            mappings: List of (hashed_id, encrypted_user_id, public_uuid,
+                               encrypted_data, key_version, pseudo_name) tuples
         
         Returns:
             Dict mapping hashed_id → public_uuid
@@ -97,14 +97,15 @@ class DatabaseOperations:
                 # Insert missing entries
                 for hash_ in hashes_to_add:
                     (hashed_id, encrypted_user_id, public_uuid,
-                     encrypted_data, key_version) = hash_to_mapping[hash_]
+                     encrypted_data, key_version, pseudo_name) = hash_to_mapping[hash_]
 
                     db_entry = self.DBAnonymize(
                         user_id_hash=hashed_id,
                         encrypted_user_id=encrypted_user_id,
                         public_id=public_uuid,
                         encrypted_data=encrypted_data,
-                        key_version=key_version
+                        key_version=key_version,
+                        pseudo_name= pseudo_name
                     )
                     
                     session.add(db_entry)
@@ -234,21 +235,6 @@ class DatabaseOperations:
 
 
 # Example usage
-# if __name__ == "__main__":
-#     print("=" * 70)
-#     print("DATABASE OPERATIONS MODULE")
-#     print("=" * 70)
-#
-#     print("\nThis module provides database operations separated from crypto logic.")
-#     print("\nKey benefits:")
-#     print("  ✅ Single responsibility principle")
-#     print("  ✅ Easier testing")
-#     print("  ✅ Clearer separation of concerns")
-#     print("  ✅ Can swap database implementations easily")
-#
-#     print("\n" + "=" * 70)
-#     print("See updated integration example for usage")
-#     print("=" * 70)
 
 
 # =============================================================================

@@ -17,6 +17,12 @@ from big5_databases.databases.security import (
     ProtectionMarker, EnvelopeEncryption, EnvelopeData
 )
 from big5_databases.databases.security.core.main import x_process_database
+from big5_databases.databases.db_models import DBPost, PostType
+from big5_databases.databases.model_conversion import PostModel, PostMetadataModel
+import json
+import uuid
+from typing import List, Union
+from datetime import datetime
 
 
 def demo_anonymization_workflow():
@@ -27,22 +33,24 @@ def demo_anonymization_workflow():
     print("ANONYMIZATION WORKFLOW DEMONSTRATION")
     print("=" * 70)
 
-    # Use actual test data paths
+    # Use actual test data paths - use the main working test databases instead of creating empty ones
     base_path = root() / "test_data" / "security"
     source_db_path = base_path / "twitter_phase1.sqlite"  # Working source database
-    anon_db_path = base_path / "demo_twitter_anon.anon.sqlite"  # New anonymization database
-
+    anon_db_path = base_path / "test_twitter_anonymized.anon.sqlite"  # Use existing populated database
+    # todo I don't see here anywhere, that you are copying the original source. so you start with an unprotected database.
     try:
         # Check if source database exists
         if not source_db_path.exists():
             print(f"❌ Source database not found: {source_db_path}")
+            # todo, there is no main. just return False
             print(f"   Run the main test first: python -m big5_databases.databases.security.core.main")
             return False
 
-        # Remove old demo database if it exists
-        if anon_db_path.exists():
-            anon_db_path.unlink()
-            print(f"   Removed old demo database: {anon_db_path}")
+        # Check if anonymization database exists (it should from main test)
+        if not anon_db_path.exists():
+            print(f"❌ Anonymization database not found: {anon_db_path}")
+            print("   Run the main test first: python -m big5_databases.databases.security.core.main")
+            return False
 
         # Step 1: Load existing platform database
         print("\n📂 Step 1: Loading existing platform database...")
@@ -53,10 +61,14 @@ def demo_anonymization_workflow():
         )
         print(f"   ✅ Loaded {source_db.platform} database from {source_db_path}")
 
-        # Step 2: Create anonymization database
-        print("\n🔧 Step 2: Creating anonymization database...")
-        anon_db = init_anon_db(source_db, anon_db_path)
-        print(f"   ✅ Created anonymization database at {anon_db_path}")
+        # Step 2: Load existing anonymization database (populated by main test)
+        print("\n🔧 Step 2: Loading existing anonymization database...")
+        anon_db = PlatformDB.sqlite_db_from_path(
+            platform="twitter",
+            path=anon_db_path,
+            table_type="anon"
+        )
+        print(f"   ✅ Loaded anonymization database from {anon_db_path}")
 
         # Step 3: Process posts and anonymize
         print("\n🔐 Step 3: Processing posts for anonymization...")
@@ -356,6 +368,249 @@ def demo_protection_and_encryption():
         return False
 
 
+def create_fake_posts_batch(source_db: PlatformDB, num_posts: int = 5) -> List[Union[DBPost, PostModel]]:
+    """
+    Create fake posts by copying and modifying existing posts from the database.
+
+    Returns a mix of DBPost and PostModel objects to test batch processing.
+
+    Args:
+        source_db: Database to copy existing post structure from
+        num_posts: Number of fake posts to create
+
+    Returns:
+        List of mixed DBPost and PostModel objects with fake user data
+    """
+    fake_posts: List[Union[DBPost, PostModel]] = []
+
+    # Get some existing posts to use as templates
+    with source_db.get_session() as session:
+        template_posts = session.query(DBPost).limit(3).all()
+
+        if not template_posts:
+            print("No template posts found in database")
+            return fake_posts
+
+        # Generate fake posts
+        for i in range(num_posts):
+            template = template_posts[i % len(template_posts)]
+
+            # Parse existing content to modify
+            if isinstance(template.content, str):
+                content_dict = json.loads(template.content)
+            else:
+                content_dict = template.content or {}
+
+            # Create fake user data (unprotected for testing)
+            fake_user_id = f"fake_user_{i + 1000}"
+            fake_username = f"test_user_{i}"
+            fake_display_name = f"Test User {i}"
+
+            # Modify the content to have unprotected user data
+            content_dict.update({
+                "id": 9999000000 + i,
+                "id_str": str(9999000000 + i),
+                "url": f"https://twitter.com/test_user_{i}/status/{9999000000 + i}",
+                "user": {
+                    "id": fake_user_id,
+                    "id_str": fake_user_id,
+                    "url": f"https://twitter.com/{fake_username}",
+                    "username": fake_username,
+                    "displayname": fake_display_name,
+                    "rawDescription": f"This is a fake test user {i}",
+                    "followersCount": 100 + i,
+                    "friendsCount": 50 + i,
+                    "statusesCount": 200 + i,
+                },
+                "rawContent": f"This is fake post content number {i}. Testing anonymization!",
+                "lang": "en",
+                "replyCount": i,
+                "retweetCount": i * 2,
+                "likeCount": i * 10,
+            })
+
+            # Create metadata without protection marker (fresh posts)
+            fake_metadata_dict = {
+                "media_paths": [],
+                "labels": ["fake", f"test_batch_{i}"],
+                # Note: no protection.protected_user field - these are "new" unprotected posts
+            }
+
+            # Decide whether to create DBPost or PostModel (alternate for testing)
+            if i % 2 == 0:
+                # Create DBPost (SQLAlchemy model)
+                db_post = DBPost(
+                    id=9999000000 + i,
+                    platform="twitter",
+                    platform_id=str(9999000000 + i),
+                    date_created=datetime.now(),
+                    post_url=content_dict["url"],
+                    content=content_dict,  # Should be dict, not JSON string for DBPost
+                    metadata_content=fake_metadata_dict
+                )
+                fake_posts.append(db_post)
+            else:
+                # Create PostModel (Pydantic model) - matches PostModel structure
+                # Create proper PostMetadataModel for Pydantic model
+                fake_metadata_pydantic = PostMetadataModel(
+                    media_paths=fake_metadata_dict.get("media_paths", []),
+                    language=None,
+                    orig_db_conf=None,
+                    annotations=None,
+                    protection=None,
+                    extra=None
+                )
+
+                post_model = PostModel(
+                    id=9999000000 + i,
+                    platform="twitter",
+                    platform_id=str(9999000000 + i),
+                    post_url=content_dict["url"],
+                    date_created=datetime.now(),
+                    post_type=PostType.REGULAR,
+                    content=content_dict,
+                    metadata_content=fake_metadata_pydantic,
+                    collection_task_id=None  # Optional field
+                )
+                fake_posts.append(post_model)
+
+    print(f"Created {len(fake_posts)} fake posts: {sum(1 for p in fake_posts if isinstance(p, DBPost))} DBPost, {sum(1 for p in fake_posts if isinstance(p, PostModel))} PostModel")
+    return fake_posts
+
+
+def demo_batch_processing():
+    """
+    Demonstrate batch processing of new posts with mixed DBPost/PostModel types.
+    Tests the safe_submit_posts functionality with anonymization.
+    """
+    print("\n" + "=" * 70)
+    print("BATCH PROCESSING DEMONSTRATION")
+    print("=" * 70)
+
+    try:
+        # Use the same paths as main demo - use existing populated database
+        base_path = root() / "test_data" / "security"
+        source_db_path = base_path / "twitter_phase1.sqlite"
+        anon_db_path = base_path / "coverage_batch_test.anon.sqlite"  # Use existing batch test database
+
+        # Check if files are in current directory (when run from different location)
+        if not source_db_path.exists():
+            source_db_path = Path("twitter_phase1.sqlite")
+            anon_db_path = Path("demo_batch_anon.anon.sqlite")
+
+        if not source_db_path.exists():
+            print(f"❌ Source database not found: {source_db_path}")
+            return False
+
+        # Check if anonymization database exists
+        if not anon_db_path.exists():
+            print(f"❌ Batch anonymization database not found: {anon_db_path}")
+            print("   Run the main test first: python -m big5_databases.databases.security.core.main")
+            return False
+
+        print(f"\n📦 Step 1: Creating Fake Post Batch...")
+
+        # Load source database
+        source_db = PlatformDB.sqlite_db_from_path("twitter", source_db_path, table_type="posts")
+
+        # Create fake posts for testing
+        fake_posts = create_fake_posts_batch(source_db, num_posts=5)
+
+        if not fake_posts:
+            print("❌ Failed to create fake posts")
+            return False
+
+        print(f"   ✅ Created {len(fake_posts)} fake posts for batch processing")
+
+        print(f"\n🔄 Step 2: Loading Existing Anonymization Database...")
+
+        # Load existing anonymization database
+        anon_db = PlatformDB.sqlite_db_from_path("twitter", anon_db_path, table_type="anon")
+        print(f"   ✅ Loaded batch anonymization database from {anon_db_path}")
+
+        print(f"\n🛡️  Step 3: Processing Batch with Anonymization...")
+
+        # Submit the batch of posts - this should anonymize user data
+        print(f"   Submitting batch of {len(fake_posts)} posts...")
+        try:
+            submitted_posts = source_db.safe_submit_posts(fake_posts)
+            print(f"   ✅ Batch submitted successfully: {len(submitted_posts)} posts processed")
+
+            # Show sample results
+            if submitted_posts:
+                sample_post = submitted_posts[0]
+                print(f"   Sample processed post ID: {sample_post.id}")
+
+                # Check if content was anonymized
+                if isinstance(sample_post.content, str):
+                    content = json.loads(sample_post.content)
+                else:
+                    content = sample_post.content
+
+                if content and "user" in content:
+                    user_data = content["user"]
+                    user_id = user_data.get("id_str", "N/A")
+                    username = user_data.get("username", "N/A")
+                    print(f"   Sample user data after processing:")
+                    print(f"      - User ID: {user_id}")
+                    print(f"      - Username: {username}")
+
+                    # Check if protection marker was applied
+                    if hasattr(sample_post, 'metadata_content') and sample_post.metadata_content:
+                        # Handle both dict and Pydantic model formats
+                        if hasattr(sample_post.metadata_content, 'protection'):
+                            # Pydantic model format
+                            protection_status = getattr(sample_post.metadata_content.protection, 'protected_user', False) if sample_post.metadata_content.protection else False
+                        elif isinstance(sample_post.metadata_content, dict):
+                            # Dict format
+                            protection_status = sample_post.metadata_content.get('protection', {}).get('protected_user', False)
+                        else:
+                            protection_status = False
+                        print(f"      - Protection marker: {protection_status}")
+
+        except Exception as e:
+            print(f"   ❌ Batch submission failed: {e}")
+            import traceback
+            traceback.print_exc()
+            return False
+
+        print(f"\n🔍 Step 4: Verifying Anonymization Results...")
+
+        # Process the database to apply anonymization
+        try:
+            # Run the anonymization process on the new posts
+            stats = process_db(
+                source_db=source_db,
+                anon_db=anon_db,
+                batch_size=10
+            )
+
+            print(f"   ✅ Anonymization processing completed:")
+            print(f"      - Posts processed: {stats.get('posts_processed', 'N/A')}")
+            print(f"      - Users anonymized: {stats.get('users_anonymized', 'N/A')}")
+            print(f"      - Posts protected: {stats.get('posts_protected', 'N/A')}")
+            print(f"      - Errors: {stats.get('errors', 'N/A')}")
+
+        except Exception as e:
+            print(f"   ⚠️  Anonymization process had issues: {e}")
+
+        print(f"\n" + "=" * 70)
+        print("BATCH PROCESSING DEMONSTRATION COMPLETED!")
+        print("=" * 70)
+
+        return True
+
+    except Exception as e:
+        print(f"\n❌ Error in batch processing demonstration: {e}")
+        print(f"\nCommon issues:")
+        print(f"  - Database file not accessible")
+        print(f"  - Insufficient permissions")
+        print(f"  - Invalid fake post data structure")
+        import traceback
+        traceback.print_exc()
+        return False
+
+
 def show_platform_patterns():
     """
     Show the supported platforms and their JSONPath patterns.
@@ -409,30 +664,3 @@ def show_database_structure():
     print("   ✅ Content protection in source database")
 
 
-if __name__ == "__main__":
-    print("🔐 Anonymization Database Demo")
-    print("==============================")
-
-    # Show supported patterns
-    show_platform_patterns()
-
-    # Show database structure
-    show_database_structure()
-
-
-    print("\n💡 To run the anonymization workflow:")
-    print("   1. Make sure test data is available (run: python -m big5_databases.databases.security.core.main)")
-    print("   2. Uncomment the demo_anonymization_workflow() call below")
-    print("   3. Run this script")
-
-    # Run the actual workflow demonstration
-    demo_anonymization_workflow()
-
-    # Run audit functionality demonstration
-    demo_audit_functionality()
-
-    # Run protection marker and encryption demonstration
-    demo_protection_and_encryption()
-
-    # Run the main test to ensure fresh data
-    x_process_database()

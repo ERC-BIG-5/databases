@@ -352,6 +352,7 @@ class AnonymizeModel(BaseModel):
     public_id: uuid.UUID
     encrypted_data: Optional[SecretStr] = None
     key_version: str
+    pseudo_name: str
 
 
 class DatabaseStatsModel(BaseDBModel):

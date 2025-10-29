@@ -5,24 +5,35 @@ This module provides the core process_database function for anonymizing
 user data in social media databases.
 """
 
+import json
 import os
-import sys
+from datetime import datetime
 from pathlib import Path
-from typing import Union
+from typing import Union, List
 
-from dotenv import load_dotenv
+import sys
 from tools.env_root import root
+
+from big5_databases.databases.db_models import DBAnonymize
+from big5_databases.databases.db_models import DBPost, PostType
+from big5_databases.databases.meta_database import MetaDatabase
+from big5_databases.databases.model_conversion import PostModel
+from big5_databases.databases.platform_db_mgmt import PlatformDB
+from big5_databases.databases.security.core.db_operations import init_anon_db, process_db
+from big5_databases.databases.security.core.secure_user_id_manager import SecureUserIDManager
+from big5_databases.databases.security.utils.jsonpath_extractor import JsonPathContentProtector
+from big5_databases.databases.security.core.db_operations import DatabaseOperations
 
 # Add the project root to Python path for imports
 sys.path.insert(0, str(root()))
 
 
 def process_database(
-    source_db_path_or_name: Union[str, Path],
-    anon_db_path: Union[str, Path],
-    env_file_path: Union[str, Path],
-    batch_size: int = 1000,
-    protect_content: bool = True
+        source_db_path_or_name: Union[str, Path],
+        anon_db_path: Union[str, Path],
+        env_file_path: Union[str, Path],
+        batch_size: int = 1000,
+        protect_content: bool = True
 ) -> dict:
     """
     Process a database for anonymization.
@@ -67,18 +78,6 @@ def process_database(
     for key in required_keys:
         if key not in os.environ:
             raise ValueError(f"Required environment variable {key} not found")
-
-    # Import required modules (after environment is set)
-    try:
-        # Try relative imports first (when imported as module)
-        from ..meta_database import MetaDatabase
-        from ..platform_db_mgmt import PlatformDB
-        from .db_operations import init_anon_db, process_db
-    except ImportError:
-        # Fallback to absolute imports (when run directly)
-        from big5_databases.databases.meta_database import MetaDatabase
-        from big5_databases.databases.platform_db_mgmt import PlatformDB
-        from big5_databases.databases.security.core.db_operations import init_anon_db, process_db
 
     # Load source database
     source_db_input = str(source_db_path_or_name)
@@ -208,12 +207,6 @@ def x_process_database():
 
         # Verify results
         print("\nVerifying anonymization database...")
-        try:
-            from ...platform_db_mgmt import PlatformDB
-            from ...db_models import DBAnonymize
-        except ImportError:
-            from big5_databases.databases.platform_db_mgmt import PlatformDB
-            from big5_databases.databases.db_models import DBAnonymize
 
         anon_db = PlatformDB.sqlite_db_from_path("twitter", anon_db_path, table_type="anon")
         with anon_db.get_session() as session:
@@ -240,12 +233,212 @@ def x_process_database():
         print(f"   - Source content protected with '<PROTECTED>'")
         print(f"   - Public UUIDs generated for external use")
 
-        return True
+        # Run batch processing coverage test
+        batch_success = demo_batch_processing_coverage()
+
+        return True and batch_success
 
     except Exception as e:
         print(f"\nError during trial run: {e}")
         import traceback
         print("\nFull error details:")
+        traceback.print_exc()
+        return False
+
+
+def demo_batch_processing_coverage():
+    """
+    Batch processing demo: sourcedb → new_posts → ANONYMIZE → safe_submit → end
+    Workflow: Create posts, anonymize them FIRST, then submit to database.
+    """
+    print("\n" + "=" * 60)
+    print("BATCH PROCESSING COVERAGE TEST")
+    print("Workflow: sourcedb → new_posts → ANONYMIZE → safe_submit → end")
+    print("=" * 60)
+
+    try:
+        base_path = root() / "test_data" / "security"
+        source_db_path = base_path / "twitter_phase1.sqlite"
+        batch_anon_db_path = base_path / "coverage_batch_test.anon.sqlite"
+
+        if not source_db_path.exists():
+            print(f"❌ Source database not found: {source_db_path}")
+            return False
+
+        # Clean up any existing batch test database
+        if batch_anon_db_path.exists():
+            batch_anon_db_path.unlink()
+
+        print(f"📦 Step 1: Load source database...")
+        source_db = PlatformDB.sqlite_db_from_path("twitter", source_db_path, table_type="posts")
+        print(f"   ✅ Source database loaded")
+
+        print(f"📝 Step 2: Create new posts (mixed DBPost/PostModel)...")
+        fake_posts: List[Union[DBPost, PostModel]] = []
+
+        # Get template for realistic structure
+        with source_db.get_session() as session:
+            template_post = session.query(DBPost).first()
+            if not template_post:
+                print("❌ No template posts found")
+                return False
+
+            template_content = template_post.content if isinstance(template_post.content, dict) else json.loads(
+                template_post.content or '{}')
+
+        # Create 3 fake posts with fresh user data
+        for i in range(3):
+            fake_content = template_content.copy()
+            fake_content.update({
+                "id": 7777000000 + i,
+                "id_str": str(7777000000 + i),
+                "user": {
+                    "id": f"batch_user_{i + 200}",
+                    "id_str": f"batch_user_{i + 200}",
+                    "username": f"batch_test_{i}",
+                    "displayname": f"Batch Test User {i}",
+                    "url": f"https://twitter.com/batch_test_{i}",
+                    "rawDescription": f"Batch processing test user {i}",
+                },
+                "rawContent": f"Batch processing test post {i} - pre-anonymization",
+            })
+
+            fake_metadata = {"labels": ["batch", f"coverage_{i}"]}
+
+            # Create mixed types for coverage
+            if i % 2 == 0:
+                fake_post = DBPost(
+                    id=7777000000 + i,
+                    platform="twitter",
+                    platform_id=str(7777000000 + i),
+                    date_created=datetime.now(),
+                    post_url=fake_content.get("url", f"https://test.com/{i}"),
+                    content=fake_content,
+                    metadata_content=fake_metadata
+                )
+            else:
+                fake_post = PostModel(
+                    id=7777000000 + i,
+                    platform="twitter",
+                    platform_id=str(7777000000 + i),
+                    post_url=fake_content.get("url", f"https://test.com/{i}"),
+                    date_created=datetime.now(),
+                    post_type=PostType.REGULAR,
+                    content=fake_content,
+                    metadata_content=fake_metadata,
+                    collection_task_id=None
+                )
+            fake_posts.append(fake_post)
+
+        print(
+            f"   ✅ Created {len(fake_posts)} new posts ({sum(1 for p in fake_posts if isinstance(p, DBPost))} DBPost + {sum(1 for p in fake_posts if isinstance(p, PostModel))} PostModel)")
+
+        print(f"🔐 Step 3: ANONYMIZE posts BEFORE submission...")
+
+        # Set up anonymization components
+        anon_db = init_anon_db(source_db, batch_anon_db_path)
+
+        # Initialize user ID manager and database operations from environment
+        user_id_manager = SecureUserIDManager.from_env(load_private_key=False)
+
+        db_ops = DatabaseOperations(anon_db)
+
+        # Set up JSONPath protector for Twitter
+        protection_paths = {
+            "user_id": "user.id_str",
+            "username": "user.username",
+            "displayname": "user.displayname",
+            "user_url": "user.url"
+        }
+        protector = JsonPathContentProtector(protection_paths)
+
+        anonymized_posts = []
+        anonymized_count = 0
+
+        for i, post in enumerate(fake_posts):
+            try:
+                # Get content as dict
+                if isinstance(post, DBPost):
+                    content = post.content if isinstance(post.content, dict) else json.loads(post.content or '{}')
+                else:
+                    content = post.content
+
+                # Extract user ID for anonymization
+                original_user_id = content.get('user', {}).get('id_str')
+
+                if original_user_id:
+                    # Create user mapping (hash + encrypt + UUID)
+                    user_mapping = user_id_manager.create_user_mapping(original_user_id, {"platform": "twitter"})
+
+                    # Store mapping in anonymization database
+                    encrypted_metadata = user_id_manager.encrypt('{"platform": "twitter"}') if user_id_manager else None
+                    db_ops.add_mappings([(
+                        user_mapping.hashed_id,
+                        user_mapping.encrypted_original_id,
+                        user_mapping.public_uuid,
+                        encrypted_metadata,
+                        user_mapping.key_version,
+                        user_mapping.pseudo_name
+                    )])
+
+                    # Replace user ID with UUID, protect other sensitive fields
+                    protected_content = content.copy()
+                    protected_content['user']['id_str'] = user_mapping.public_uuid
+
+                    # Protect additional sensitive fields
+                    protected_content = protector.protect_data(protected_content)
+
+                    # Update post content
+                    if isinstance(post, DBPost):
+                        post.content = protected_content
+                    else:
+                        post.content = protected_content
+
+                    # Add protection marker
+                    if isinstance(post, DBPost):
+                        if not post.metadata_content:
+                            post.metadata_content = {}
+                        post.metadata_content.setdefault('protection', {})['protected_user'] = True
+                    else:
+                        if not post.metadata_content:
+                            post.metadata_content = {}
+                        post.metadata_content['protection'] = {'protected_user': True}
+
+                    anonymized_count += 1
+                    print(f"   🔒 Anonymized post {i + 1}: {original_user_id} → {user_mapping.public_uuid}")
+
+                anonymized_posts.append(post)
+
+            except Exception as e:
+                print(f"   ⚠️  Error anonymizing post {i + 1}: {e}")
+                anonymized_posts.append(post)  # Keep original if anonymization fails
+
+        print(f"   ✅ Anonymization completed: {anonymized_count}/{len(fake_posts)} posts anonymized")
+
+        print(f"📤 Step 4: Submit anonymized posts to database...")
+        try:
+            submitted_posts = source_db.safe_submit_posts(anonymized_posts)
+            print(f"   ✅ Successfully submitted {len(submitted_posts)} anonymized posts")
+
+            # Verify anonymization in submitted posts
+            if submitted_posts:
+                sample_post = submitted_posts[0]
+                content = sample_post.content if isinstance(sample_post.content, dict) else json.loads(
+                    sample_post.content or '{}')
+                sample_user_id = content.get('user', {}).get('id_str', 'N/A')
+                print(f"   🔍 Sample anonymized user ID: {sample_user_id}")
+
+        except Exception as e:
+            print(f"   ❌ Batch submission failed: {e}")
+            return False
+
+        print(f"\n✅ BATCH PROCESSING COMPLETE!")
+        print(f"Final workflow: sourcedb ✅ → new_posts ✅ → ANONYMIZE ✅ → safe_submit ✅ → end ✅")
+        return True
+
+    except Exception as e:
+        print(f"\n❌ Error in batch processing coverage: {e}")
+        import traceback
         traceback.print_exc()
         return False
 
