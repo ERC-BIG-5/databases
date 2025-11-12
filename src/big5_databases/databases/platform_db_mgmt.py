@@ -124,7 +124,9 @@ class PlatformDB(DatabaseManager):
         # todo db_type: posts, process
         # todo. based on db_type, we take the correct tables. they should be stored in lists, for the 2 types
         # todo: there should also be task-tables for ppitem tables.
+        self.table_type = config.table_type
         config.tables = config.tables
+
 
         # todo also based on the table_type save the according models. Use generics on the class for the DBModel and pydantic model
 
@@ -549,11 +551,11 @@ class PlatformDB(DatabaseManager):
         and retrying submission. PostProcessModel objects are converted to DBPostProcessItem
         objects before submission.
         """
-        # Convert DBPostProcessItem objects to DBPostProcessItem if needed
+        # Convert PostProcessModel objects to DBPostProcessItem if needed
         db_posts = []
         for post in posts:
-            if isinstance(post, DBPostProcessItem):
-                # Convert PostModel to DBPost
+            if isinstance(post, PostProcessModel):
+                # Convert PostProcessModel to DBPostProcessItem
                 db_post = DBPostProcessItem(
                     platform_id=post.platform_id,
                     input=post.input,
@@ -561,16 +563,21 @@ class PlatformDB(DatabaseManager):
                 )
                 db_posts.append(db_post)
             else:
+                # Already a DBPostProcessItem, use it directly
                 db_posts.append(post)
 
         submit_posts = db_posts
         try:
-            submitted_posts = self._submit_posts(submit_posts)
-            return submitted_posts
+            with self.get_session() as session:
+                session.add_all(submit_posts)
+                session.commit()
+            return []  # Don't convert to models, just return empty list
         except IntegrityError:
             with self.get_session() as session:
                 filtered_posts = db_operations.filter_ppitems_with_existing_post_ids(submit_posts, session)
-                return [p.model() for p in filtered_posts]
+                session.add_all(filtered_posts)
+                session.commit()
+            return []  # Don't convert to models, just return empty list
         except Exception as e:
             self.logger.error(f"Error submitting posts: {str(e)}")
             return []
@@ -591,8 +598,11 @@ class PlatformDB(DatabaseManager):
         """
         with self.get_session() as session:
             session.add_all(posts)
+            session.flush()  # Ensure IDs are assigned
             session.commit()
-            return [p.model() for p in posts]
+            # Access IDs before session closes to ensure they're loaded
+            result = [p.model() for p in posts]
+            return result
 
     def insert_posts_with_deduplication(self, posts: list[DBPost]) -> list[PostModel]:
         """

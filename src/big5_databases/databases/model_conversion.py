@@ -224,7 +224,7 @@ class PostMetadataModel(BaseModel):
     orig_db_conf: Optional[tuple[str, Optional[int]]] = Field(None,
                                                               description="original database_name, collection_task_id) for merges")
     annotations: Optional[dict[str, dict]] = Field(None, description="annotations from labelstudio")
-    protection: Optional[dict[str, str]] = Field(None, description="protection and compliance. ")
+    protection: Optional[PostProtectionModel] = Field(None, description="protection and compliance. ")
 
     # platform specific info
     extra: Optional[dict[str, Any]] = Field(None, description="platform specific")

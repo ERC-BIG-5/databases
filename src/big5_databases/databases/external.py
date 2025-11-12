@@ -132,10 +132,10 @@ class PlatformDBConfig(DBConfig):
         if values["table_type"] == "posts":
             values["tables"] = ["post", "user", "comment", "collection_task"]
         elif values["table_type"] == "process":
-            # todo wtf is process_status
-            values["tables"] = ["collection_task", "process_status"]
+            values["tables"] = ["ppitem", "collection_task"]
         else:  # anon
             values["tables"] = ["anonymize", "database_stats"]
+
         return values
 
 
