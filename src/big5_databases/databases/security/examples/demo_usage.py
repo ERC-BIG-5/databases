@@ -368,6 +368,131 @@ def demo_protection_and_encryption():
         return False
 
 
+def demo_protect_new_posts():
+    """
+    Demonstrate using protect_posts_batch() for protecting new posts before insertion.
+
+    This shows the universal helper function that can be called from anywhere
+    in the databases package when inserting new posts.
+    """
+    print("\n" + "=" * 70)
+    print("PROTECT NEW POSTS DEMONSTRATION (Universal Helper)")
+    print("=" * 70)
+
+    try:
+        from big5_databases.databases.security import protect_posts_batch
+        from big5_databases.databases.security.core.secure_user_id_manager import SecureUserIDManager
+        from big5_databases.databases.security.core.db_operations import get_anon_db
+
+        # Use test data paths
+        base_path = root() / "test_data" / "security"
+        source_db_path = base_path / "twitter_phase1.sqlite"
+        anon_db_path = base_path / "test_twitter_anonymized.anon.sqlite"
+
+        # Check if files exist
+        if not source_db_path.exists():
+            print(f"❌ Source database not found: {source_db_path}")
+            print(f"   Run main test first: python -m big5_databases.databases.security.main")
+            return False
+
+        if not anon_db_path.exists():
+            print(f"❌ Anonymization database not found: {anon_db_path}")
+            print(f"   Run main test first: python -m big5_databases.databases.security.main")
+            return False
+
+        print("\n📂 Step 1: Setup databases and manager...")
+
+        # Load source database
+        source_db = PlatformDB.sqlite_db_from_path("twitter", source_db_path, table_type="posts")
+        print(f"   ✅ Loaded source database")
+
+        # Setup anonymization components
+        user_id_manager = SecureUserIDManager.from_env(load_private_key=False)
+        anon_db = get_anon_db(anon_db_path, "twitter")
+        print(f"   ✅ Initialized anonymization components")
+
+        print("\n📝 Step 2: Create new fake posts...")
+
+        # Create some new posts to protect
+        new_posts = create_fake_posts_batch(source_db, num_posts=5)
+        print(f"   ✅ Created {len(new_posts)} new posts")
+        print(f"      - DBPost objects: {sum(1 for p in new_posts if isinstance(p, DBPost))}")
+        print(f"      - PostModel objects: {sum(1 for p in new_posts if isinstance(p, PostModel))}")
+
+        print("\n🔐 Step 3: Protect posts using universal helper...")
+        print(f"   Calling protect_posts_batch()...")
+
+        # This is the KEY function - the universal helper!
+        stats = protect_posts_batch(
+            posts=new_posts,
+            platform="twitter",
+            user_id_manager=user_id_manager,
+            anon_db=anon_db,
+            skip_already_protected=True
+        )
+
+        print(f"   ✅ Protection completed!")
+        print(f"      - Posts processed: {stats['processed']}")
+        print(f"      - Posts protected: {stats['protected']}")
+        print(f"      - New users anonymized: {stats['users_anonymized']}")
+        print(f"      - Posts skipped: {stats['skipped']}")
+        print(f"      - Errors: {stats['errors']}")
+
+        print("\n🔍 Step 4: Verify protection...")
+
+        # Check that posts are actually protected
+        from big5_databases.databases.security import ProtectionMarker
+        marker = ProtectionMarker(source_db)
+
+        protected_count = sum(1 for post in new_posts if marker.is_post_protected(post))
+        print(f"   ✅ Verified: {protected_count}/{len(new_posts)} posts marked as protected")
+
+        # Check that UUIDs replaced user IDs
+        sample_post = new_posts[0]
+        if isinstance(sample_post, DBPost):
+            content = sample_post.content if isinstance(sample_post.content, dict) else json.loads(sample_post.content or '{}')
+        else:
+            content = sample_post.content
+
+        user_id_str = content.get('user', {}).get('id_str', '')
+        print(f"   Sample user ID (should be UUID): {user_id_str}")
+
+        # Verify it looks like a UUID
+        try:
+            uuid.UUID(user_id_str)
+            print(f"   ✅ User ID is valid UUID format")
+        except ValueError:
+            print(f"   ⚠️  User ID doesn't look like a UUID: {user_id_str}")
+
+        print("\n📤 Step 5: Posts ready for insertion!")
+        print(f"   These protected posts can now be safely inserted:")
+        print(f"   >>> source_db.safe_submit_posts(new_posts)")
+        print(f"   Note: Posts are already anonymized, no additional protection needed!")
+
+        print("\n" + "=" * 70)
+        print("✅ DEMONSTRATION COMPLETE!")
+        print("=" * 70)
+        print("\nKey Takeaways:")
+        print("  • protect_posts_batch() is the universal helper for post protection")
+        print("  • Can be called from anywhere in the databases package")
+        print("  • Handles both DBPost and PostModel objects")
+        print("  • Automatically checks for existing mappings (efficient)")
+        print("  • Posts are marked as protected to avoid reprocessing")
+        print("  • Use this for: database processing AND new post insertion")
+
+        return True
+
+    except Exception as e:
+        print(f"\n❌ Error in new posts protection demo: {e}")
+        print(f"\nCommon issues:")
+        print(f"  - Environment variables not set")
+        print(f"  - Database files not accessible")
+        print(f"  - Missing dependencies")
+        import traceback
+        traceback.print_exc()
+        return False
+
+
 def create_fake_posts_batch(source_db: PlatformDB, num_posts: int = 5) -> List[Union[DBPost, PostModel]]:
     """
     Create fake posts by copying and modifying existing posts from the database.

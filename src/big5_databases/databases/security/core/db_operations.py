@@ -6,14 +6,19 @@ Handles all database interactions for user ID mappings.
 """
 
 import json
+import typing
 from pathlib import Path
-from typing import Optional, Dict, Any, List
+from typing import Optional, Any, Union
 
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm.attributes import flag_modified
 
+
 from ...db_models import DBAnonymize, DBPost
+from ...model_conversion import PostModel
 from ...platform_db_mgmt import PlatformDB
+from ...db_mgmt import DatabaseManager
+
 
 from ..utils.jsonpath_extractor import JsonPathFieldExtractor, JsonPathContentProtector
 from ..utils.exec_db_fixes import platform_user_data_jsonpath
@@ -21,6 +26,8 @@ from .secure_user_id_manager import SecureUserIDManager
 
 from tools.project_logging import get_logger
 
+if typing.TYPE_CHECKING:
+    from big5_databases.databases.security import ProtectionMarker
 
 class DatabaseOperations:
     """
@@ -32,7 +39,7 @@ class DatabaseOperations:
     - Clearer code organization
     """
 
-    def __init__(self, db_manager):
+    def __init__(self, db_manager: DatabaseManager) -> None:
         """
         Initialize with database manager.
 
@@ -144,7 +151,7 @@ class DatabaseOperations:
         
         return hash2public_id
     
-    def get_mapping_by_uuid(self, public_uuid: str):
+    def get_mapping_by_uuid(self, public_uuid: str) -> Optional[DBAnonymize]:
         """
         Retrieve a mapping by public UUID.
         
@@ -165,7 +172,7 @@ class DatabaseOperations:
                 entry = next((e for e in all_entries if e.public_id == public_uuid), None)
             return entry
     
-    def get_mapping_by_hash(self, hashed_id: str):
+    def get_mapping_by_hash(self, hashed_id: str) -> Optional[DBAnonymize]:
         """
         Retrieve a mapping by hashed ID.
         
@@ -234,14 +241,7 @@ class DatabaseOperations:
             return query.count()
 
 
-# Example usage
-
-
-# =============================================================================
-# NEW ANONYMIZATION DATABASE FUNCTIONS
-# =============================================================================
-
-def init_anon_db(source_platform_db, anon_db_path):
+def init_anon_db(source_platform_db: PlatformDB, anon_db_path: Union[Path, str]) -> PlatformDB:
     """
     Create anonymization database from existing platform database.
 
@@ -287,17 +287,280 @@ def init_anon_db(source_platform_db, anon_db_path):
 
     return anon_db
 
+def get_anon_db(anon_db_path: Path, platform: str = "?"):
+    return PlatformDB.sqlite_db_from_path(
+        platform=platform,
+        path=anon_db_path,
+        create=True,
+        table_type="anon"
+    )
 
-def process_db(source_db, anon_db, batch_size=1000, protect_content=True):
+def _get_existing_protected_users_ids(anon_db: PlatformDB, hash_ids: list[str]) -> dict[str, str]:
+    """
+
+    Parameters
+    ----------
+    anon_db
+    hash_ids
+
+    Returns
+    -------
+    map: hashes: existing random uuids form the
+    """
+    assert anon_db.table_type == "anon"
+    with anon_db.get_session() as session:
+        return dict(session.query(DBAnonymize.user_id_hash, DBAnonymize.public_id).filter(DBAnonymize.user_id_hash.in_(hash_ids)).all())
+
+
+def protect_posts_batch(
+    posts: list[Union[DBPost, PostModel]],
+    platform: str,
+    user_id_manager: SecureUserIDManager,
+    anon_db: PlatformDB,
+    protection_marker: Optional["ProtectionMarker"] = None,
+    skip_already_protected: bool = True
+) -> dict[str, int]:
+    """
+    Universal helper function to protect a batch of posts with user anonymization.
+
+    This is the core function for post protection that:
+    1. Extracts user IDs from posts using platform-specific JSONPath patterns
+    2. Checks anon DB for existing mappings (hash -> UUID)
+    3. Creates new mappings for users that don't exist yet
+    4. Protects post content by replacing user IDs with UUIDs
+    5. Marks posts as protected
+
+    Can be used for:
+    - Processing whole databases (called from process_db)
+    - Inserting new posts (called from anywhere in databases package)
+
+    Args:
+        posts: List of DBPost or PostModel objects to protect
+        platform: Platform name (twitter, tiktok, instagram, youtube)
+        user_id_manager: SecureUserIDManager instance for crypto operations
+        anon_db: Anonymization database (PlatformDB with table_type="anon")
+        protection_marker: Optional ProtectionMarker for tracking protection status
+        skip_already_protected: If True, skip posts already marked as protected
+
+    Returns:
+        dict: Processing statistics with keys:
+            - processed: Number of posts processed
+            - protected: Number of posts protected
+            - skipped: Number of posts skipped (already protected)
+            - errors: Number of errors encountered
+            - users_anonymized: Number of new user mappings created
+
+    Raises:
+        ValueError: If platform not supported or invalid configuration
+
+    Example:
+        >>> from big5_databases.databases.security import protect_posts_batch
+        >>> user_id_manager = SecureUserIDManager.from_env()
+        >>> anon_db = get_anon_db("twitter_anon.sqlite", "twitter")
+        >>> stats = protect_posts_batch(new_posts, "twitter", user_id_manager, anon_db)
+        >>> print(f"Protected {stats['protected']} posts")
+    """
+    logger = get_logger(__file__)
+
+    # Validate inputs
+    if not posts:
+        return {"processed": 0, "protected": 0, "skipped": 0, "errors": 0, "users_anonymized": 0}
+
+    if anon_db.table_type != "anon":
+        raise ValueError(f"anon_db must have table_type='anon', got '{anon_db.table_type}'")
+
+    # Get platform-specific JSONPath patterns for user data extraction
+    user_id_path, metadata_paths = platform_user_data_jsonpath(platform)
+
+    if not user_id_path:
+        raise ValueError(f"No user_id pattern defined for platform {platform}")
+
+    # Set up extractor and protector
+    extractor_config: dict[str, str] = {"user_id": user_id_path}
+    protection_paths: dict[str, str] = {"user_id": user_id_path}
+
+    # Add metadata paths
+    for i, path in enumerate(metadata_paths):
+        field_name = f"metadata_{i}"
+        extractor_config[field_name] = path
+        protection_paths[field_name] = path
+
+    extractor = JsonPathFieldExtractor(extractor_config)
+    protector = JsonPathContentProtector(protection_paths)
+
+    # Initialize statistics
+    stats = {"processed": 0, "protected": 0, "skipped": 0, "errors": 0, "users_anonymized": 0}
+
+    # Map posts to user data for batch processing
+    post_user_map: dict[str, list[Union[DBPost, PostModel]]] = {}  # hashed_id -> posts
+    user_id_to_hash: dict[str, str] = {}  # original_user_id -> hashed_id
+    user_metadata: dict[str, Optional[dict]] = {}  # hashed_id -> metadata
+
+    # Phase 1: Extract user IDs and build mappings
+    for post in posts:
+        try:
+            # Skip if already protected
+            if skip_already_protected and protection_marker and protection_marker.is_post_protected(post):
+                stats["skipped"] += 1
+                continue
+
+            # Get content as dict
+            if isinstance(post, DBPost):
+                content = post.content if isinstance(post.content, dict) else json.loads(post.content or '{}')
+            else:
+                content = post.content
+
+            # Extract user data
+            extracted = extractor.extract_from_data(content)
+            user_id = extracted.get("user_id")
+
+            if not user_id:
+                logger.warning(f"No user_id found in post {getattr(post, 'id', 'unknown')}")
+                stats["errors"] += 1
+                continue
+
+            # Create hash
+            hashed_id = user_id_manager.create_hmac_hash(str(user_id))
+            user_id_to_hash[str(user_id)] = hashed_id
+
+            # Collect metadata
+            metadata: dict[str, str] = {}
+            for key, value in extracted.items():
+                if key != "user_id" and value is not None:
+                    metadata[key] = value
+
+            if hashed_id not in user_metadata:
+                user_metadata[hashed_id] = metadata if metadata else None
+
+            # Map post to hashed user
+            if hashed_id not in post_user_map:
+                post_user_map[hashed_id] = []
+            post_user_map[hashed_id].append(post)
+
+            stats["processed"] += 1
+
+        except Exception as e:
+            logger.error(f"Error extracting user data from post: {e}")
+            stats["errors"] += 1
+
+    if not post_user_map:
+        logger.info("No posts to protect after filtering")
+        return stats
+
+    # Phase 2: Get existing mappings and create new ones
+    all_hashed_ids = list(post_user_map.keys())
+    hash_to_uuid = _get_existing_protected_users_ids(anon_db, all_hashed_ids)
+
+    # Determine which users need new mappings
+    existing_hashes = set(hash_to_uuid.keys())
+    new_hashes = set(all_hashed_ids) - existing_hashes
+
+    logger.info(f"Found {len(existing_hashes)} existing mappings, creating {len(new_hashes)} new ones")
+
+    # Create new mappings
+    if new_hashes:
+        # Reverse lookup: hash -> original user_id
+        hash_to_user_id = {v: k for k, v in user_id_to_hash.items()}
+
+        # Prepare mappings for new users
+        new_user_ids = [hash_to_user_id[h] for h in new_hashes]
+        new_metadata = [user_metadata.get(h) for h in new_hashes]
+
+        # Create mappings
+        mappings = user_id_manager.prepare_mappings_for_db(new_user_ids, new_metadata)
+
+        # Convert AnonymizeModel to tuple format for add_mappings
+        mapping_tuples = [
+            (
+                m.user_id_hash.get_secret_value(),
+                m.encrypted_user_id.get_secret_value(),
+                str(m.public_id),
+                m.encrypted_data.get_secret_value() if m.encrypted_data else None,
+                m.key_version,
+                m.pseudo_name
+            )
+            for m in mappings
+        ]
+
+        # Add to database
+        db_ops = DatabaseOperations(anon_db)
+        new_hash_to_uuid = db_ops.add_mappings(mapping_tuples)
+
+        # Update hash_to_uuid with new mappings
+        hash_to_uuid.update(new_hash_to_uuid)
+        stats["users_anonymized"] = len(new_hashes)
+
+    # Phase 3: Protect post content
+    for hashed_id, posts_for_user in post_user_map.items():
+        if hashed_id not in hash_to_uuid:
+            logger.error(f"No UUID mapping found for hash {hashed_id[:10]}...")
+            stats["errors"] += len(posts_for_user)
+            continue
+
+        public_uuid = hash_to_uuid[hashed_id]
+
+        for post in posts_for_user:
+            try:
+                # Get content
+                if isinstance(post, DBPost):
+                    content = post.content if isinstance(post.content, dict) else json.loads(post.content or '{}')
+                else:
+                    content = post.content
+
+                # Create protected content
+                protected_content = content.copy()
+
+                # Replace user_id with UUID
+                extractor.replace_in_data(protected_content, "user_id", public_uuid)
+
+                # Protect other sensitive fields with "<PROTECTED>"
+                for i in range(len(metadata_paths)):
+                    field_name = f"metadata_{i}"
+                    extractor.replace_in_data(protected_content, field_name, "<PROTECTED>")
+
+                # Update post content
+                if isinstance(post, DBPost):
+                    post.content = protected_content
+                    flag_modified(post, 'content')
+                else:
+                    post.content = protected_content
+
+                # Mark as protected
+                if protection_marker:
+                    # For DBPost
+                    if isinstance(post, DBPost):
+                        if not post.metadata_content:
+                            post.metadata_content = {}
+                        post.metadata_content.setdefault('protection', {})['protected_user'] = True
+                        flag_modified(post, 'metadata_content')
+                    # For PostModel
+                    else:
+                        if not post.metadata_content:
+                            post.metadata_content = {"protection": {"protected_user": True}}
+                        elif isinstance(post.metadata_content, dict):
+                            post.metadata_content.setdefault('protection', {})['protected_user'] = True
+
+                stats["protected"] += 1
+
+            except Exception as e:
+                logger.error(f"Error protecting post content: {e}")
+                stats["errors"] += 1
+
+    logger.info(f"Batch protection complete: {stats}")
+    return stats
+
+
+def process_db(source_db: PlatformDB, anon_db: PlatformDB, batch_size: int = 1000, protect_content: bool = True) -> dict[str, int]:
     """
     Process posts from source database and anonymize them into anon database.
 
-    This function:
-    1. Extracts user_ids from posts using platform-specific JSONPath patterns
-    2. Creates anonymization mappings (hashed_id -> public_uuid)
-    3. Stores encrypted user data in anonymization database
-    4. Optionally modifies source database to replace user_ids with UUIDs
-    5. Protects sensitive content by replacing with "<PROTECTED>"
+    This function now uses the universal `protect_posts_batch()` helper for clean,
+    maintainable batch processing.
+
+    Workflow:
+    1. Fetches posts in batches from source database
+    2. Calls protect_posts_batch() to handle protection
+    3. Commits protected posts back to database
 
     Args:
         source_db: Source platform database (table_type="posts")
@@ -308,9 +571,10 @@ def process_db(source_db, anon_db, batch_size=1000, protect_content=True):
     Returns:
         dict: Processing statistics with keys:
             - processed: Number of posts processed
-            - anonymized: Number of unique users anonymized
+            - users_anonymized: Number of unique users anonymized
             - errors: Number of posts with extraction errors
             - protected: Number of posts with content protected
+            - skipped: Number of posts skipped (already protected)
 
     Raises:
         ValueError: If databases have mismatched platforms or wrong table_types
@@ -320,200 +584,96 @@ def process_db(source_db, anon_db, batch_size=1000, protect_content=True):
         >>> source_db = PlatformDB.sqlite_db_from_path("twitter", "twitter_posts.sqlite")
         >>> anon_db = init_anon_db(source_db, "twitter_anon.sqlite")
         >>> stats = process_db(source_db, anon_db)
-        >>> print(f"Anonymized {stats['anonymized']} users from {stats['processed']} posts")
+        >>> print(f"Anonymized {stats['users_anonymized']} users from {stats['processed']} posts")
     """
+    from big5_databases.databases.security import ProtectionMarker
     logger = get_logger(__file__)
 
     # Validate inputs
     if source_db.platform != anon_db.platform:
         raise ValueError(f"Platform mismatch: source={source_db.platform}, anon={anon_db.platform}")
 
-    print(f"🔄 Processing {source_db.platform} database for anonymization...")
+    if anon_db.table_type != "anon":
+        raise ValueError(f"anon_db must have table_type='anon', got '{anon_db.table_type}'")
 
-    # 1. Get platform-specific user_id extraction pattern
-    user_id_path, metadata_paths = platform_user_data_jsonpath(source_db.platform)
+    logger.info(f"🔄 Processing {source_db.platform} database for anonymization...")
 
-    if not user_id_path:
-        logger.warning(f"No user_id pattern defined for platform {source_db.platform}")
-        return {"processed": 0, "anonymized": 0, "errors": 0, "protected": 0}
-
-    print(f"   User ID path: {user_id_path}")
-    print(f"   Metadata paths: {metadata_paths}")
-
-    # 2. Create JSONPath extractor for user data
-    extractor_config = {"user_id": user_id_path}
-    protection_paths = {"user_id": user_id_path}
-
-    # Add all metadata paths to extraction and protection
-    for i, path in enumerate(metadata_paths):
-        field_name = f"metadata_{i}"
-        extractor_config[field_name] = path
-        protection_paths[field_name] = path
-
+    # Initialize anonymization components
     try:
-        extractor = JsonPathFieldExtractor(extractor_config)
-    except ValueError as e:
-        raise ValueError(f"Invalid JSONPath configuration for {source_db.platform}: {e}")
-
-    # 3. Create content protector - will be updated with actual UUIDs per post
-    protector = JsonPathContentProtector(protection_paths, "<PROTECTED>")
-
-    # 4. Initialize anonymization components
-    try:
-        manager = SecureUserIDManager.from_env(load_private_key=False)
-        db_ops = DatabaseOperations(anon_db)
-
-        # Initialize protection marker for tracking which posts have been processed
-        from .protection_marker import ProtectionMarker
+        user_id_manager = SecureUserIDManager.from_env(load_private_key=False)
         protection_marker = ProtectionMarker(source_db)
     except Exception as e:
         raise ValueError(f"Failed to initialize anonymization components: {e}")
 
-    # 5. Process posts in batches
-    stats = {"processed": 0, "anonymized": 0, "errors": 0, "protected": 0, "skipped": 0, "marked": 0}
+    # Initialize statistics
+    total_stats = {"processed": 0, "users_anonymized": 0, "errors": 0, "protected": 0, "skipped": 0}
 
     print(f"   Processing posts in batches of {batch_size}...")
 
-    with source_db.get_session() as source_session:
+    # Process posts in batches
+    with source_db.get_session() as session:
         # Get total count for progress tracking
-        total_posts = source_session.query(DBPost).count()
-        print(f"   Total posts to process: {total_posts}")
+        total_posts = session.query(DBPost).count()
+        logger.info(f"   Total posts in database: {total_posts}")
 
-        # Process in batches
+        # Query posts in batches
         offset = 0
-        while offset < total_posts:
-            batch_posts = (source_session.query(DBPost)
-                         .offset(offset)
-                         .limit(batch_size)
-                         .all())
+        batch_num = 0
 
-            if not batch_posts:
+        while True:
+            # Fetch batch
+            posts_batch = session.query(DBPost).offset(offset).limit(batch_size).all()
+
+            if not posts_batch:
                 break
 
-            # Filter out posts that are already protected
-            unprotected_posts = []
-            for post in batch_posts:
-                if protection_marker.is_post_protected(post):
-                    stats["skipped"] += 1
-                else:
-                    unprotected_posts.append(post)
+            batch_num += 1
+            logger.info(f"   Processing batch {batch_num} ({offset}-{offset + len(posts_batch)})...")
 
-            print(f"   Processing batch {offset//batch_size + 1} ({offset+1}-{offset+len(batch_posts)} of {total_posts})")
-            print(f"     Skipped {len(batch_posts) - len(unprotected_posts)} already protected posts")
+            # Protect batch using universal helper
+            if protect_content:
+                batch_stats = protect_posts_batch(
+                    posts=posts_batch,
+                    platform=source_db.platform,
+                    user_id_manager=user_id_manager,
+                    anon_db=anon_db,
+                    protection_marker=protection_marker,
+                    skip_already_protected=True
+                )
 
-            # Use unprotected posts for processing
-            batch_posts = unprotected_posts
+                # Accumulate statistics
+                for key in total_stats:
+                    total_stats[key] += batch_stats.get(key, 0)
 
-            if not batch_posts:
-                offset += batch_size
-                continue
-
-            # Extract user data from this batch
-            batch_user_ids = []
-            batch_user_metadata = []
-            post_user_mapping = []  # Track which post corresponds to which user_id
-
-            for post in batch_posts:
+                # Commit this batch
                 try:
-                    # Extract user_id and metadata using JSONPath
-                    extracted = extractor.extract_from_data(post.content)
-
-                    if extracted["user_id"]:
-                        user_id = str(extracted["user_id"])
-                        batch_user_ids.append(user_id)
-
-                        # Collect metadata from additional paths
-                        metadata = {}
-                        for key, value in extracted.items():
-                            if key != "user_id" and value is not None:
-                                metadata[key] = value
-
-                        batch_user_metadata.append(metadata if metadata else None)
-                        post_user_mapping.append((post, user_id))
-                        stats["processed"] += 1
-                    else:
-                        logger.debug(f"No user_id found in post {post.id}")
-                        stats["errors"] += 1
-
+                    session.commit()
+                    logger.info(f"   Batch {batch_num} committed: "
+                              f"{batch_stats['protected']} protected, "
+                              f"{batch_stats['skipped']} skipped, "
+                              f"{batch_stats['errors']} errors")
                 except Exception as e:
-                    logger.warning(f"Error extracting user_id from post {post.id}: {e}")
-                    stats["errors"] += 1
-
-            # Create anonymization mappings for this batch
-            if batch_user_ids:
-                try:
-                    mappings = manager.prepare_mappings_for_db(batch_user_ids, batch_user_metadata)
-                    hash_to_uuid = db_ops.add_mappings(mappings)
-                    stats["anonymized"] += len(hash_to_uuid)
-
-                    logger.info(f"Created {len(hash_to_uuid)} anonymization mappings in batch")
-
-                except Exception as e:
-                    logger.error(f"Failed to create anonymization mappings: {e}")
-                    stats["errors"] += len(batch_user_ids)
-
-            # Protect content in source database (replace user_ids with UUIDs)
-            if protect_content and post_user_mapping and batch_user_ids:
-                try:
-                    # Create UUID mapping from anonymization results
-                    uuid_mapping = {}
-                    for user_id in batch_user_ids:
-                        hashed_id = manager.create_hmac_hash(user_id)
-                        if hashed_id in hash_to_uuid:
-                            uuid_mapping[user_id] = hash_to_uuid[hashed_id]
-
-                    # Replace content in each post with actual UUIDs
-                    for post, original_user_id in post_user_mapping:
-                        if original_user_id in uuid_mapping:
-                            public_uuid = uuid_mapping[original_user_id]
-
-                            # Replace user ID in content with public UUID
-                            protected_content = post.content.copy()
-
-                            # Replace the main user ID (user.id_str)
-                            extractor.replace_in_data(protected_content, "user_id", public_uuid)
-
-                            # Replace metadata fields with "<PROTECTED>"
-                            for j in range(len(metadata_paths)):
-                                field_name = f"metadata_{j}"
-                                extractor.replace_in_data(protected_content, field_name, "<PROTECTED>")
-
-                            post.content = protected_content
-                            # Tell SQLAlchemy that the mutable JSON content has been modified
-                            flag_modified(post, 'content')
-                            stats["protected"] += 1
-                        else:
-                            logger.warning(f"No UUID found for user {original_user_id} in post {post.id}")
-
-                    # Mark posts as protected in metadata
-                    posts_to_mark = [post for post, _ in post_user_mapping]
-                    marked_count = protection_marker.mark_posts_as_protected(posts_to_mark, source_session)
-                    stats["marked"] += marked_count
-
-                    # Commit the content protection changes and protection marking
-                    source_session.commit()
-                    logger.info(f"Protected content in {len(post_user_mapping)} posts with UUIDs")
-                    logger.info(f"Marked {marked_count} posts as protected")
-
-                except Exception as e:
-                    logger.error(f"Failed to protect content in batch: {e}")
-                    source_session.rollback()
+                    logger.error(f"   Failed to commit batch {batch_num}: {e}")
+                    session.rollback()
+                    total_stats["errors"] += len(posts_batch)
+            else:
+                # If protect_content is False, just skip the batch
+                logger.info(f"   Batch {batch_num} skipped (protect_content=False)")
 
             offset += batch_size
 
     # Print final statistics
     print(f"\n✅ Anonymization processing completed:")
-    print(f"   📊 Posts processed: {stats['processed']}")
-    print(f"   👥 Users anonymized: {stats['anonymized']}")
-    print(f"   🛡️  Posts protected: {stats['protected']}")
-    print(f"   ✅ Posts marked as protected: {stats['marked']}")
-    print(f"   ⏭️  Posts skipped (already protected): {stats['skipped']}")
-    print(f"   ❌ Errors encountered: {stats['errors']}")
+    print(f"   📊 Posts processed: {total_stats['processed']}")
+    print(f"   👥 Users anonymized: {total_stats['users_anonymized']}")
+    print(f"   🛡️  Posts protected: {total_stats['protected']}")
+    print(f"   ⏭️  Posts skipped (already protected): {total_stats['skipped']}")
+    print(f"   ❌ Errors encountered: {total_stats['errors']}")
 
-    if stats['errors'] > 0:
-        print(f"\n⚠️  {stats['errors']} posts had extraction errors - check logs for details")
+    if total_stats['errors'] > 0:
+        print(f"\n⚠️  {total_stats['errors']} posts had errors - check logs for details")
 
-    if stats['skipped'] > 0:
-        print(f"\n🔄 {stats['skipped']} posts were already protected and skipped - efficient re-run!")
+    if total_stats['skipped'] > 0:
+        print(f"\n🔄 {total_stats['skipped']} posts were already protected and skipped - efficient re-run!")
 
-    return stats
+    return total_stats

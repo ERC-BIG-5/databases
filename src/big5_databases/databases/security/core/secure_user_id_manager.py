@@ -18,12 +18,13 @@ import hashlib
 import uuid
 from typing import Optional
 from dataclasses import dataclass
-
+from pydantic import SecretStr
 from cryptography.hazmat.primitives import serialization
 
 from .secure_config import SecurityConfig
 from .envelope_encryption import EnvelopeEncryption, EnvelopeData
 from ..utils.named_uuids import generate
+from ...model_conversion import AnonymizeModel
 
 
 @dataclass
@@ -208,10 +209,11 @@ class SecureUserIDManager:
         self,
         user_ids: list[str],
         user_data: list[Optional[dict]]
-    ) -> list[tuple[str, str, str, Optional[str], str, str]]:
+    ) -> list[AnonymizeModel]:
         """
         Prepare user mappings for database insertion.
-        
+
+        # todo check an evaluate
         Returns tuples ready for DatabaseOperations.add_mappings().
         
         Args:
@@ -219,8 +221,7 @@ class SecureUserIDManager:
             user_data: List of optional metadata dicts (same length)
             
         Returns:
-            List of (hashed_id, encrypted_user_id, public_uuid, 
-                     encrypted_data, key_version) tuples
+            List of AnonymizeModel
                      
         Raises:
             ValueError: If lists have different lengths
@@ -242,14 +243,14 @@ class SecureUserIDManager:
             encrypted_data = None
             if _user_data:
                 encrypted_data = self.encrypt(json.dumps(_user_data))
-            
-            mappings.append((
-                hashed_id,
-                encrypted_user_id,
-                str(public_uuid),
-                encrypted_data,
-                self.key_version,
-                pseudo_name
+
+            mappings.append(AnonymizeModel(
+                user_id_hash=SecretStr(hashed_id),
+                encrypted_user_id=SecretStr(encrypted_user_id),
+                public_id=public_uuid,
+                encrypted_data=encrypted_data,
+                key_version=self.key_version,
+                pseudo_name=pseudo_name
             ))
         
         return mappings

@@ -2,9 +2,8 @@
 from .secure_config import SecurityConfig
 from .envelope_encryption import EnvelopeEncryption, EnvelopeData
 from .secure_user_id_manager import SecureUserIDManager, UserMapping
-from .db_operations import DatabaseOperations, init_anon_db, process_db
+from .db_operations import DatabaseOperations, init_anon_db, process_db, protect_posts_batch
 from .protection_marker import ProtectionMarker
-from .main import process_database
 
 __all__ = [
     'SecurityConfig',
@@ -15,6 +14,6 @@ __all__ = [
     'DatabaseOperations',
     'init_anon_db',
     'process_db',
+    'protect_posts_batch',
     'ProtectionMarker',
-    'process_database'
 ]

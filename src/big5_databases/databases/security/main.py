@@ -7,9 +7,10 @@ user data in social media databases.
 
 import json
 import os
+import shutil
 from datetime import datetime
 from pathlib import Path
-from typing import Union, List
+from typing import Union
 
 import sys
 from tools.env_root import root
@@ -19,26 +20,49 @@ from big5_databases.databases.db_models import DBPost, PostType
 from big5_databases.databases.meta_database import MetaDatabase
 from big5_databases.databases.model_conversion import PostModel
 from big5_databases.databases.platform_db_mgmt import PlatformDB
-from big5_databases.databases.security.core.db_operations import init_anon_db, process_db
+from big5_databases.databases.security.core.db_operations import init_anon_db, process_db, get_anon_db
 from big5_databases.databases.security.core.secure_user_id_manager import SecureUserIDManager
 from big5_databases.databases.security.utils.jsonpath_extractor import JsonPathContentProtector
 from big5_databases.databases.security.core.db_operations import DatabaseOperations
+from big5_databases.databases.security.utils.exec_db_fixes import platform_user_data_jsonpath
+from big5_databases.databases.model_conversion import PostMetadataModel
+from dotenv import load_dotenv
 
 # Add the project root to Python path for imports
 sys.path.insert(0, str(root()))
 
 
+def load_env_file(env_file_path: Path):
+    # Validate inputs
+    if not env_file_path.exists():
+        raise FileNotFoundError(f"Environment file not found: {env_file_path}")
+    # Load environment
+    load_dotenv(env_file_path)
+
+def get_posts_db(platform: str, source_db_input: str) -> PlatformDB:
+    # Check if it's a path or database name
+    if Path(source_db_input).exists():
+        source_path = Path(source_db_input)
+        return PlatformDB.sqlite_db_from_path(platform, source_path, table_type="posts")
+    else:
+        # It's a database name - load from MetaDatabase
+        meta_db = MetaDatabase()
+        return meta_db.get_platform_db(source_db_input, table_type="posts")
+
+
 def process_database(
+        platform: str,
         source_db_path_or_name: Union[str, Path],
         anon_db_path: Union[str, Path],
         env_file_path: Union[str, Path],
         batch_size: int = 1000,
-        protect_content: bool = True
+        protect_content: bool = True,
 ) -> dict:
     """
     Process a database for anonymization.
 
     Args:
+        platform: platform (twitter, tiktok, ...)
         source_db_path_or_name: Path to source database file OR database name in MetaDatabase
         anon_db_path: Path where anonymization database will be created (must NOT exist)
         env_file_path: Path to environment file with encryption keys
@@ -61,57 +85,26 @@ def process_database(
 
     # Convert paths to Path objects
     anon_db_path = Path(anon_db_path)
-    env_file_path = Path(env_file_path)
 
-    # Validate inputs
-    if anon_db_path.exists():
-        raise FileExistsError(f"Anonymization database already exists: {anon_db_path}")
 
-    if not env_file_path.exists():
-        raise FileNotFoundError(f"Environment file not found: {env_file_path}")
+    # Create or open anonymization database
+    source_db = get_posts_db(platform, str(source_db_path_or_name))
 
-    # Load environment
-    load_dotenv(env_file_path)
+    if not anon_db_path.exists():
+        if not anon_db_path.parent.exists():
+            raise NotADirectoryError(f"Make sure the parent directory of {anon_db_path} exists")
+        anon_db = init_anon_db(source_db, anon_db_path)
+    else:
+        anon_db = get_anon_db(anon_db_path, platform)
+
+
+    load_env_file(Path(env_file_path))
 
     # Verify required keys are set
     required_keys = ['HMAC_KEY', 'PUBLIC_KEY_PEM', 'KEY_VERSION']
     for key in required_keys:
         if key not in os.environ:
             raise ValueError(f"Required environment variable {key} not found")
-
-    # Load source database
-    source_db_input = str(source_db_path_or_name)
-
-    # Check if it's a path or database name
-    if Path(source_db_input).exists():
-        # It's a file path - determine platform from filename
-        source_path = Path(source_db_input)
-        # Extract platform from filename (e.g., "ANON_TEST_twitter_phase1.sqlite" -> "twitter")
-        stem_parts = source_path.stem.split('_')
-        if 'twitter' in stem_parts:
-            platform = 'twitter'
-        elif 'youtube' in stem_parts:
-            platform = 'youtube'
-        elif 'instagram' in stem_parts:
-            platform = 'instagram'
-        elif 'tiktok' in stem_parts:
-            platform = 'tiktok'
-        elif 'weibo' in stem_parts:
-            platform = 'weibo'
-        else:
-            # Default fallback - use first part if no known platform found
-            platform = stem_parts[0].lower() if stem_parts else "twitter"
-        source_db = PlatformDB.sqlite_db_from_path(platform, source_path, table_type="posts")
-    else:
-        # It's a database name - load from MetaDatabase
-        meta_db = MetaDatabase()
-        source_db = meta_db.get_platform_db(source_db_input, table_type="posts")
-
-    # Ensure anon directory exists
-    anon_db_path.parent.mkdir(parents=True, exist_ok=True)
-
-    # Create anonymization database
-    anon_db = init_anon_db(source_db, anon_db_path)
 
     # Process posts for anonymization
     stats = process_db(
@@ -124,157 +117,39 @@ def process_database(
     return stats
 
 
-def x_process_database():
-    """Test function with verbose output for the anonymization process."""
-    print("=" * 80)
-    print("Anonymization Database Trial Run")
-    print("=" * 80)
-
-    try:
-        # Consolidated test data directory
-        base_path = root() / "test_data" / "security"
-
-        # Test parameters using consolidated paths
-        source_db_path = base_path / "twitter_phase1.sqlite"
-        source_backup_path = base_path / "SOURCE_twitter_phase1.sqlite"
-        anon_db_path = base_path / "test_twitter_anonymized.anon.sqlite"
-        env_file_path = base_path / "test_anon_keys.env"
-
-        print(f"\nTest data directory: {base_path}")
-        print(f"Source backup: {source_backup_path}")
-        print(f"Source database: {source_db_path}")
-        print(f"Anonymization database: {anon_db_path}")
-        print(f"Environment file: {env_file_path}")
-
-        # Verify backup and env files exist
-        if not source_backup_path.exists():
-            print(f"❌ Source backup not found: {source_backup_path}")
-            return False
-        if not env_file_path.exists():
-            print(f"❌ Environment file not found: {env_file_path}")
-            return False
-
-        print("✅ All required files found")
-
-        # Prepare fresh test data
-        print("\n🔄 Preparing fresh test data...")
-
-        # Remove old source database and related files
-        if source_db_path.exists():
-            source_db_path.unlink()
-            print("   Removed old source database")
-
-        # Remove SQLite WAL/SHM files if they exist
-        for suffix in ["-wal", "-shm"]:
-            wal_file = Path(str(source_db_path) + suffix)
-            if wal_file.exists():
-                wal_file.unlink()
-                print(f"   Removed {wal_file.name}")
-
-        # Remove existing anon database if present
-        if anon_db_path.exists():
-            anon_db_path.unlink()
-            print("   Removed existing anonymization database")
-
-        # Copy fresh source database from backup
-        import shutil
-        shutil.copy2(source_backup_path, source_db_path)
-        print("   Restored fresh source database from backup")
-        print("✅ Fresh test data ready")
-
-        # Process the database
-        print("\nProcessing database for anonymization...")
-        stats = process_database(
-            source_db_path_or_name=source_db_path,
-            anon_db_path=anon_db_path,
-            env_file_path=env_file_path,
-            batch_size=100,  # Small batch for testing
-            protect_content=True
-        )
-
-        # Show results
-        print("\n" + "=" * 40)
-        print("Results Summary")
-        print("=" * 40)
-        print(f"   Posts processed: {stats['processed']}")
-        print(f"   Users anonymized: {stats['anonymized']}")
-        print(f"   Posts protected: {stats['protected']}")
-        print(f"   Errors: {stats['errors']}")
-
-        if stats['anonymized'] > 0:
-            success_rate = stats['anonymized'] / max(stats['processed'], 1) * 100
-            print(f"   Success rate: {success_rate:.1f}%")
-
-        # Verify results
-        print("\nVerifying anonymization database...")
-
-        anon_db = PlatformDB.sqlite_db_from_path("twitter", anon_db_path, table_type="anon")
-        with anon_db.get_session() as session:
-            anon_count = session.query(DBAnonymize).count()
-            print(f"   Anonymization records created: {anon_count}")
-
-            if anon_count > 0:
-                sample = session.query(DBAnonymize).first()
-                print(f"   Sample record:")
-                print(f"      - Hash: {sample.user_id_hash[:20]}...")
-                print(f"      - Public UUID: {sample.public_id}")
-                print(f"      - Has encrypted user_id: {bool(sample.encrypted_user_id)}")
-                print(f"      - Has metadata: {bool(sample.encrypted_data)}")
-
-        print("\n" + "=" * 80)
-        print("TRIAL RUN COMPLETED SUCCESSFULLY!")
-        print("=" * 80)
-        print(f"\nFiles created:")
-        print(f"   - Anonymization DB: {anon_db_path}")
-        print(f"   - Size: {Path(anon_db_path).stat().st_size / 1024:.1f} KB")
-
-        print(f"\nSecurity status:")
-        print(f"   - User IDs encrypted and stored")
-        print(f"   - Source content protected with '<PROTECTED>'")
-        print(f"   - Public UUIDs generated for external use")
-
-        # Run batch processing coverage test
-        batch_success = demo_batch_processing_coverage()
-
-        return True and batch_success
-
-    except Exception as e:
-        print(f"\nError during trial run: {e}")
-        import traceback
-        print("\nFull error details:")
-        traceback.print_exc()
-        return False
 
 
-def demo_batch_processing_coverage():
+def demo_insertion():
     """
     Batch processing demo: sourcedb → new_posts → ANONYMIZE → safe_submit → end
     Workflow: Create posts, anonymize them FIRST, then submit to database.
     """
+    base_path = root() / "test_data" / "security"
+    env_file_path = base_path / "test_anon_keys.env"
+    load_env_file(env_file_path)
+
     print("\n" + "=" * 60)
-    print("BATCH PROCESSING COVERAGE TEST")
+
+    # todo changed that to INSERTION TEST.
+    print("POST INSERTION TEST")
     print("Workflow: sourcedb → new_posts → ANONYMIZE → safe_submit → end")
     print("=" * 60)
 
     try:
         base_path = root() / "test_data" / "security"
         source_db_path = base_path / "twitter_phase1.sqlite"
-        batch_anon_db_path = base_path / "coverage_batch_test.anon.sqlite"
+        _anon_db_path = base_path / "test_twitter_anonymized.anon.sqlite"
 
         if not source_db_path.exists():
             print(f"❌ Source database not found: {source_db_path}")
             return False
-
-        # Clean up any existing batch test database
-        if batch_anon_db_path.exists():
-            batch_anon_db_path.unlink()
 
         print(f"📦 Step 1: Load source database...")
         source_db = PlatformDB.sqlite_db_from_path("twitter", source_db_path, table_type="posts")
         print(f"   ✅ Source database loaded")
 
         print(f"📝 Step 2: Create new posts (mixed DBPost/PostModel)...")
-        fake_posts: List[Union[DBPost, PostModel]] = []
+        fake_posts: list[Union[DBPost, PostModel]] = []
 
         # Get template for realistic structure
         with source_db.get_session() as session:
@@ -336,20 +211,20 @@ def demo_batch_processing_coverage():
         print(f"🔐 Step 3: ANONYMIZE posts BEFORE submission...")
 
         # Set up anonymization components
-        anon_db = init_anon_db(source_db, batch_anon_db_path)
+        anon_db = get_anon_db(_anon_db_path)
 
         # Initialize user ID manager and database operations from environment
         user_id_manager = SecureUserIDManager.from_env(load_private_key=False)
 
         db_ops = DatabaseOperations(anon_db)
 
-        # Set up JSONPath protector for Twitter
-        protection_paths = {
-            "user_id": "user.id_str",
-            "username": "user.username",
-            "displayname": "user.displayname",
-            "user_url": "user.url"
-        }
+        # Set up JSONPath protector for Twitter using platform-specific paths
+        user_id_path, metadata_paths = platform_user_data_jsonpath("twitter")
+        protection_paths = {"user_id": user_id_path}
+
+        # Add metadata paths for protection
+        for i, path in enumerate(metadata_paths):
+            protection_paths[f"metadata_{i}"] = path
         protector = JsonPathContentProtector(protection_paths)
 
         anonymized_posts = []
@@ -399,10 +274,28 @@ def demo_batch_processing_coverage():
                         if not post.metadata_content:
                             post.metadata_content = {}
                         post.metadata_content.setdefault('protection', {})['protected_user'] = True
-                    else:
+                    else:  # PostModel with PostMetadataModel
                         if not post.metadata_content:
-                            post.metadata_content = {}
-                        post.metadata_content['protection'] = {'protected_user': True}
+
+                            post.metadata_content = PostMetadataModel()
+
+                        # Create new PostMetadataModel with updated protection field
+                        current_metadata = post.metadata_content
+                        protection_dict = current_metadata.protection or {}
+                        protection_dict['protected_user'] = True
+
+                        # Create new instance with updated protection
+                        post.metadata_content = PostMetadataModel(
+                            media_paths=current_metadata.media_paths,
+                            media_base_path=current_metadata.media_base_path,
+                            media_dl_failed=current_metadata.media_dl_failed,
+                            media=current_metadata.media,
+                            post_exists=current_metadata.post_exists,
+                            orig_db_conf=current_metadata.orig_db_conf,
+                            annotations=current_metadata.annotations,
+                            protection=protection_dict,
+                            extra=current_metadata.extra
+                        )
 
                     anonymized_count += 1
                     print(f"   🔒 Anonymized post {i + 1}: {original_user_id} → {user_mapping.public_uuid}")
@@ -443,6 +336,131 @@ def demo_batch_processing_coverage():
         return False
 
 
+def demo_process_database():
+    print("=" * 80)
+    print("Anonymization Database Trial Run")
+    print("=" * 80)
+
+    try:
+        # Consolidated test data directory
+        base_path = root() / "test_data" / "security"
+
+        # Test parameters using consolidated paths
+        platform = "twitter"
+        source_db_path = base_path / "twitter_phase1.sqlite"
+        source_backup_path = base_path / "SOURCE_twitter_phase1.sqlite"
+        anon_db_path = base_path / "test_twitter_anonymized.anon.sqlite"
+        env_file_path = base_path / "test_anon_keys.env"
+
+        print(f"\nTest data directory: {base_path}")
+        print(f"Source backup: {source_backup_path}")
+        print(f"Source database: {source_db_path}")
+        print(f"Anonymization database: {anon_db_path}")
+        print(f"Environment file: {env_file_path}")
+
+        # Verify backup and env files exist
+        if not source_backup_path.exists():
+            print(f"❌ Source backup not found: {source_backup_path}")
+            return False
+        if not env_file_path.exists():
+            print(f"❌ Environment file not found: {env_file_path}")
+            return False
+
+        print("✅ All required files found")
+
+        # Prepare fresh test data
+        print("\n🔄 Preparing fresh test data...")
+
+        # Remove old source database and related files
+        if source_db_path.exists():
+            source_db_path.unlink()
+            print("   Removed old source database")
+
+        # Remove SQLite WAL/SHM files if they exist
+        for suffix in ["-wal", "-shm"]:
+            wal_file = Path(str(source_db_path) + suffix)
+            if wal_file.exists():
+                wal_file.unlink()
+                print(f"   Removed {wal_file.name}")
+
+        # Remove existing anon database if present
+        if anon_db_path.exists():
+            anon_db_path.unlink()
+            print("   Removed existing anonymization database")
+
+        # Copy fresh source database from backup
+        shutil.copy2(source_backup_path, source_db_path)
+        print("   Restored fresh source database from backup")
+        print("✅ Fresh test data ready")
+
+        # Process the database
+        print("\nProcessing database for anonymization...")
+        stats = process_database(
+            platform=platform,
+            source_db_path_or_name=source_db_path,
+            anon_db_path=anon_db_path,
+            env_file_path=env_file_path,
+            batch_size=100,
+            protect_content=True
+        )
+
+        # Show results
+        print("\n" + "=" * 40)
+        print("Results Summary")
+        print("=" * 40)
+        print(f"   Posts processed: {stats['processed']}")
+        print(f"   Users anonymized: {stats['users_anonymized']}")
+        print(f"   Posts protected: {stats['protected']}")
+        print(f"   Errors: {stats['errors']}")
+
+        if stats['users_anonymized'] > 0:
+            success_rate = stats['users_anonymized'] / max(stats['processed'], 1) * 100
+            print(f"   Success rate: {success_rate:.1f}%")
+
+        # Verify results
+        print("\nVerifying anonymization database...")
+
+        anon_db = PlatformDB.sqlite_db_from_path("twitter", anon_db_path, table_type="anon")
+        with anon_db.get_session() as session:
+            anon_count = session.query(DBAnonymize).count()
+            print(f"   Anonymization records created: {anon_count}")
+
+            if anon_count > 0:
+                sample = session.query(DBAnonymize).first()
+                print(f"   Sample record:")
+                print(f"      - Hash: {sample.user_id_hash[:20]}...")
+                print(f"      - Public UUID: {sample.public_id}")
+                print(f"      - Has encrypted user_id: {bool(sample.encrypted_user_id)}")
+                print(f"      - Has metadata: {bool(sample.encrypted_data)}")
+
+        print("\n" + "=" * 80)
+        print("TRIAL RUN COMPLETED SUCCESSFULLY!")
+        print("=" * 80)
+        print(f"\nFiles created:")
+        print(f"   - Anonymization DB: {anon_db_path}")
+        print(f"   - Size: {Path(anon_db_path).stat().st_size / 1024:.1f} KB")
+
+        print(f"\nSecurity status:")
+        print(f"   - User IDs encrypted and stored")
+        print(f"   - Source content protected with '<PROTECTED>'")
+        print(f"   - Public UUIDs generated for external use")
+
+        # Run batch processing coverage test
+        return True
+
+    except Exception as e:
+        print(f"\nError during trial run: {e}")
+        import traceback
+        print("\nFull error details:")
+        traceback.print_exc()
+        return False
+
+
+def main():
+    """Test function with verbose output for the anonymization process."""
+    demo_process_database()
+    demo_insertion()
+
+
 if __name__ == "__main__":
-    success = x_process_database()
-    sys.exit(0 if success else 1)
+    main()

@@ -34,7 +34,7 @@ class ProtectionMarker:
         """
         self.db = db_manager
 
-    def is_post_protected(self, post_row) -> bool:
+    def is_post_protected(self, post_row: DBPost) -> bool:
         """
         Check if a post has already been protected.
 
@@ -81,7 +81,7 @@ class ProtectionMarker:
 
         logger.debug(f"Marked post {post_row.id} as protected")
 
-    def mark_posts_as_protected(self, post_rows: List, session: Session) -> int:
+    def mark_posts_as_protected(self, post_rows: list[DBPost], session: Session) -> int:
         """
         Mark multiple posts as having protected user data.
 

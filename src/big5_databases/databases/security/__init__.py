@@ -10,8 +10,8 @@ from .core import (
     DatabaseOperations,
     init_anon_db,
     process_db,
-    ProtectionMarker,
-    process_database
+    protect_posts_batch,
+    ProtectionMarker
 )
 
 # Audit functionality - verification and decryption
@@ -43,9 +43,8 @@ __all__ = [
     'DatabaseOperations',
     'init_anon_db',
     'process_db',
+    'protect_posts_batch',
     'ProtectionMarker',
-    'process_database',
-
     # Audit functionality
     'DecryptionManager',
     'AnonymizationAuditor',
