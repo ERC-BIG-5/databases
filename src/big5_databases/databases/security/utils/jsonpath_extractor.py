@@ -39,7 +39,15 @@ class JsonPathFieldExtractor(RootModel[dict[str, str]]):
         return field_paths
 
     def __init__(self, field_paths: dict[str, str]):
-        """Initialize with field name to JSONPath mapping"""
+        """
+        Initialize with field name to JSONPath mapping.
+
+        Parameters
+        ----------
+        field_paths : dict[str, str]
+            Mapping of field names to JSONPath expressions.
+            All paths are validated and pre-parsed for performance.
+        """
         super().__init__(field_paths)
         # Pre-parse all JSONPath expressions for performance
         self._parsers: dict[str, JsonPathParser] = {
@@ -48,11 +56,36 @@ class JsonPathFieldExtractor(RootModel[dict[str, str]]):
         }
 
     def extract_from_data(self, data: dict) -> dict[str, Any]:
-        """Extract field data from a dictionary using configured JSONPath expressions"""
+        """
+        Extract field values from a dictionary using configured JSONPath expressions.
+
+        Parameters
+        ----------
+        data : dict
+            Source dictionary to extract values from.
+
+        Returns
+        -------
+        dict[str, Any]
+            Mapping of field names to extracted values.
+            Returns None for fields not found in data.
+        """
         return self._extract_from_data(data)
 
     def _extract_from_data(self, data: dict) -> dict[str, Any]:
-        """Internal method for data extraction with null filtering"""
+        """
+        Internal extraction method with null filtering.
+
+        Parameters
+        ----------
+        data : dict
+            Source dictionary to extract values from.
+
+        Returns
+        -------
+        dict[str, Any]
+            Extracted values with None values filtered out.
+        """
         result = {}
         for field_name, parser in self._parsers.items():
             matches = [match.value for match in parser.find(data)]
@@ -62,7 +95,24 @@ class JsonPathFieldExtractor(RootModel[dict[str, str]]):
         return result
 
     def get_parser(self, field_name: str) -> JsonPathParser:
-        """Get the pre-parsed JSONPath parser for a specific field"""
+        """
+        Get the pre-parsed JSONPath parser for a specific field.
+
+        Parameters
+        ----------
+        field_name : str
+            Name of the configured field.
+
+        Returns
+        -------
+        JsonPathParser
+            Pre-compiled JSONPath parser for the field.
+
+        Raises
+        ------
+        KeyError
+            If field_name is not configured in the extractor.
+        """
         if field_name not in self._parsers:
             raise KeyError(f"Field '{field_name}' not configured in extractor")
         return self._parsers[field_name]

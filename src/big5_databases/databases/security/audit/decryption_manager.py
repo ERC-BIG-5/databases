@@ -209,4 +209,44 @@ class DecryptionManager:
         
         return metadata
 
+    def decrypt_user_id(self, encrypted_user_id: str) -> str:
+        """
+        Decrypt an encrypted user ID directly.
+
+        This is a lower-level method that decrypts without database lookup.
+        Used when you already have the encrypted value from the anon database.
+
+        Parameters
+        ----------
+        encrypted_user_id : str
+            The envelope-encrypted user ID (JSON string from anon database).
+
+        Returns
+        -------
+        str
+            The original plaintext user ID.
+
+        Raises
+        ------
+        ValueError
+            If decryption fails due to invalid key or corrupted data.
+
+        Notes
+        -----
+        This operation is logged for audit purposes.
+        """
+        audit_logger.warning(
+            f"Direct decryption requested | "
+            f"Authorized by: {self.authorized_by}"
+        )
+
+        original_id = self.manager.decrypt(encrypted_user_id)
+
+        audit_logger.warning(
+            f"Direct decryption completed | "
+            f"Original ID: {original_id}"
+        )
+
+        return original_id
+
 

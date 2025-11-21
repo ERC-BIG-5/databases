@@ -43,27 +43,65 @@ stats = process_database(
 )
 ```
 
+### Universal Post Protection Helper
+
+The `protect_posts_batch()` function is the core helper for protecting posts. It can be called from anywhere in the databases package when inserting new posts or processing existing databases.
+
+**Key Features:**
+- Extracts user IDs using platform-specific JSONPath patterns
+- Checks for existing mappings and creates new ones only if needed
+- Protects content by replacing user IDs with UUIDs
+- Marks posts as protected to avoid reprocessing
+- Works with both DBPost and PostModel objects
+
+```python
+from big5_databases.databases.security import protect_posts_batch
+from big5_databases.databases.security.core.secure_user_id_manager import SecureUserIDManager
+from big5_databases.databases.security.core.db_operations import get_anon_db
+
+# Setup (one-time initialization)
+user_id_manager = SecureUserIDManager.from_env(load_private_key=False)
+anon_db = get_anon_db("twitter_anon.sqlite", "twitter")
+
+# Protect any batch of posts
+posts = [...]  # List of DBPost or PostModel objects
+stats = protect_posts_batch(
+    posts=posts,
+    platform="twitter",
+    user_id_manager=user_id_manager,
+    anon_db=anon_db
+)
+
+# Returns statistics
+print(f"Processed: {stats['processed']}")
+print(f"Protected: {stats['protected']}")
+print(f"New users: {stats['users_anonymized']}")
+print(f"Skipped: {stats['skipped']}")
+```
+
 ### Batch Processing New Posts
 ```python
 # Workflow: sourcedb → new_posts → ANONYMIZE → safe_submit → end
 from big5_databases.databases.platform_db_mgmt import PlatformDB
-from big5_databases.databases.security import init_anon_db
+from big5_databases.databases.security import protect_posts_batch
 from big5_databases.databases.security.core.secure_user_id_manager import SecureUserIDManager
+from big5_databases.databases.security.core.db_operations import get_anon_db
 
 source_db = PlatformDB.sqlite_db_from_path("twitter", "posts.sqlite", table_type="posts")
 new_posts = [...]  # List of DBPost and/or PostModel objects
 
 # 1. Setup anonymization
-anon_db = init_anon_db(source_db, "anonymization.anon.sqlite")
+anon_db = get_anon_db("twitter_anon.sqlite", "twitter")
 user_id_manager = SecureUserIDManager.from_env(load_private_key=False)
 
-# 2. ANONYMIZE posts FIRST
-for post in new_posts:
-    user_id = post.content.get('user', {}).get('id_str')
-    if user_id:
-        result = user_id_manager.anonymize_user_id(user_id, {"platform": "twitter"})
-        post.content['user']['id_str'] = result.public_uuid
-        # Mark other sensitive fields as <PROTECTED>
+# 2. ANONYMIZE posts FIRST using universal helper
+stats = protect_posts_batch(
+    posts=new_posts,
+    platform="twitter",
+    user_id_manager=user_id_manager,
+    anon_db=anon_db
+)
+print(f"Protected {stats['protected']} posts, {stats['users_anonymized']} new users")
 
 # 3. Submit already-anonymized posts
 submitted_posts = source_db.safe_submit_posts(new_posts)
@@ -141,21 +179,63 @@ python -c "import secrets, base64; print(base64.b64encode(secrets.token_bytes(32
 
 ## Architecture
 
+### Security Layers
 **Two-Layer Security:**
 1. **HMAC Layer**: Fast, deterministic hashing for user ID mapping
 2. **RSA Layer**: Envelope encryption (AES-GCM + RSA key wrapping) for metadata
 
-**Package Structure:**
+### Package Structure
 - `core/` - Anonymization, encryption, database operations
+  - **`protect_posts_batch()`** - Universal helper for post protection
+  - `process_db()` - Batch processor for whole databases
+  - `SecureUserIDManager` - Crypto operations (hash, encrypt, UUID generation)
+  - `DatabaseOperations` - Anon DB mapping management
+  - `ProtectionMarker` - Track protected posts
 - `audit/` - Verification, decryption, investigation tools
 - `utils/` - JSONPath extraction, platform patterns
 - `examples/` - Demonstrations and usage examples
 
-**Key Features:**
-- Mixed data type support (DBPost + PostModel)
-- Protection marker system (avoids duplicate processing)
-- Fresh data testing with backup/restore
-- UUID-based audit trail with human-readable pseudo names
-- Platform-specific JSONPath patterns
-- Comprehensive coverage testing
-- Single main entry point (`core/main.py`) for full system testing
+### Data Flow
+
+```
+┌─────────────────────────────────────────────────────────┐
+│              protect_posts_batch()                      │
+│            [Universal Helper Function]                  │
+│                                                         │
+│  Phase 1: Extract & Map                                │
+│    • Extract user_ids via JSONPath                     │
+│    • Create HMAC hashes                                │
+│    • Build post-to-user mappings                       │
+│                                                         │
+│  Phase 2: Get/Create Mappings                          │
+│    • Query anon DB for existing UUIDs                  │
+│    • Create new mappings for new users                 │
+│    • Insert to anon DB (transaction-safe)              │
+│                                                         │
+│  Phase 3: Protect Content                              │
+│    • Replace user_ids with UUIDs                       │
+│    • Mark sensitive fields as <PROTECTED>              │
+│    • Mark posts as protected                           │
+│                                                         │
+└─────────────────────────────────────────────────────────┘
+         ▲                                   ▲
+         │                                   │
+    ┌────┴────────┐                 ┌────────┴──────────┐
+    │ process_db()│                 │ New Post Insertion│
+    │             │                 │   (anywhere in    │
+    │ Fetches     │                 │  databases pkg)   │
+    │ batches     │                 │                   │
+    │ from DB     │                 │  Your custom      │
+    └─────────────┘                 │  insertion code   │
+                                    └───────────────────┘
+```
+
+### Key Features
+- **Universal Helper**: Single `protect_posts_batch()` function for all protection needs
+- **Reusable**: Callable from anywhere in the databases package
+- **Efficient**: Batch processing with existing mapping lookups
+- **Mixed data type support**: Works with both DBPost and PostModel
+- **Protection marker system**: Avoids duplicate processing
+- **UUID-based audit trail**: With human-readable pseudo names
+- **Platform-specific patterns**: JSONPath patterns for each platform
+- **Transaction-safe**: Rollback support for database operations

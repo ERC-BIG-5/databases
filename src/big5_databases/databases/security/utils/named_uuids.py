@@ -377,14 +377,33 @@ words = [
 
 def generate(uuid_input: UUID | str, just_name: bool = True) -> str:
     """
-    Generate a named UUID from a UUID object.
+    Generate a human-readable pseudo-name from a UUID.
 
-    Args:
-        uuid_input: UUID object
+    Creates a memorable phrase using deterministic word selection based on
+    the first 4 bytes of the UUID. Useful for creating recognizable but
+    anonymous identifiers.
 
-    Returns:
-        String with first 4 bytes replaced by words + rest of UUID
-        (e.g., "sneaky Mark stumbles through-e29b-41d4-a716-446655440000")
+    Parameters
+    ----------
+    uuid_input : UUID | str
+        UUID object or string representation to convert.
+    just_name : bool, default=True
+        If True, returns only the word phrase (e.g., "Sneaky Mark stumbles through").
+        If False, appends the remaining UUID suffix (e.g., "Sneaky Mark stumbles through-e29b-41d4-a716-446655440000").
+
+    Returns
+    -------
+    str
+        Human-readable pseudo-name, optionally with UUID suffix.
+
+    Examples
+    --------
+    >>> from uuid import UUID
+    >>> u = UUID('12345678-1234-5678-1234-567812345678')
+    >>> generate(u)
+    'Funky Sundar trips the codebase'
+    >>> generate(u, just_name=False)
+    'Funky Sundar trips the codebase-1234-5678-1234-567812345678'
     """
     # Assert all word lists have exactly 256 entries
     if isinstance(uuid_input, str):

@@ -26,26 +26,55 @@ from big5_databases.databases.security.utils.jsonpath_extractor import JsonPathC
 from big5_databases.databases.security.core.db_operations import DatabaseOperations
 from big5_databases.databases.security.utils.exec_db_fixes import platform_user_data_jsonpath
 from big5_databases.databases.model_conversion import PostMetadataModel
+from big5_databases.databases.security.audit.audit_manager import (
+    AnonymizationAuditor, AuditConfig, quick_audit, full_audit_with_decryption
+)
 from dotenv import load_dotenv
 
 # Add the project root to Python path for imports
 sys.path.insert(0, str(root()))
 
 
-def load_env_file(env_file_path: Path):
-    # Validate inputs
+def load_env_file(env_file_path: Path) -> None:
+    """
+    Load environment variables from a file.
+
+    Parameters
+    ----------
+    env_file_path : Path
+        Path to the .env file containing environment variables.
+
+    Raises
+    ------
+    FileNotFoundError
+        If the environment file does not exist.
+    """
     if not env_file_path.exists():
         raise FileNotFoundError(f"Environment file not found: {env_file_path}")
-    # Load environment
     load_dotenv(env_file_path)
 
+
 def get_posts_db(platform: str, source_db_input: str) -> PlatformDB:
-    # Check if it's a path or database name
+    """
+    Get a PlatformDB instance for the specified platform and source.
+
+    Parameters
+    ----------
+    platform : str
+        Social media platform name (e.g., 'twitter', 'instagram').
+    source_db_input : str
+        Either a file path to an existing SQLite database, or a database
+        name registered in MetaDatabase.
+
+    Returns
+    -------
+    PlatformDB
+        Database instance configured for posts table access.
+    """
     if Path(source_db_input).exists():
         source_path = Path(source_db_input)
         return PlatformDB.sqlite_db_from_path(platform, source_path, table_type="posts")
     else:
-        # It's a database name - load from MetaDatabase
         meta_db = MetaDatabase()
         return meta_db.get_platform_db(source_db_input, table_type="posts")
 
@@ -86,7 +115,6 @@ def process_database(
     # Convert paths to Path objects
     anon_db_path = Path(anon_db_path)
 
-
     # Create or open anonymization database
     source_db = get_posts_db(platform, str(source_db_path_or_name))
 
@@ -96,7 +124,6 @@ def process_database(
         anon_db = init_anon_db(source_db, anon_db_path)
     else:
         anon_db = get_anon_db(anon_db_path, platform)
-
 
     load_env_file(Path(env_file_path))
 
@@ -115,8 +142,6 @@ def process_database(
     )
 
     return stats
-
-
 
 
 def demo_insertion():
@@ -276,7 +301,6 @@ def demo_insertion():
                         post.metadata_content.setdefault('protection', {})['protected_user'] = True
                     else:  # PostModel with PostMetadataModel
                         if not post.metadata_content:
-
                             post.metadata_content = PostMetadataModel()
 
                         # Create new PostMetadataModel with updated protection field
@@ -456,10 +480,179 @@ def demo_process_database():
         return False
 
 
+def mini_user_id_validation():
+    from sqlalchemy.sql.functions import func
+
+    base_path = root() / "test_data" / "security"
+    env_file_path = base_path / "test_anon_keys.env"
+    load_env_file(env_file_path)
+    user_id_manager = SecureUserIDManager.from_env(load_private_key=False)
+
+    unprotected_orig_source = get_posts_db("twitter", str(base_path / "SOURCE_twitter_phase1.sqlite"))
+    anon_db = get_anon_db(base_path / "test_twitter_anonymized.anon.sqlite")
+    source_db = get_posts_db("twitter", str(base_path / "twitter_phase1.sqlite"))
+
+    # get a random post and their user from the original db (get user-id)
+    with unprotected_orig_source.get_session() as session:
+        unprotected_post = session.query(DBPost).order_by(func.random()).first()
+        unprotected_post_u_id = unprotected_post.content["user"]["id_str"]
+        unprotected_orig_src_post_id = str(unprotected_post.platform_id)
+        print("unprotected_post-uid", unprotected_post_u_id)
+
+    # hash their user-id
+    hashed_id = user_id_manager.create_hmac_hash(unprotected_post_u_id)
+
+    # get the user based on that hash
+    with anon_db.get_session() as session:
+        anon_retrieved_user = session.query(DBAnonymize).where(DBAnonymize.user_id_hash == hashed_id).first()
+        anon_retrieved_userm = anon_retrieved_user.model()
+        print(f"{anon_retrieved_user.public_id=}")
+
+    # get the post (this we can still only do, because we do not protect the post-ids)
+    # in the protected db.
+    with source_db.get_session() as session:
+        now_protected_post = session.query(DBPost).where(DBPost.platform_id == unprotected_orig_src_post_id).one()
+        print(f"{now_protected_post.content['user']['id_str']}")
+        now_protected_postm = now_protected_post.model()
+
+    print(anon_retrieved_userm.public_id,now_protected_postm.content['user']['id_str'])
+    # MAIN COMPARISSON. THE PUBLIC UUID should be the same as in the anon-db
+    print(str(anon_retrieved_userm.public_id) == now_protected_postm.content['user']['id_str'])
+
+
+def demo_quick_audit():
+    """
+    Quick audit demo: Compare protected vs original database without decryption.
+
+    This audit analyzes anonymization patterns and verifies protected fields
+    without attempting to decrypt the encrypted user data.
+    """
+    print("\n" + "=" * 60)
+    print("QUICK AUDIT DEMO")
+    print("Compares protected database against original (no decryption)")
+    print("=" * 60)
+
+    try:
+        base_path = root() / "test_data" / "security"
+
+        # Protected database (with anonymized content)
+        protected_db_path = base_path / "twitter_phase1.sqlite"
+        # Original database (unprotected backup)
+        original_db_path = base_path / "SOURCE_twitter_phase1.sqlite"
+
+        if not protected_db_path.exists():
+            print(f"Protected database not found: {protected_db_path}")
+            return False
+        if not original_db_path.exists():
+            print(f"Original database not found: {original_db_path}")
+            return False
+
+        print(f"\nProtected DB: {protected_db_path}")
+        print(f"Original DB: {original_db_path}")
+
+        print("\nRunning quick audit...")
+        result = quick_audit(
+            anonymized_db=protected_db_path,
+            original_db=original_db_path,
+            sample_size=10
+        )
+
+        # Generate and print report
+        auditor = AnonymizationAuditor(authorized_by="demo_quick_audit")
+        report = auditor.generate_audit_report(result)
+        print(report)
+
+        print("\nQuick Audit Summary:")
+        print(f"   Posts analyzed: {result.total_posts_analyzed}")
+        print(f"   Posts with protected content: {result.anonymized_posts_found}")
+        print(f"   Protected fields found: {len(result.protected_field_frequency)}")
+
+        return True
+
+    except Exception as e:
+        print(f"\nError in quick audit: {e}")
+        import traceback
+        traceback.print_exc()
+        return False
+
+
+def demo_full_audit():
+    """
+    Full audit demo: Compare protected vs original database WITH decryption.
+
+    This audit attempts to decrypt anonymized user IDs and verify them against
+    the original data. Requires private key access.
+    """
+    print("\n" + "=" * 60)
+    print("FULL AUDIT DEMO (with decryption)")
+    print("Compares protected database against original + decryption verification")
+    print("=" * 60)
+
+    try:
+        base_path = root() / "test_data" / "security"
+
+        # Protected database (with anonymized content)
+        protected_db_path = base_path / "twitter_phase1.sqlite"
+        # Original database (unprotected backup)
+        original_db_path = base_path / "SOURCE_twitter_phase1.sqlite"
+        # Environment file with keys (including private key for decryption)
+        env_file_path = base_path / "test_anon_keys.env"
+
+        if not protected_db_path.exists():
+            print(f"Protected database not found: {protected_db_path}")
+            return False
+        if not original_db_path.exists():
+            print(f"Original database not found: {original_db_path}")
+            return False
+        if not env_file_path.exists():
+            print(f"Environment file not found: {env_file_path}")
+            return False
+
+        print(f"\nProtected DB: {protected_db_path}")
+        print(f"Original DB: {original_db_path}")
+        print(f"Keys file: {env_file_path}")
+
+        print("\nRunning full audit with decryption...")
+        result = full_audit_with_decryption(
+            anonymized_db=protected_db_path,
+            original_db=original_db_path,
+            private_key_env=env_file_path,
+            sample_size=10
+        )
+
+        # Generate and print report
+        auditor = AnonymizationAuditor(authorized_by="demo_full_audit")
+        report = auditor.generate_audit_report(result)
+        print(report)
+
+        print("\nFull Audit Summary:")
+        print(f"   Posts analyzed: {result.total_posts_analyzed}")
+        print(f"   Posts with protected content: {result.anonymized_posts_found}")
+        print(f"   Protected fields found: {len(result.protected_field_frequency)}")
+        print(f"   Decryption attempted: {result.decryption_attempted}")
+        print(f"   Decryption successful: {result.decryption_successful}")
+
+        if not result.decryption_successful:
+            print("\n   Note: Decryption verification not fully implemented in audit_manager")
+
+        return True
+
+    except Exception as e:
+        print(f"\nError in full audit: {e}")
+        import traceback
+        traceback.print_exc()
+        return False
+
+
 def main():
     """Test function with verbose output for the anonymization process."""
-    demo_process_database()
-    demo_insertion()
+    # demo_process_database()
+    # demo_insertion()
+    # mini_user_id_validation()
+
+    # Audit demos
+    demo_quick_audit()
+    demo_full_audit()
 
 
 if __name__ == "__main__":
