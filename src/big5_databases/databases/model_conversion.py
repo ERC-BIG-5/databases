@@ -257,7 +257,7 @@ class PostModel(BaseDBModel):
     """Model for posts from any platform"""
     platform: str
     platform_id: Optional[str]
-    post_url: str
+    post_url: Optional[str] # because of weibo
     date_created: SerializableDatetimeAlways
     post_type: Annotated[PostType, PlainSerializer(lambda t: t.value, return_type=int, when_used='always')]
     content: dict

@@ -556,11 +556,14 @@ class PlatformDB(DatabaseManager):
         for post in posts:
             if isinstance(post, PostProcessModel):
                 # Convert PostProcessModel to DBPostProcessItem
-                db_post = DBPostProcessItem(
-                    platform_id=post.platform_id,
-                    input=post.input,
-                    output=post.output
-                )
+                # Only set output if it's not None to get SQL NULL instead of JSON null
+                kwargs = {
+                    'platform_id': post.platform_id,
+                    'input': post.input
+                }
+                if post.output is not None:
+                    kwargs['output'] = post.output if isinstance(post.output, dict) else post.output.model_dump()
+                db_post = DBPostProcessItem(**kwargs)
                 db_posts.append(db_post)
             else:
                 # Already a DBPostProcessItem, use it directly

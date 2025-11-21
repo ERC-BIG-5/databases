@@ -1,7 +1,7 @@
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
-from typing import TypedDict, TypeVar, Generic
+from typing import TypedDict, TypeVar, Generic, Optional
 
 from pydantic import BaseModel
 from sqlalchemy import Column, String, Integer, Boolean, DateTime, ForeignKey, JSON, Enum, func, UniqueConstraint
@@ -174,7 +174,7 @@ class DBPostProcessItem(DBModelBase[PostProcessModel]):
     id: Mapped[int] = mapped_column(primary_key=True)
     platform_id: Mapped[str] = mapped_column(String(50), nullable=False, unique=True)
     input: Mapped[dict] = mapped_column(JSON, nullable=False)
-    output: Mapped[dict] = mapped_column(JSON)
+    output: Mapped[Optional[dict]] = mapped_column(JSON, nullable=True)
 
     _pydantic_model = PostProcessModel
 
