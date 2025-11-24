@@ -124,7 +124,7 @@ class PlatformDB(DatabaseManager):
         # todo db_type: posts, process
         # todo. based on db_type, we take the correct tables. they should be stored in lists, for the 2 types
         # todo: there should also be task-tables for ppitem tables.
-        self.table_type = config.table_type
+        self.table_type = getattr(config, 'table_type', 'posts')
         config.tables = config.tables
 
 

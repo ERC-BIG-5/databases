@@ -109,6 +109,7 @@ class MetaDatabase:
 
     def exists(self, id_: int | str | PlatformDatabaseModel) -> bool:
         """
+        todo: this was not the intention of this function, but to check if the db-file exists.
         Check if a database exists in the meta database.
 
         Parameters
@@ -121,7 +122,8 @@ class MetaDatabase:
         bool
             True if the database exists, False otherwise.
         """
-        return self[id_] is not None
+
+        return self.has(id_)
 
     def get_db_mgmt(self, id_: int | str | PlatformDatabaseModel) -> Optional[PlatformDB]:
         """
@@ -147,7 +149,8 @@ class MetaDatabase:
         return dbm
 
     def get_platform_db(self, id_: int | str | PlatformDatabaseModel,
-                        table_type: Literal["posts", "process"] = "posts") -> "PlatformDB":
+                        table_type: Literal["posts", "process"] = "posts",
+                        readonly: bool = True) -> "PlatformDB":
         """
         Get proper PlatformDB instance with platform context.
 
@@ -157,6 +160,8 @@ class MetaDatabase:
             Database identifier (ID, name, or model object).
         table_type : Literal["posts", "process"], optional
             Type of tables to use, by default "posts".
+        readonly : bool, optional
+            read-only mode
 
         Returns
         -------
@@ -175,7 +180,8 @@ class MetaDatabase:
             db_connection=SQliteConnection(db_path=db.db_path),
             table_type=table_type,
             create=False,
-            require_existing_parent_dir=True
+            require_existing_parent_dir=True,
+            readonly=readonly,
         )
 
         platform_db = PlatformDB(config)
@@ -263,7 +269,7 @@ class MetaDatabase:
             db_obj = session.query(DBPlatformDatabase).where(DBPlatformDatabase.id == id_).one_or_none()
         else:
             db_obj = session.query(DBPlatformDatabase).where(DBPlatformDatabase.name == id_).one_or_none()
-        return None
+        return db_obj
 
     def get_obj(self, session, id_: int | str) -> DBPlatformDatabase:
         """
@@ -823,7 +829,7 @@ class MetaDatabase:
         Otherwise, a new ClientSetup is built from the stored database metadata.
         This enables simplified processor initialization with just a database name.
         """
-        from .external import ClientSetup, ClientConfig, DBSetupConfig, SQliteConnection
+        from .external import ClientSetup, ClientConfig, PlatformDBConfig, SQliteConnection
 
         db = self.get(db_name)
 
@@ -836,12 +842,13 @@ class MetaDatabase:
         logger.debug(f"Building client_setup from metadata for database: {db_name}")
 
         # Build database configuration from stored metadata
-        db_setup = DBSetupConfig(
+        db_setup = PlatformDBConfig(
+            platform=db.platform,
             name=db.name,
             db_connection=SQliteConnection(db_path=db.db_path),
             create=False,  # Database should already exist in MetaDatabase
             require_existing_parent_dir=True,
-            tables=[]  # Will be set by platform manager
+            table_type="posts"  # Default to posts table type
         )
 
         # Use stored config if available, otherwise use defaults
@@ -855,7 +862,7 @@ class MetaDatabase:
         # Build complete client setup
         client_setup = ClientSetup(
             platform=db.platform,
-            config=client_config,
+            client=client_config,
             db=db_setup
         )
 

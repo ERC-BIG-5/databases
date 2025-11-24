@@ -119,6 +119,21 @@ class DatabaseManager:
         """
         self.logger.debug(f"creating db engine with {self.config.connection_str}")
         connect_args = {}
+
+        # For readonly SQLite databases, use a custom creator with URI mode
+        if self.config.db_type == "sqlite" and self.config.readonly:
+            import sqlite3
+            db_path = self.config.db_connection.db_path
+            uri_str = f"file:{db_path}?mode=ro"
+
+            def creator():
+                return sqlite3.connect(uri_str, uri=True)
+
+            return create_engine(
+                "sqlite://",  # Dummy connection string when using creator
+                creator=creator
+            )
+
         # if self.config.db_type == "sqlite":
         #     # Add timeout and isolation level settings
         #     connect_args.update({
@@ -241,6 +256,13 @@ class DatabaseManager:
             If database doesn't exist and create=False, or if parent
             directory doesn't exist when require_existing_parent_dir=True.
         """
+
+        # Skip initialization for readonly databases - they must already exist
+        if self.config.readonly:
+            if self.config.db_type == "sqlite":
+                if not self.config.db_connection.db_path.exists():
+                    raise ValueError(f"Readonly database {self.config.db_connection.db_path} does not exist")
+            return
 
         if self.config.db_type == "sqlite":
             if not self.config.create and not database_exists(self.config.db_connection.connection_str):

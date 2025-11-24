@@ -86,6 +86,14 @@ class PostgresConnection(BaseModel):
         return (f"postgresql+psycopg://{self.user}:{self.password.get_secret_value()}@"
                 f"{self.host}:{self.port}/{self.name}")
 
+def platform_tables(table_type: str = "posts") -> list[str]:
+    if table_type == "posts":
+        return ["post", "user", "comment", "collection_task", "database_stats"]
+    elif table_type == "process":
+        return ["ppitem", "collection_task", "database_stats"]
+    else:  # anon
+        return ["anonymize", "database_stats"]
+
 
 class DBConfig(BaseModel):
     model_config = {'extra': "allow", "from_attributes": True}
@@ -96,7 +104,8 @@ class DBConfig(BaseModel):
     test_mode: bool = False
     require_existing_parent_dir: Optional[bool] = Field(True,
                                                         description="SQLITE: When the db is created, it requires an existing parent directory.")
-    tables: list[str]
+    tables: list[str] = Field(default_factory=platform_tables)
+    readonly: bool = False
 
     @property
     def connection_str(self) -> str:
@@ -118,10 +127,11 @@ class PlatformDBConfig(DBConfig):
     """Configuration for platform-specific databases with table type specification"""
     platform: str = Field(description="Platform name (e.g., 'tiktok', 'twitter', 'youtube')")
     table_type: Literal["posts", "process", "anon"] = Field(default="posts",
-                                                    description="Type of database: posts (content storage), process (task processing), or anon (anonymization)")
+                                                            description="Type of database: posts (content storage), process (task processing), or anon (anonymization)")
+
 
     @model_validator(mode="before")
-    def platform_tables(cls, values, info) -> list[str]:
+    def validate_tables(cls, values, info) -> list[str]:
         if not "table_type" in values:
             values["table_type"] = "posts"
 
@@ -129,13 +139,7 @@ class PlatformDBConfig(DBConfig):
             raise ValueError(f"'table_type' invalid, is '{values.get("table_type")}'")
 
         """Get constant tables based on table_type"""
-        if values["table_type"] == "posts":
-            values["tables"] = ["post", "user", "comment", "collection_task"]
-        elif values["table_type"] == "process":
-            values["tables"] = ["ppitem", "collection_task"]
-        else:  # anon
-            values["tables"] = ["anonymize", "database_stats"]
-
+        values["tables"] = platform_tables(values["table_type"])
         return values
 
 
