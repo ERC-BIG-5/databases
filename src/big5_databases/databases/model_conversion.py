@@ -176,6 +176,9 @@ class PostMediaMetadataModel(BaseModel):
     media_dl_failed: Optional[bool] = None
     download_ts: int = Field(description="timestamp")
     file_size: int = Field(description="in bytes")
+    transcription: Optional[str] = None
+    transcription_language: Optional[str] = None  # as detected by whisper...
+    transcription_error: Optional[bool] = None
 
     @property
     def mediafile_paths(self) -> list[Path]:
@@ -214,7 +217,7 @@ class PostMetadataModel(BaseModel):
     media_base_path: Optional[str] = None
     media_dl_failed: Optional[bool] = None
 
-    media: dict[str, PostMediaMetadataModel] = Field(default_factory=dict)
+    media: dict[str, PostMediaMetadataModel] = Field(default_factory=dict)  # keys: image, video
     # not sure where this is used
     post_exists: Optional[bool] = None
     labels: Optional[list[str]] = None
@@ -257,7 +260,7 @@ class PostModel(BaseDBModel):
     """Model for posts from any platform"""
     platform: str
     platform_id: Optional[str]
-    post_url: Optional[str] # because of weibo
+    post_url: Optional[str]  # because of weibo
     date_created: SerializableDatetimeAlways
     post_type: Annotated[PostType, PlainSerializer(lambda t: t.value, return_type=int, when_used='always')]
     content: dict
