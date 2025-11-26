@@ -18,7 +18,7 @@ from .db_models import DBCollectionTask, DBPost, CollectionResult, DBPostProcess
 from .db_settings import SqliteSettings
 from .external import CollectionStatus, DatabaseBasestats, TimeWindow, TimeColumn, DBStats
 from .external import PlatformDBConfig, SQliteConnection, ClientTaskConfig
-from .model_conversion import PostModel, PostProcessModel, PlatformDatabaseModel
+from .model_conversion import PostModel, PostProcessModel, PlatformDatabaseModel, DatabaseStatsModel
 
 logger = get_logger(__file__)
 
@@ -648,7 +648,7 @@ class PlatformDB(DatabaseManager):
     def _get_cached_stats(self) -> Optional[DBDatabaseStats]:
         """Get cached database statistics if available."""
         with self.get_session() as session:
-            return session.query(DBDatabaseStats).first()
+            return session.query(DBDatabaseStats).first().model()
 
     def _update_cached_stats(self, task_counts: dict[str, int], post_count: int) -> None:
         """Update or create cached database statistics."""
@@ -690,7 +690,7 @@ class PlatformDB(DatabaseManager):
             Object containing basic database statistics including task states,
             post count, file size, and last modified timestamp.
         """
-        cached_stats = self._get_cached_stats() if not force_refresh else None
+        cached_stats: DatabaseStatsModel = self._get_cached_stats() if not force_refresh else None
 
         if cached_stats and (not cached_stats.last_task_change or
                            cached_stats.last_calculated >= cached_stats.last_task_change):

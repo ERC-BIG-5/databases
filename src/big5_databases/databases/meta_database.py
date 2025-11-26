@@ -510,7 +510,7 @@ class MetaDatabase:
                    "path": str(db.db_path)}
             if db.exists():
                 # Use PlatformDB directly (inherits from DatabaseManager)
-                platform_db = self.get_platform_db(db)
+                platform_db = self.get_platform_db(db, readonly=no_refresh)
                 # running = platform_db._currently_open()
                 running = False
 
