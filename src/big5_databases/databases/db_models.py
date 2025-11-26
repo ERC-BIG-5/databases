@@ -175,6 +175,7 @@ class DBPostProcessItem(DBModelBase[PostProcessModel]):
     platform_id: Mapped[str] = mapped_column(String(50), nullable=False, unique=True)
     input: Mapped[dict] = mapped_column(JSON, nullable=False)
     output: Mapped[Optional[dict]] = mapped_column(JSON, nullable=True)
+    all_outputs: Mapped[Optional[dict]] = mapped_column(JSON, nullable=True)
 
     _pydantic_model = PostProcessModel
 
