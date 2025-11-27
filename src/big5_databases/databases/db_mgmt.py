@@ -285,21 +285,12 @@ class DatabaseManager:
                 db_path.parent.mkdir(parents=True, exist_ok=True)
                 # create an empty db file
                 create_database(self.engine.url)
-                # todo: should always have it. remove condition
-                if self.config.tables:
-                    # Base.metadata.create_all(self.engine)
-                    md = Base.metadata.tables
-                    # this could crash, if we pass a wrong table...
-                    tables = [md[table] for table in self.config.tables]
-                    self.logger.debug(f"Creating database tables: {tables}")
-                    Base.metadata.create_all(self.engine, tables=tables)
-                else:
-                    # no "platform_databases" for normal tables
-                    tables_: dict[str, Table] = dict(Base.metadata.tables)
-                    for table in ["platform_databases", "ppitem"]:
-                        if table in tables_:
-                            del tables_[table]
-                    Base.metadata.create_all(self.engine, tables=list(tables_.values()))
+
+            md = Base.metadata.tables
+            # this could crash, if we pass a wrong table...
+            tables = [md[table] for table in self.config.tables]
+            self.logger.debug(f"Creating database tables: {tables}")
+            Base.metadata.create_all(self.engine, tables=tables)
         else:
             PostgresConnection.model_validate(self.config)
             self._create_postgres_db()

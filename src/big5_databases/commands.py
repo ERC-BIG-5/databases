@@ -89,11 +89,33 @@ def posts_per_period(db_name: Annotated[str, typer.Argument(autocompletion=get_d
         json.dump(ppd, dump_to_file.open("w"))
 
 
+@app.command()
+def base_dbs_path() -> str:
+    p = SqliteSettings().default_sqlite_dbs_base_path
+    print(SqliteSettings().default_sqlite_dbs_base_path)
+    return str(p)
+
+
+def add_db_path_help() -> str:
+    return f"absolute path or path relative to: '{base_dbs_path()}'"
+
 @app.command(short_help="add a db-path to some metadatabase")
-def add(db_path: Annotated[str, typer.Argument()],
+def add(db_path: Annotated[str, typer.Argument(help=add_db_path_help())],
         platform: Annotated[str, typer.Argument()],
         name: Annotated[str, typer.Argument()],
         meta_db_path: Annotated[Optional[str], typer.Argument()] = None):
+    """
+    Parameters
+    ----------
+    db_path
+    platform
+    name
+    meta_db_path
+
+    Returns
+    -------
+
+    """
     pdb = PlatformDatabaseModel(platform=platform, name=name, db_path=Path(db_path))
     assert pdb.exists(), f"database at path: {db_path} does not exist"
     MetaDatabase(meta_db_path).add_db(pdb)
@@ -147,11 +169,6 @@ def get_missing_days(db_path1: Annotated[str, typer.Argument()],
                      db_path2: Annotated[str, typer.Argument()]):
     # db = DatabaseManager.sqlite_db_from_path(db_path)
     raise NotImplementedError
-
-
-@app.command()
-def base_dbs_path():
-    print(SqliteSettings().default_sqlite_dbs_base_path)
 
 
 @app.command()
