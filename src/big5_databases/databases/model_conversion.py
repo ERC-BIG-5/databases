@@ -175,12 +175,12 @@ class PostMediaMetadataModel(BaseModel):
     media_paths: Optional[list[str]] = None
     media_base_path: Optional[str] = None
     media_dl_failed: Optional[bool] = None
-    download_ts: int = Field(description="timestamp")
-    file_size: list[int] = Field(description="in bytes")
+    download_ts: Optional[int] = Field(None, description="timestamp")
+    file_size: Optional[list[int]] = Field(None,description="in bytes")
     transcription: Optional[str] = None
     transcription_language: Optional[str] = None  # as detected by whisper...
     transcription_error: Optional[bool] = None
-    audiotags: Optional[list[tuple[str, float]]]  # panns-inference
+    audiotags: Optional[list[tuple[str, float]]] = None # panns-inference
 
     @property
     def mediafile_paths(self) -> list[Path]:
