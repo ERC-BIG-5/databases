@@ -14,7 +14,8 @@ from tools.pydantic_annotated_types import SerializableDatetimeAlways
 from .db_settings import SqliteSettings
 from .external import CollectionStatus, ClientTaskConfig, MetaDatabaseContentModel, DatabaseRunState
 from .external import PostType
-from .model_conversion import CollectionTaskModel, PostModel, PlatformDatabaseModel, PostProcessModel, AnonymizeModel, DatabaseStatsModel
+from .model_conversion import CollectionTaskModel, PostModel, PlatformDatabaseModel, PostProcessModel, AnonymizeModel, \
+    DatabaseStatsModel, FollowingModel
 
 Base = declarative_base()
 
@@ -202,6 +203,20 @@ class DBDatabaseStats(DBModelBase[DatabaseStatsModel]):
     last_calculated: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=func.now())
 
     _pydantic_model = DatabaseStatsModel
+
+
+class DBFollowing(DBModelBase[FollowingModel]):
+    __tablename__ = "following"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    # follower: Mapped["DBUser"]
+    follower_id: Mapped[int] = mapped_column(ForeignKey("collection_task.id"), nullable=False)
+    followed_id: Mapped[int] = mapped_column(ForeignKey("collection_task.id"), nullable=False)
+
+    _pydantic_model = FollowingModel
+
+    __table_args__ = (
+        UniqueConstraint('follower_id', 'followed_id', name='unique_relationship'),
+    )
 
 
 M_DBPlatformDatabase = TypedDict("M_DBPlatformDatabase",

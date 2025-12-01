@@ -13,6 +13,7 @@ from .external import CollectionStatus, PostType, CollectConfig, MetaDatabaseCon
     DatabaseRunState
 
 if TYPE_CHECKING:
+    from .db_models import DBModelBase
     from .platform_db_mgmt import PlatformDB
     from .meta_database import get_platform_db, MetaDatabase
 
@@ -179,7 +180,7 @@ class PostMediaMetadataModel(BaseModel):
     transcription: Optional[str] = None
     transcription_language: Optional[str] = None  # as detected by whisper...
     transcription_error: Optional[bool] = None
-    audiotags: Optional[list[tuple[str,float]]] # panns-inference
+    audiotags: Optional[list[tuple[str, float]]]  # panns-inference
 
     @property
     def mediafile_paths(self) -> list[Path]:
@@ -364,3 +365,16 @@ class DatabaseStatsModel(BaseDBModel):
     post_count: int
     last_task_change: Optional[SerializableDatetimeAlways] = None
     last_calculated: SerializableDatetimeAlways
+
+
+class FollowingModel(BaseDBModel):
+    follower_id: int
+    followed_id: int
+
+    @property
+    def follower(self) -> int:
+        return self.follower_id
+
+    @property
+    def followed(self) -> int:
+        return self.followed_id

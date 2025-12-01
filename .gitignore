@@ -2,3 +2,4 @@
 /src/big5_databases.egg-info/
 /build
 /.idea
+/test_data/

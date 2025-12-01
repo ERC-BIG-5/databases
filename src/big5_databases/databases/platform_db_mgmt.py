@@ -8,13 +8,13 @@ from deprecated.classic import deprecated
 from sqlalchemy import exists
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
-from sqlalchemy.sql.expression import delete, update
+from sqlalchemy.sql.expression import delete, update, insert
 from tools.project_logging import get_logger
 
 from . import db_analytics, db_operations
 from .db_analytics import get_posts_by_period
 from .db_mgmt import DatabaseManager
-from .db_models import DBCollectionTask, DBPost, CollectionResult, DBPostProcessItem, DBDatabaseStats
+from .db_models import DBCollectionTask, DBPost, CollectionResult, DBPostProcessItem, DBDatabaseStats, DBFollowing
 from .db_settings import SqliteSettings
 from .external import CollectionStatus, DatabaseBasestats, TimeWindow, TimeColumn, DBStats
 from .external import PlatformDBConfig, SQliteConnection, ClientTaskConfig
@@ -126,8 +126,6 @@ class PlatformDB(DatabaseManager):
         # todo: there should also be task-tables for ppitem tables.
         self.table_type = getattr(config, 'table_type', 'posts')
         config.tables = config.tables
-
-
         # todo also based on the table_type save the according models. Use generics on the class for the DBModel and pydantic model
 
         super().__init__(config)
@@ -813,3 +811,27 @@ class PlatformDB(DatabaseManager):
             db_path=self.path,
             name=db_name
         )
+
+
+    def safe_insert_following_data(self, following_data: list[tuple[int,int]]) -> None:
+        """
+
+        Parameters
+        ----------
+        following_data
+            list of tuples: follower, followed
+
+
+        Returns
+        -------
+
+        """
+        with self.get_session() as session:
+            # session.bulk_save_objects([
+            #     DBFollowing(follower_id=a,followed_id=b) for (a,b) in following_data
+            # ])
+
+            stmt = insert(DBFollowing).prefix_with('OR IGNORE').values([
+                {'follower_id': a, 'followed_id': b} for (a, b) in following_data
+            ])
+            res = session.execute(stmt)

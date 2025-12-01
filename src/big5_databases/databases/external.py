@@ -88,7 +88,7 @@ class PostgresConnection(BaseModel):
 
 def platform_tables(table_type: str = "posts") -> list[str]:
     if table_type == "posts":
-        return ["post", "user", "comment", "collection_task", "database_stats"]
+        return ["post", "user", "comment", "collection_task", "database_stats", "following"]
     elif table_type == "process":
         return ["ppitem", "collection_task", "database_stats"]
     else:  # anon
@@ -150,7 +150,6 @@ class ClientConfig(BaseModel):
     delay_randomize: Optional[int] = Field(0, description="Additional random delay (0-`value`")
     max_tasks: Optional[int] = Field(None, description="Maximum number of tasks to run")
     progress: bool = Field(True, description="If platform should process tasks or not")
-    max_tasks: Optional[int] = None
 
 
 class ClientSetup(BaseModel):
